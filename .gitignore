@@ -1,0 +1,23 @@
+node_modules/
+data/
+bin/
+cache/
+# test leftovers and local-only files
+received.mp3
+*.log
+interface-server/data/
+app/tmp-userdata/
+.claude/
+# Not published: only the desktop app is in this repository.
+/engine/
+/web/
+/station/
+/interface-server/
+/test/
+/userscript/
+/SETUP.md
+/docs/station.md
+/package.json
+/package-lock.json
+/start.bat
+/start.sh

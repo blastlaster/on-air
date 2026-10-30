@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On Air — Stations</title>
+<link rel="stylesheet" href="add.css">
+</head>
+<body>
+<main>
+  <img class="logo" src="icons/icon.png" alt="">
+  <h1>On Air</h1>
+  <p class="lead">Listen from your tray, get an alert when the show goes live, and chat, request and call in — without opening a browser.</p>
+
+  <section id="saved" hidden>
+    <h2>Your stations</h2>
+    <ul id="list"></ul>
+  </section>
+
+  <form id="add">
+    <h2 id="addTitle">Add a station</h2>
+    <label for="url">The station's page — the address listeners open</label>
+    <div class="row">
+      <input id="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="esfores.neocities.org" required>
+      <button id="go">Add</button>
+    </div>
+    <p class="err" id="err" role="alert" hidden></p>
+  </form>
+
+  <p class="back"><button type="button" id="back" hidden>← Back to the station</button></p>
+</main>
+<script src="add.js"></script>
+</body>
+</html>

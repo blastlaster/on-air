@@ -1,0 +1,166 @@
+/* =============================================================
+   THE APP'S LOOK — every window is drawn from the same --sk-*
+   values as the station page's looks (skins.css, synced from the
+   page). With no look picked, the FunpostFM colours below.
+   Lightweight: no animation at all unless Effects asks for it.
+   ============================================================= */
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+[hidden] { display: none !important; }
+/* With no look picked: FunpostFM's own colours. A look sets its own (skins.css). */
+body:not(.skinned), body.skin-hud {
+    --sk-bg: linear-gradient(160deg, #2a0b4d, #160530);
+    --sk-text: #f3eaff; --sk-font: "Segoe UI", "Trebuchet MS", sans-serif; --sk-title-font: "Segoe UI", "Trebuchet MS", sans-serif;
+    --sk-head-bg: linear-gradient(90deg, #ff2fa8, #7b3cff 55%, #00c2ff); --sk-head-text: #fff;
+    --sk-panel-bg: rgba(24, 7, 48, 0.94); --sk-panel-text: #f3eaff; --sk-radius: 12px;
+    --sk-panel-border: 1px solid rgba(255, 255, 255, 0.22); --sk-panel-shadow: none;
+    --sk-title-text: #ffd6f5; --sk-glow: 0 0 8px rgba(255, 79, 216, 0.55);
+    --sk-btn-bg: rgba(255, 255, 255, 0.08); --sk-btn-text: #fff; --sk-btn-radius: 8px; --sk-btn-border: 1px solid rgba(255, 255, 255, 0.25); --sk-btn-shadow: none;
+    --sk-btn-active: linear-gradient(135deg, #ff2fa8, #00c2ff); --sk-btn-active-text: #fff;
+    --sk-card-bg: rgba(255, 255, 255, 0.06); --sk-card-text: #f3eaff; --sk-card-border: 1px solid rgba(255, 255, 255, 0.12);
+    --sk-accent: #ff4fd8; --sk-dim: #b9a6d9; --sk-led-bg: #12021f; --sk-hover: #00e0ff;
+    --sk-input-bg: rgba(0, 0, 0, 0.35); --sk-input-text: #fff; --sk-msg-bg: rgba(255, 255, 255, 0.05);
+}
+/* What a look may leave out */
+body.skinned { --sk-glow: none; --sk-btn-shadow: none; --sk-head-shadow: none; }
+body {
+    --bar-bg: var(--sk-head-bg); --bar-text: var(--sk-head-text);
+    --hd: var(--sk-title-text); --ln: var(--sk-accent);     /* headings and links on the window itself */
+    --fs: 14px;
+    font-family: var(--sk-font); font-size: var(--fs); color: var(--sk-panel-text);
+    -webkit-font-smoothing: antialiased;
+}
+body.font-small { --fs: 12px; } body.font-large { --fs: 16px; } body.font-huge { --fs: 19px; }
+
+/* Title bars look like each look's window titles, not its page header */
+body.skin-win95 { --bar-bg: linear-gradient(90deg, #000080, #1084d0); --bar-text: #fff; }
+body.skin-winxp { --bar-bg: linear-gradient(180deg, #2b7bf0, #0a4fc7 55%, #0b3fa8); --bar-text: #fff; }
+body.skin-macos { --bar-bg: repeating-linear-gradient(180deg, #000 0 1px, #fff 1px 3px); --bar-text: #000; }
+body.skin-netscape { --bar-bg: linear-gradient(180deg, #000080, #1084d0); --bar-text: #fff; }
+body.skin-teletext { --bar-bg: #ffff00; --bar-text: #000; }
+body.skin-japanese { --bar-bg: linear-gradient(180deg, #23305a, #172242); --bar-text: #f7f1e3; }
+body.skin-chinese { --bar-bg: linear-gradient(180deg, #a3131a, #7a0d0d); --bar-text: #ffd76a; }
+body.skin-macos .bar .t { background: #fff; padding: 0 6px; }
+/* Looks whose title colour is made for a title bar: headings in the window need their own */
+body.skin-win95 { --hd: #000080; } body.skin-winxp { --hd: #0a4fc7; } body.skin-teletext { --hd: #ffff00; }
+body.skin-chinese { --ln: #b3121b; }
+
+/* HUD: only the words float over whatever is behind the window */
+body.skin-hud {
+    --sk-panel-bg: rgba(0, 0, 0, 0.22); --sk-panel-text: #fff; --sk-panel-border: 1px solid rgba(255, 255, 255, 0.10); --sk-radius: 10px;
+    --sk-title-text: #fff; --sk-btn-bg: rgba(0, 0, 0, 0.35); --sk-btn-border: 1px solid rgba(255, 255, 255, 0.25); --sk-btn-text: #fff;
+    --sk-card-bg: rgba(0, 0, 0, 0.25); --sk-card-border: 1px solid rgba(255, 255, 255, 0.08); --sk-card-text: #fff;
+    --sk-accent: #7dfff2; --sk-dim: #d0d0d0; --sk-input-bg: rgba(0, 0, 0, 0.45); --sk-msg-bg: rgba(0, 0, 0, 0.3); --sk-led-bg: transparent;
+    --bar-bg: rgba(0, 0, 0, 0.35); --bar-text: #fff; --sk-glow: none;
+}
+body.skin-hud .frame { text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+body.skin-hud .bar { opacity: 0.25; transition: opacity 0.2s; }
+body.skin-hud .frame:hover .bar, body.skin-hud.rolled .bar { opacity: 1; }
+
+/* ---------- the window ---------- */
+.frame {
+    position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+    background: var(--sk-panel-bg); color: var(--sk-panel-text);
+    border: var(--sk-panel-border); border-radius: var(--sk-radius); box-shadow: var(--sk-panel-shadow);
+}
+body.skin-win95 .frame { border-color: #dfdfdf #000 #000 #dfdfdf; }
+.bar {
+    flex: none; height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 3px 0 8px;
+    background: var(--bar-bg); color: var(--bar-text); font-family: var(--sk-title-font); font-weight: bold; font-size: 13px;
+    -webkit-app-region: drag; user-select: none; cursor: default;
+}
+.bar .ic { font-size: 14px; }
+.bar .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar button {
+    -webkit-app-region: no-drag; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 5px;
+    background: transparent; color: inherit; font: inherit; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0.85;
+}
+.bar button:hover { background: rgba(255, 255, 255, 0.22); opacity: 1; }
+.bar button.x:hover { background: #e81123; color: #fff; }
+body.skin-win95 .bar button, body.skin-netscape .bar button {
+    width: 18px; height: 16px; background: #c0c0c0; color: #000; border-radius: 0; font-size: 10px; opacity: 1;
+    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #fff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf;
+}
+.bar.flash { animation: barFlash 0.9s steps(2) 4; }
+@keyframes barFlash { 50% { filter: invert(1) hue-rotate(180deg); } }
+.body { flex: 1; min-height: 0; overflow: auto; padding: 10px; box-sizing: border-box; }
+body.rolled .body, body.rolled .grip { display: none; }
+.grip {
+    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 5;
+    background: linear-gradient(135deg, transparent 50%, var(--sk-dim) 50% 58%, transparent 58% 68%, var(--sk-dim) 68% 76%, transparent 76%);
+    opacity: 0.6;
+}
+.grip:hover { opacity: 1; }
+
+/* ---------- the parts ---------- */
+h3 { margin: 0 0 6px; font-size: 0.95em; color: var(--hd); font-family: var(--sk-title-font); text-shadow: var(--sk-glow, none); }
+.dim { color: var(--sk-dim); }
+.hint { color: var(--sk-dim); font-size: 0.85em; margin: 4px 0; }
+.btn, button.act {
+    font: inherit; font-size: 0.92em; padding: 5px 11px; cursor: pointer;
+    background: var(--sk-btn-bg); color: var(--sk-btn-text); border: var(--sk-btn-border);
+    border-radius: var(--sk-btn-radius, 6px); box-shadow: var(--sk-btn-shadow, none);
+}
+.btn:hover, button.act:hover { filter: brightness(1.15); }
+.btn.on, .btn.go, button.act-go { background: var(--sk-btn-active); color: var(--sk-btn-active-text, var(--sk-btn-text)); }
+.btn:disabled, button.act:disabled { opacity: 0.5; cursor: default; filter: none; }
+.btn.bad { background: #c8102e; color: #fff; }
+input, textarea, select {
+    font: inherit; box-sizing: border-box; padding: 6px 8px; width: 100%;
+    background: var(--sk-input-bg); color: var(--sk-input-text); border: var(--sk-btn-border); border-radius: var(--sk-btn-radius, 6px);
+}
+input[type=checkbox], input[type=radio], input[type=range] { width: auto; }
+input[type=range] { accent-color: var(--sk-accent); }
+.card { background: var(--sk-card-bg); color: var(--sk-card-text); border: var(--sk-card-border); border-radius: calc(var(--sk-radius) / 2); padding: 8px; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; gap: 8px; align-items: center; padding: 5px 2px; border-bottom: 1px solid rgba(127, 127, 127, 0.18); }
+.thumb { width: 34px; height: 34px; border-radius: 4px; object-fit: cover; flex: none; background: rgba(127, 127, 127, 0.2); }
+.grow { flex: 1; min-width: 0; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { display: inline-block; font-size: 0.75em; padding: 0 5px; border-radius: 4px; background: var(--sk-accent); color: #000; margin-left: 4px; vertical-align: middle; }
+.nsfw { background: #d10032; color: #fff; font-weight: bold; }
+a { color: var(--ln); }
+a:hover { color: var(--sk-hover, var(--ln)); }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, 0.45); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+.empty { text-align: center; color: var(--sk-dim); padding: 20px 8px; }
+
+/* toasts and the one dialog */
+.toast {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 88%; z-index: 20;
+    background: rgba(10, 4, 22, 0.92); color: #fff; padding: 7px 12px; border-radius: 8px; font-size: 0.88em;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.toast.show { opacity: 1; }
+.sheet { position: fixed; inset: 30px 0 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 15; }
+.sheet[hidden] { display: none; }
+.sheet-card { width: min(92%, 420px); max-height: calc(100% - 20px); overflow: auto; box-sizing: border-box; background: var(--sk-panel-bg); color: var(--sk-panel-text); border: var(--sk-panel-border); border-radius: var(--sk-radius); padding: 14px; }
+.sheet-card h2 { margin: 0 0 8px; font-size: 1.1em; color: var(--sk-title-text); }
+.sheet-card form > * + * { margin-top: 8px; }
+
+/* ---------- Effects (Settings → Effects): Mid adds motion, Advanced adds backdrops ---------- */
+body.fx-mid .btn, body.fx-adv .btn, body.fx-mid .side button, body.fx-adv .side button { transition: transform 0.12s, filter 0.2s, box-shadow 0.2s; }
+body.fx-mid .btn:active, body.fx-adv .btn:active { transform: scale(0.96); }
+body.fx-mid:not(.skinned) .bar, body.fx-adv:not(.skinned) .bar { background-size: 200% 100%; animation: barFlow 12s ease-in-out infinite alternate; }
+@keyframes barFlow { to { background-position: 100% 0; } }
+body.fx-mid.skin-glitch .bar .t, body.fx-adv.skin-glitch .bar .t { animation: glitchText 3.2s steps(1) infinite; }
+@keyframes glitchText {
+    0%, 85%, 100% { transform: none; clip-path: none; }
+    87% { transform: translateX(3px); clip-path: inset(8% 0 48% 0); text-shadow: -4px 0 #ff004c, 3px 0 #00e5ff; }
+    89% { transform: translateX(-4px); clip-path: inset(52% 0 6% 0); text-shadow: 4px 0 #ff004c, -3px 0 #00e5ff; }
+}
+body.fx-mid.skin-synthwave .bar .t, body.fx-adv.skin-synthwave .bar .t, body.fx-mid:not(.skinned) .bar .t { text-shadow: 0 0 6px rgba(255, 255, 255, 0.7); }
+.frame::after { content: ''; position: absolute; inset: 0; pointer-events: none; display: none; border-radius: inherit; }
+body.fx-adv:is(.skin-matrix, .skin-amber, .skin-dos, .skin-c64, .skin-teletext, .skin-glitch) .frame::after {
+    display: block; background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+}
+body.fx-adv.skin-starry .frame::after, body.fx-adv:not(.skinned) .frame::after {
+    display: block; opacity: 0.6;
+    background: radial-gradient(1.5px 1.5px at 30px 50px, #fff, transparent) 0 0 / 150px 150px,
+                radial-gradient(2px 2px at 110px 20px, #ffe6c7, transparent) 0 0 / 230px 230px,
+                radial-gradient(1.5px 1.5px at 60px 160px, #e2d9ff, transparent) 0 0 / 190px 190px;
+    animation: twinkle 3.6s ease-in-out infinite;
+}
+@keyframes twinkle { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

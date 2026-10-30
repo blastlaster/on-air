@@ -1,0 +1,54 @@
+/* The radio: now playing on one side, its windows' buttons on the other. */
+.body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.radio { flex: 1; min-width: 0; min-height: 0; display: flex; gap: 8px; }
+body.side-left .side { order: -1; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.np { display: flex; gap: 10px; align-items: center; min-height: 0; }
+.art { width: 74px; height: 74px; flex: none; border-radius: calc(var(--sk-radius) / 2); object-fit: cover; border: var(--sk-card-border); background: var(--sk-card-bg); }
+.np-text { flex: 1; min-width: 0; }
+.live-line { display: flex; align-items: center; gap: 6px; font-size: 0.82em; margin-bottom: 3px; }
+.light { width: 9px; height: 9px; border-radius: 50%; background: #4ecdff; box-shadow: 0 0 6px currentColor; flex: none; }
+.light.live { background: #ff3d6e; }
+body.fx-mid .light.live { animation: livePulse 1.6s ease-in-out infinite; }
+@keyframes livePulse { 50% { opacity: 0.35; } }
+.state { font-weight: bold; text-transform: uppercase; letter-spacing: 0.04em; }
+.count { margin-left: auto; white-space: nowrap; }
+.np-main { font-weight: bold; font-size: 1.08em; color: var(--hd); text-shadow: var(--sk-glow, none); }
+.np-sub { font-size: 0.9em; margin-top: 1px; }
+.prog { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 0.75em; color: var(--sk-dim); }
+.prog b { flex: 1; height: 4px; border-radius: 2px; background: rgba(127, 127, 127, 0.3); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--ln); }
+.controls { display: flex; align-items: center; gap: 8px; }
+.play {
+    width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer;
+    background: var(--sk-btn-active); color: var(--sk-btn-active-text, #fff); border: var(--sk-btn-border); box-shadow: var(--sk-btn-shadow, none);
+}
+body.skin-win95 .play, body.skin-netscape .play, body.skin-dos .play, body.skin-teletext .play { border-radius: 0; }
+.play svg { width: 18px; height: 18px; fill: currentColor; }
+.vol { flex: 1; min-width: 50px; }
+.vote { display: flex; gap: 4px; }
+.vote button { font: inherit; font-size: 0.85em; padding: 2px 6px; cursor: pointer; background: var(--sk-btn-bg); color: var(--sk-btn-text); border: var(--sk-btn-border); border-radius: var(--sk-btn-radius, 6px); }
+.vote.done button { opacity: 0.45; }
+.extra:empty { display: none; }
+.extra { font-size: 0.84em; display: flex; flex-direction: column; gap: 4px; }
+.extra .line { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 6px; background: var(--sk-card-bg); border: var(--sk-card-border); color: var(--sk-card-text); }
+.extra .line button { font: inherit; padding: 0 5px; cursor: pointer; background: none; border: 0; color: inherit; }
+.extra .line.call { background: #a3001f; color: #fff; }
+/* The sign runs the whole width of the radio, under the player and the buttons */
+.led { height: 30px; flex: none; border-radius: 4px; overflow: hidden; background: var(--sk-led-bg); position: relative; }
+
+/* Buttons in full: as many columns as it takes to show them all, no scrolling */
+.side { flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 4px; overflow: hidden; }
+.side button {
+    position: relative; display: flex; align-items: center; gap: 5px; padding: 3px 5px; cursor: pointer; text-align: left;
+    font: inherit; font-size: 0.78em; background: var(--sk-btn-bg); color: var(--sk-btn-text);
+    border: var(--sk-btn-border); border-radius: var(--sk-btn-radius, 6px); box-shadow: var(--sk-btn-shadow, none);
+}
+.side button .e { font-size: 1.15em; }
+.side button .l { white-space: nowrap; }
+.side button.open { background: var(--sk-btn-active); color: var(--sk-btn-active-text, var(--sk-btn-text)); }
+.side button.tucked { box-shadow: inset 0 -3px 0 var(--sk-accent); }
+.side button.new::after, .side button.pulse::after { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #ff3d6e; }
+.side button:hover { filter: brightness(1.15); }
+body.narrow .side .l { display: none; }
+body.short .art { width: 52px; height: 52px; }

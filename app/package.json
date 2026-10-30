@@ -1,0 +1,90 @@
+{
+  "name": "on-air-app",
+  "productName": "On Air",
+  "version": "0.4.1",
+  "description": "The radio on your desktop: a small player with the station’s chat, requests, call-in, sign, albums, board and video as windows you arrange yourself.",
+  "main": "main.js",
+  "type": "commonjs",
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "blastlaster",
+    "email": "blastlaster@users.noreply.github.com"
+  },
+  "scripts": {
+    "start": "electron .",
+    "icons": "node make-icons.js",
+    "test": "node --test test/watch.test.js",
+    "dist:win": "node sync-skins.js && electron-builder --win",
+    "dist:linux": "node sync-skins.js && electron-builder --linux",
+    "skins": "node sync-skins.js"
+  },
+  "build": {
+    "appId": "org.onair.app",
+    "productName": "On Air",
+    "files": [
+      "main.js",
+      "preload.js",
+      "watch.js",
+      "userscripts.js",
+      "board-preload.js",
+      "updates.js",
+      "ui/**",
+      "icons/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "On-Air-Setup.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "icons/icon.png",
+      "category": "Audio",
+      "artifactName": "On-Air-${arch}.${ext}",
+      "maintainer": "blastlaster <blastlaster@users.noreply.github.com>"
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libsecret-1-0"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "blastlaster",
+        "repo": "on-air",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blastlaster/on-air.git"
+  },
+  "homepage": "https://github.com/blastlaster/on-air"
+}

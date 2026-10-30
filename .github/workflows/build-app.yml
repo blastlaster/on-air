@@ -1,0 +1,42 @@
+# Builds the On Air desktop app for Windows and Linux on GitHub's own
+# machines (free for public repositories) and publishes a release with
+# the installers. The app's updater reads that release (latest.yml,
+# latest-linux.yml), so everyone gets the new version.
+#
+# To release: bump "version" in app/package.json, commit, then push a
+# matching tag:  git tag v0.3.8 && git push origin v0.3.8
+name: Build the On Air app
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false            # one platform failing doesn't cancel the other
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      # On a tag: build and publish to the release for that version (both jobs add to the same one).
+      - run: npx electron-builder ${{ matrix.target }} --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
