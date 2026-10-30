@@ -96,6 +96,11 @@ npm run dist:linux        # AppImage + .deb in app/dist (on Linux)
 npm run dist:win          # On-Air-Setup.exe in app/dist (on Windows)
 ```
 
+**A station of your own:** this repository is the app only. [CLAUDE.md](CLAUDE.md)
+describes everything the app expects from a station backend — point Claude
+Code at this folder and ask it to build one around your own station; it asks
+for your details as it goes.
+
 **Releasing:** bump `version` in `app/package.json`, commit, and push a tag
 like `v0.4.2`. GitHub Actions builds Windows and Linux and publishes the
 release, and every installed app updates itself from it.
