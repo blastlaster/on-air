@@ -107,6 +107,14 @@ seconds). Click the notification to start listening. It works with the app
 closed to the tray — tick **Start with the computer** and it stays there,
 quietly. Switch alerts off in Settings or the tray.
 
+**On Windows, check that pop-ups are allowed** — Windows can hide every app's
+notifications, and then the ping arrives but never shows:
+
+1. Open **Settings → System → Notifications** (Windows 10: *Notifications & actions*).
+2. Turn on **Get notifications from apps and other senders**.
+3. In the list below it, make sure **On Air** is on (it appears after the first alert).
+4. Turn off **Focus assist** (Windows 10) or **Do not disturb** (Windows 11), or add On Air to its priority list.
+
 ## The board and its scripts
 
 The board opens in a real browser view, so the site sees an ordinary visit:
@@ -206,7 +214,7 @@ station that runs them elsewhere names it as
 
 | | |
 |---|---|
-| **No pop-ups for pings** | Windows: Settings → System → Notifications → **On Air** must be on, and Focus Assist / Do Not Disturb off. Check Settings → Alerts in the app. |
+| **No pop-ups for pings** | Windows: Settings → System → Notifications → **Get notifications from apps and other senders** on, **On Air** on, Focus assist / Do not disturb off ([details](#live-alerts-and-pings)). Check Settings → Alerts in the app. |
 | **"Windows protected your PC"** | More info → Run anyway (the app isn't code-signed yet). |
 | **A window is off-screen** | Tray → Put the windows back on screen. |
 | **The board looks stuck** | ⟳ in its bar, or tray → Reload. |

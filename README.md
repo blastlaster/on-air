@@ -52,6 +52,11 @@ in, request songs, play the albums — and do things a web page can't.
 Windows will say *"Windows protected your PC"* the first time — the app isn't
 code-signed yet — click **More info → Run anyway**.
 
+> **📣 Not getting pings?** Windows can hide every app's pop-ups. Open
+> **Settings → System → Notifications** (Windows 10: *Notifications & actions*),
+> turn on **Get notifications from apps and other senders**, make sure **On Air**
+> is on in the list below it, and turn off **Focus assist** / **Do not disturb**.
+
 ➡ **[The full guide to the app](docs/desktop-app.md)**
 
 ---
