@@ -43,6 +43,12 @@
     /* ---------- where things are ---------- */
     let station = {}, extras = {}, ENGINE = '', POINTER = '', SITE = '';
     let engineUp = false, status = null, panelNow = null, panelLiveDj = '', forecast = [];
+    // The panel's forecast follows the playlist's order; a shuffled AutoDJ never
+    // keeps to it. Show it only once a prediction has come true, and drop it at
+    // the first one that doesn't.
+    let forecastOk = false, lastSong = '';
+    const forecastNext = new Set();     // what it said would come next, during this song
+    const songKey = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
     let ws = null, wsWait = 1000, retryT = null;
     let clockSkew = 0;
     const serverNow = () => Date.now() + clockSkew;
@@ -202,6 +208,7 @@
                     combined: pick(t, ['metadata', 'display', 'text'])
                 };
             }).filter(x => x.title || x.combined).slice(0, 10);
+            if (list[0]) forecastNext.add(songKey(list[0].title || list[0].combined));
             if (!sameJSON(list, forecast)) { forecast = list; render(); }
         }).catch(() => {});
     }
@@ -248,6 +255,14 @@
         } else {
             main = station.tagline || (station.name ? 'Music around the clock' : 'Tuning in…');
         }
+        if (!live && track && track.title) {
+            const k = songKey(track.title);
+            if (k !== lastSong) {
+                if (lastSong && forecastNext.size) forecastOk = [...forecastNext].some(f => f === k || (f.length > 3 && k.includes(f)));
+                forecastNext.clear();
+                lastSong = k;
+            }
+        }
         const n = live ? status.listeners : (a && typeof a.listeners === 'number' ? a.listeners : (status ? status.listeners : null));
         const played = (live ? (status.history || []) : (a ? a.recent : [])).map((h) => ({
             title: h.title || '', artist: h.artist || '', img: artUrl(h.art || h.img), at: h.at || 0, requestedBy: h.requestedBy || ''
@@ -263,7 +278,7 @@
             canVote: !!(track && track.id && panel() && !live),
             onLine: live ? (status.onAir || []).filter(p => p.lane !== 'host').map(p => ({ name: p.name, color: p.color })) : [],
             listeners: typeof n === 'number' ? n : null,
-            played, comingUp: live ? [] : forecast,
+            played, comingUp: live || !forecastOk ? [] : forecast,
             chatMode: live || !room ? (engineUp ? 'station' : 'none') : 'chattable', room,
             requestMode: requestMode(), requestKind: live || (engineUp && requestMode() === 'station') ? (status && status.requests) : 'autodj',
             callsOpen: !!(live && status.callsOpen && LT.callSupported && LT.callSupported()),
