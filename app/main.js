@@ -38,6 +38,10 @@ const { resolveStation, Watcher } = require('./watch');
 
 // A tapped alert should start the show without a second click.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// The TV decodes in software on Windows: with several of our see-through windows open, the
+// graphics chip's video decoder stalls (the stream "buffers" with seconds of video in hand).
+// A small live stream is light work for any processor.
+if (process.platform === 'win32') app.commandLine.appendSwitch('disable-accelerated-video-decode');
 if (process.platform === 'win32') app.setAppUserModelId('org.onair.app');     // Windows needs it for notifications
 if (process.env.ONAIR_USERDATA) app.setPath('userData', process.env.ONAIR_USERDATA);   // tests use their own
 
@@ -599,7 +603,11 @@ function webRules() {
     const s = session.defaultSession;
     const fresh = new Set(['mainFrame', 'subFrame', 'script', 'stylesheet', 'xhr']);
     const fromApp = (d) => { try { return !!(d.webContents && isOurs(d.webContents.getURL())); } catch { return false; } };
-    s.webRequest.onBeforeSendHeaders({ urls: ['http://*/*', 'https://*/*'] }, (d, cb) => {
+    // Only the requests these rules are for: every request through here waits on this
+    // process, and a video's stream of chunks must never queue behind it (the TV buffered).
+    const o = stationOrigin();
+    const urls = ['https://www.youtube.com/embed/*', 'https://www.youtube-nocookie.com/embed/*'].concat(o ? [o + '/*'] : []);
+    s.webRequest.onBeforeSendHeaders({ urls }, (d, cb) => {
         const h = d.requestHeaders;
         // The station's own files: always the current copy (static hosts send no caching rules).
         if (fresh.has(d.resourceType) && stationOrigin() && originOf(d.url) === stationOrigin()) h['Cache-Control'] = 'max-age=0';
@@ -692,6 +700,7 @@ function tip(title, body) {
 
 /* ---------- watching for live shows ---------- */
 function startWatch() {
+    if (app.isReady()) webRules();       // the station's address is in the rules
     if (watcher) watcher.stop();
     watcher = null; watchState = null;
     const st = station();
@@ -1058,6 +1067,19 @@ function smoke() {
             console.log('[check]', id, 'pid', w.webContents.getOSProcessId(), JSON.stringify(r));
         }
     }, Number(E.ONAIR_SMOKE_CHECK_AT) || 11000);
+    // A busy main process (ONAIR_SMOKE_BUSY = ms of every second): what has to keep going regardless.
+    if (E.ONAIR_SMOKE_BUSY) setInterval(() => { const t = Date.now() + Number(E.ONAIR_SMOKE_BUSY); while (Date.now() < t) { /* busy */ } }, 1000);
+    // The same, inside the frames of every window (the TV's player, say), every ONAIR_SMOKE_FRAMES_EVERY ms.
+    if (E.ONAIR_SMOKE_FRAMES_JS) setInterval(async () => {
+        for (const [id, w] of [['radio', win], ...elWins]) {
+            if (!w || w.isDestroyed()) continue;
+            for (const f of w.webContents.mainFrame.framesInSubtree) {
+                if (f === w.webContents.mainFrame) continue;
+                const r = await f.executeJavaScript(E.ONAIR_SMOKE_FRAMES_JS).catch(e => 'error: ' + e.message);
+                console.log('[frame]', id, f.origin, JSON.stringify(r));
+            }
+        }
+    }, Number(E.ONAIR_SMOKE_FRAMES_EVERY) || 5000);
     if (E.ONAIR_SMOKE_STATIONS) setTimeout(showStations, 6000);
     if (E.ONAIR_SMOKE_BOARD_JS) setTimeout(async () => {
         if (!boardView) return console.log('[board] no view');

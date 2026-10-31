@@ -75,6 +75,8 @@ ONAIR_SMOKE=20000 ONAIR_USERDATA=./tmp-userdata ONAIR_STATION=esfores.neocities.
 | `ONAIR_SMOKE_SHOT=dir` | A picture of each window (`ONAIR_SMOKE_SHOT_AT`), plus `board-view.png`. |
 | `ONAIR_SMOKE_CHECK=js` | Run JS in every window and print the result (`ONAIR_SMOKE_CHECK_AT`). |
 | `ONAIR_SMOKE_BOARD_JS=js` | Run JS in the board's view (`ONAIR_SMOKE_BOARD_AT`). |
+| `ONAIR_SMOKE_FRAMES_JS=js` | Run JS in every window's frames — the TV's YouTube player, say — every `ONAIR_SMOKE_FRAMES_EVERY` ms. |
+| `ONAIR_SMOKE_BUSY=ms` | Keep the main process busy that long every second. |
 | `ONAIR_EXTRAS=file` | Use this extras.json instead of the published one. |
 | `ONAIR_STATION=address` | A station to add on a fresh profile (a page, a pointer, or an engine). |
 
