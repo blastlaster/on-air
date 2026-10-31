@@ -35,7 +35,8 @@ in, request songs, play the albums — and do things a web page can't.
 
 - **📣 A ping when the station goes live** — and whenever the host presses 📣 Ping, live or not. No account, no push service: the app watches the station itself.
 - **🗂️ Every part in its own window.** Chat, Request, Playlist, Call in, Sign, Albums, Board, TV, Links, Settings. Move them, size them, roll them up to their title bar, tuck them into the radio, keep any of them on top. They remember where they were, and bringing the radio forward brings them all with it.
-- **🎨 18 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese and Starry — and a see-through **HUD** that leaves only the words.
+- **🎨 25 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese and Starry — and a see-through **HUD** that leaves only the words.
+- **🎃 Holiday looks**, like the board's one-day-a-year themes: **Spooky** on Halloween (with a dancing skeleton), party hats for **4chan's birthday** (Oct 1) and **[s4s]'s birthday** (Apr 1), snow for **Crimbus**, plus New Year, Valentine's and St Patrick's. The app dresses up by itself on the day; wear them any day you like.
 - **📞 Call the show** or leave a voicemail, right from the desktop.
 - **📀 Albums**: play them in the app or download them to a folder.
 - **📋 The board** as a real browser view — the captcha works, so you can post — with your own **userscripts** (Tampermonkey-style).

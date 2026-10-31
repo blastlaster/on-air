@@ -741,6 +741,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         const els = ELEMENTS.filter(e => !e.always && (!e.secret || UI.info.ui.ifaceOn));
         box.innerHTML =
             '<section><h3>Look</h3><div class="skin-grid">' + skins.map(s => '<button type="button" class="btn" data-skin="' + esc(s.id) + '"><span class="sw" style="background:' + esc(s.swatch) + '"></span>' + esc(s.name) + '</button>').join('') + '</div>' +
+            '<label><input type="checkbox" data-ui="holidays"> Holiday looks on their day — Spooky on Halloween, Crimbus, the board’s birthdays and more (pick any look that day to skip it)</label>' +
             '<p class="hint">Right-click any window’s title for its own look, text size, see-through and always-on-top.</p></section>' +
             '<section><h3>Effects</h3><div class="row seg" data-set="fx"><button type="button" class="btn" data-v="simple">Simple</button><button type="button" class="btn" data-v="mid">Mid</button><button type="button" class="btn" data-v="advanced">Advanced</button></div>' +
             '<p class="hint">Simple has no animation at all — best for older computers. Mid adds a little motion; Advanced adds backdrops.</p></section>' +
@@ -764,10 +765,11 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
 
         function paint(i) {
             const ui = i.ui;
-            box.querySelectorAll('[data-skin]').forEach(b => b.classList.toggle('on', b.dataset.skin === (ui.skin || '')));
+            const hol = UI.holidayOn();
+            box.querySelectorAll('[data-skin]').forEach(b => b.classList.toggle('on', b.dataset.skin === (hol ? hol.skin : ui.skin || '')));
             box.querySelectorAll('.seg').forEach(g => g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === (ui[g.dataset.set] || (g.dataset.set === 'fx' ? 'simple' : 'normal')))));
             box.querySelectorAll('[data-el]').forEach(c => { c.checked = !ui.off.includes(c.dataset.el); });
-            const v = { onTop: ui.onTop, hideWithRadio: ui.hideWithRadio, bannerInRadio: ui.bannerInRadio, sideLeft: ui.side === 'left', boardAsk: !ui.boardOk, alerts: i.alerts, openAtLogin: i.openAtLogin, askWhere: ui.askWhere, lossless: ui.lossless, updates: i.updates };
+            const v = { onTop: ui.onTop, hideWithRadio: ui.hideWithRadio, bannerInRadio: ui.bannerInRadio, sideLeft: ui.side === 'left', boardAsk: !ui.boardOk, alerts: i.alerts, openAtLogin: i.openAtLogin, askWhere: ui.askWhere, lossless: ui.lossless, updates: i.updates, holidays: ui.holidays !== false };
             box.querySelectorAll('[data-ui]').forEach(c => { c.checked = !!v[c.dataset.ui]; });
             $('.dl-dir', box).innerHTML = 'Albums go to <b>' + esc(i.downloads) + '</b>';
             $('.st', box).textContent = (i.station ? i.station.name + ' — ' + i.station.pageUrl : 'No station') + ' · On Air ' + i.version;
@@ -781,7 +783,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         box.onclick = async (e) => {
             const b = e.target.closest('button');
             if (!b) return;
-            if (b.dataset.skin != null) app.setUi({ skin: b.dataset.skin });
+            if (b.dataset.skin != null) { const h = UI.holiday(); app.setUi(h ? { skin: b.dataset.skin, holidaySkip: h.day } : { skin: b.dataset.skin }); }
             else if (b.dataset.v && b.closest('.seg')) app.setUi({ [b.closest('.seg').dataset.set]: b.dataset.v });
             else if (b.dataset.dl === 'pick') app.pickFolder();
             else if (b.dataset.dl === 'open') app.showFolder(UI.info.downloads);

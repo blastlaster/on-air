@@ -14,10 +14,25 @@
 
     let info = null, me = { id: '' }, onUiFns = [];
 
+    /* Holiday looks: like the board, the app dresses up on the day — unless
+       holidays are switched off (Settings), or you picked a look that day. */
+    const HOLIDAYS = { '01-01': 'newyear', '02-14': 'valentine', '03-17': 'paddy', '04-01': 's4sday', '10-01': 'bday', '10-31': 'spooky', '12-24': 'crimbus', '12-25': 'crimbus' };
+    function holiday() {
+        const d = new Date(), md = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const skin = HOLIDAYS[md];
+        if (!skin || !(window.LOOKS && window.LOOKS.skins || []).some(s => s.id === skin)) return null;
+        return { skin, day: d.getFullYear() + '-' + md, name: (window.LOOKS.skins.find(s => s.id === skin) || {}).name || skin };
+    }
+    /** Today's holiday look, if the app is wearing it. */
+    function holidayOn() {
+        const h = holiday(), ui = info && info.ui;
+        return h && ui && ui.holidays !== false && ui.holidaySkip !== h.day ? h : null;
+    }
+
     function applyLook() {
         if (!info) return;
-        const ui = info.ui, b = document.body;
-        const skin = me.skin !== undefined && me.skin !== null ? me.skin : ui.skin;
+        const ui = info.ui, b = document.body, h = holidayOn();
+        const skin = me.skin !== undefined && me.skin !== null ? me.skin : h ? h.skin : ui.skin;
         b.className = b.className.split(/\s+/).filter(c => c && !/^(skin-|skinned$|font-|fx-|rolled$)/.test(c)).join(' ');
         if (skin) b.classList.add('skinned', 'skin-' + skin);
         const font = me.font || ui.font || 'normal';
@@ -61,6 +76,12 @@
         applyLook();
         app.onUi((u) => { info = { ...info, ...u }; applyLook(); onUiFns.forEach(f => f(info)); });
         app.onWin((w) => { me = w; applyLook(); });
+        setInterval(applyLook, 60e3);       // midnight brings the holiday (and takes it away)
+        const h = holidayOn();
+        if (opts.id === 'radio' && h && info.ui.holidayTold !== h.day) {
+            setTimeout(() => toast('Dressed up for the day: ' + h.name + '. Settings → Look to change it.'), 2500);
+            app.setUi({ holidayTold: h.day });
+        }
         return info;
     }
     function setTitle(text, icon) {
@@ -129,7 +150,7 @@
 
     window.UI = {
         $, esc, clock, mmss, init, setTitle, toast, sheet, closeSheet, askName, flash,
-        get info() { return info; }, get me() { return me; }, get skin() { return lookNow || ''; },
+        get info() { return info; }, get me() { return me; }, get skin() { return lookNow || ''; }, holidayOn, holiday,
         onUi: (f) => onUiFns.push(f),
         onLook: (f) => lookFns.push(f)
     };

@@ -79,12 +79,29 @@ back on screen**.
 <td><img src="images/radio-matrix.png" alt="Matrix" width="300"></td>
 </tr></table>
 
-18 looks — the FunpostFM classic, Windows 95, Windows XP, Mac OS Classic,
+25 looks — the FunpostFM classic, Windows 95, Windows XP, Mac OS Classic,
 MS-DOS, Commodore 64, Matrix, Amber terminal, Game Boy, GeoCities, Synthwave,
-Y2K Chrome, Teletext, Netscape Navigator, Glitch, Chinese, Japanese and Starry —
+Y2K Chrome, Teletext, Netscape Navigator, Glitch, Chinese, Japanese, Starry and
+the seven holiday looks below —
 plus **HUD**, which leaves only the words over whatever is behind the window.
 Set one for the whole app (Settings) or per window (right-click its title). The
 chat room follows the look too.
+
+**Holiday looks** — the board's rare one-day themes, any day you want them:
+
+| Look | Its day | In the app |
+|---|---|---|
+| 🎃 **Spooky** | Halloween, Oct 31 | 4chan's Halloween colours, a dancing skeleton in every title bar; bats on Advanced |
+| 🎉 **4chan's birthday** | Oct 1 | Yotsuba with party hats on the windows; confetti on Mid |
+| 🎉 **[s4s]'s birthday** | Apr 1 — the board that started as a joke | Yotsuba in Comic Sans, a rainbow bar, party hats; confetti on Mid |
+| 🎄 **Crimbus** | Dec 24–25 | Lights along the title bars; snow on Mid |
+| ✨ **New Year** | Jan 1 | Black and gold; sparkles on Mid |
+| 💘 **Valentine's** | Feb 14 | Pink; floating hearts on Mid |
+| ☘️ **St Patrick's** | Mar 17 | The greenest day; falling shamrocks on Mid |
+
+On its day the app wears the holiday by itself (windows with their own look
+keep it) and says so once. Pick any look that day to skip it, or switch
+**Holiday looks on their day** off in Settings.
 
 **Effects** are off unless you ask: *Simple* has no animation at all (best for
 older computers), *Mid* adds a little motion, *Advanced* adds backdrops.

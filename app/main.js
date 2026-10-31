@@ -58,6 +58,8 @@ const UI_DEFAULTS = {
     bannerInRadio: true,
     downloads: '', askWhere: false, lossless: false,
     boardOk: false,             // said yes to the board's 18+ warning
+    holidays: true,             // holiday looks on their day (Spooky, Crimbus…)
+    holidaySkip: '', holidayTold: '',   // the day you picked your own look instead; the day the radio said so
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)
     ifaceServer: '',            // green threads server, if not the station's
     ifaceToken: '', ifaceTokenFor: ''   // the station's moderator token, and the server it is for (never sent to the pages)
