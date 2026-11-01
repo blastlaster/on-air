@@ -31,16 +31,22 @@ in, request songs, play the albums — and do things a web page can't.
 <table><tr>
 <td><img src="docs/images/radio-win95.png" alt="Windows 95 look" width="360"></td>
 <td><img src="docs/images/radio-matrix.png" alt="Matrix look" width="360"></td>
+</tr><tr>
+<td><img src="docs/images/radio-s4sday.png" alt="[s4s]'s birthday look" width="360"></td>
+<td><img src="docs/images/radio-spooky.png" alt="Spooky look" width="360"></td>
 </tr></table>
 
+- **📻 The radio**: the song, its cover and how far into it; 👍/👎 on AutoDJ songs; long titles scroll by.
+- **⏭ Vote to skip**: when more than half of the people listening press ⏭, the AutoDJ song is skipped, and a bar under the volume shows everyone how close a vote is. (When the station allows it.)
 - **📣 A ping when the station goes live** — and whenever the host presses 📣 Ping, live or not. No account, no push service: the app watches the station itself.
 - **🗂️ Every part in its own window.** Chat, Request, Playlist, Call in, Sign, Albums, Board, TV, Links, Settings. Move them, size them, roll them up to their title bar, tuck them into the radio, keep any of them on top. They remember where they were, and bringing the radio forward brings them all with it.
 - **🎨 25 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese and Starry — and a see-through **HUD** that leaves only the words.
 - **🎃 Holiday looks**, like the board's one-day-a-year themes: **Spooky** on Halloween (with a dancing skeleton), party hats for **4chan's birthday** (Oct 1) and **[s4s]'s birthday** (Apr 1), snow for **Crimbus**, plus New Year, Valentine's and St Patrick's. The app dresses up by itself on the day; wear them any day you like.
 - **📞 Call the show** or leave a voicemail, right from the desktop.
 - **📀 Albums**: play them in the app or download them to a folder.
-- **📋 The board** as a real browser view — the captcha works, so you can post — with your own **userscripts** (Tampermonkey-style).
-- **🔄 Updates itself** from this repository's releases; you choose when to restart.
+- **📋 The board** as a real browser view — the captcha works, so you can post. **Right-click** a picture to save it under the name it was posted with, or search for it. If 4chan blocks your connection's range, the window walks you through verifying your e-mail right there.
+- **🧩 Userscripts** (Tampermonkey-style), with the station's picks one click away: the [s4s] interface, [Better] [s4s], [s4s] Enhancer, reply helper, Get Watcher, New [s4s] fortunes and [s4s] colored text.
+- **🔄 Updates itself** from this repository's releases, and opens again on the new version.
 
 <table><tr>
 <td><img src="docs/images/albums.png" alt="Albums window" width="300"></td>
@@ -73,10 +79,12 @@ with letters in their ids — that exist nowhere else.
 
 <img src="docs/images/interface-thread.png" alt="A green thread in the Interface" width="720">
 
-- **Everything without green fades into the background; green pops out.** Sort green to the top, or show green only.
+- **Everything without green fades into the background; green pops out.** Sort green to the top, show green only, or **search** the threads.
+- **🟩 Green only** inside a thread shows just its green posts. Leave a thread and you're back where you were in the list.
+- **Green posts with pictures**: pick one, paste it or drop it in. **↓ save** any picture, or right-click it to search for it.
 - **Green threads**: text only, quoted like `>>7xK2`, bumped by replies, archived after three days without one.
-- **Levels.** You earn XP by posting, by being quoted, by landing repeating ids — and by **checking** other people's: dubs, trips, quads and up, in green threads *and* on the board itself. Level **11** lets you start a thread of your own (one at a time). The milestones are the numbers [s4s] cares about: **11, 22, 33… 111, 1111**, palindromes like **3113**, patterns like **1313**.
-- **(You)**, a watcher for threads, quote previews, tripcodes, and moderation tools for the station.
+- **Levels.** You earn XP by posting, by being quoted, by landing repeating ids — and by **checking** other people's: dubs, trips, quads and up, in green threads *and* on the board itself. **Checking with a real reply on 4chan is worth double.** Level **11** lets you start a thread of your own (one at a time). The milestones are the numbers [s4s] cares about: **11, 22, 33… 111, 1111**, palindromes like **3113**, patterns like **1313**.
+- **(You)**, a watcher for threads, quote previews, tripcodes, the Options list, and moderation tools for the station.
 
 Green threads are hosted by the station; they're there whenever the station is on.
 
@@ -108,7 +116,7 @@ Code at this folder and ask it to build one around your own station; it asks
 for your details as it goes.
 
 **Releasing:** bump `version` in `app/package.json`, commit, and push a tag
-like `v0.4.2`. GitHub Actions builds Windows and Linux and publishes the
+like `v0.4.2`. Write what's new in `app/build/release-notes.md` first; it becomes the release notes. GitHub Actions builds Windows and Linux and publishes the
 release, and every installed app updates itself from it.
 
 ---

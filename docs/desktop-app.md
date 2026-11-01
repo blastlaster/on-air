@@ -91,6 +91,11 @@ chat room follows the look too.
 
 **Holiday looks** — the board's rare one-day themes, any day you want them:
 
+<table><tr>
+<td><img src="images/radio-s4sday.png" alt="[s4s]'s birthday" width="300"></td>
+<td><img src="images/radio-spooky.png" alt="Spooky" width="300"></td>
+</tr></table>
+
 | Look | Its day | In the app |
 |---|---|---|
 | 🎃 **Spooky** | Halloween, Oct 31 | 4chan's Halloween colours, a dancing skeleton in every title bar; bats on Advanced |
