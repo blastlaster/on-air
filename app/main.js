@@ -461,8 +461,11 @@ function openBoard(w, url) {
     if (!ses.__onair) {
         ses.__onair = true;
         ses.setPermissionRequestHandler((x, perm, cb) => cb(perm === 'clipboard-sanitized-write' || perm === 'fullscreen'));
-        // To the board this is a plain Chrome: no "Electron/…" or app name in the browser's name.
-        ses.setUserAgent(plainChrome(ses.getUserAgent()));
+        // Downloads from the board's own pages ask where to save, starting where pictures went last.
+        ses.on('will-download', (e, item) => {
+            const dir = cfg.ui.imageDir && fs.existsSync(cfg.ui.imageDir) ? cfg.ui.imageDir : app.getPath('downloads');
+            item.setSaveDialogOptions({ title: 'Save', defaultPath: path.join(dir, safeName(item.getFilename()).replace(/^Album$/, 'file')) });
+        });
         // Your replies, so the Interface can give XP for the repeats they check (read from 4chan afterwards).
         ses.webRequest.onBeforeRequest({ urls: ['https://sys.4chan.org/*/post'] }, (d, cb) => { cb({}); if (d.method === 'POST') boardPostSent(d); });
     }
@@ -477,13 +480,48 @@ function openBoard(w, url) {
     wc.on('dom-ready', () => applyBoardTint());
     w.contentView.addChildView(boardView);
     boardView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    wc.on('context-menu', (e, p) => boardMenu(w, wc, p));
     wc.loadURL(url);
     w.on('closed', () => { if (boardView) { try { boardView.webContents.close(); } catch { /* gone */ } boardView = null; } });
 }
-/** Electron's browser name, as Chrome's own: Mozilla/5.0 (…) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 */
-function plainChrome(ua) {
-    const platform = (/\([^)]*\)/.exec(String(ua)) || ['(Windows NT 10.0; Win64; x64)'])[0];
-    return 'Mozilla/5.0 ' + platform + ' AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + process.versions.chrome.split('.')[0] + '.0.0.0 Safari/537.36';
+/** Right-click in the board: pictures (save, copy, search), links, and text editing. */
+async function boardMenu(w, wc, p) {
+    const items = [];
+    const say = (m) => { const iw = winOf('board'); if (iw && !iw.isDestroyed()) iw.webContents.send('toast', m); };
+    const save = (u, name) => saveImage(w, u, name, (x, o) => wc.session.fetch(x, o)).then((f) => f && say('Saved ' + f + '.'), (err) => say(err.message));
+    if (p.mediaType === 'image' || p.mediaType === 'video') {
+        // A 4chan thumbnail links to the full picture; save that, under the name it was posted with.
+        const full = /^https:\/\/i\.4cdn\.org\/\w+\/\d+\.\w+$/.test(p.linkURL || '') ? p.linkURL : p.srcURL;
+        let name = '';
+        try { name = await wc.executeJavaScript(`(() => { const el = document.elementFromPoint(${Number(p.x) || 0}, ${Number(p.y) || 0}); const f = el && el.closest('.file, .fileThumb') && el.closest('.post, .postContainer'); const a = f && f.querySelector('.fileText a'); return a ? (a.title || a.textContent || '') : ''; })()`, true); } catch { /* no name: the file's own */ }
+        if (/^https:\/\//.test(full || '')) {
+            const pic = p.mediaType === 'image' ? 'picture' : 'video';
+            items.push({ label: 'Save ' + pic + ' as…', click: () => save(full, name) },
+                { label: 'Copy ' + pic + ' address', click: () => clipboard.writeText(full) });
+            if (p.mediaType === 'image') items.push({ label: 'Copy picture', click: () => wc.copyImageAt(p.x, p.y) });
+            items.push({ label: 'Open in your browser', click: () => shell.openExternal(full) });
+            if (p.mediaType === 'image') items.push({ label: 'Search for this picture', submenu: [
+                ['Google Lens', 'https://lens.google.com/uploadbyurl?url='], ['Yandex', 'https://yandex.com/images/search?rpt=imageview&url='],
+                ['SauceNAO', 'https://saucenao.com/search.php?url='], ['TinEye', 'https://tineye.com/search?url='],
+                ['IQDB', 'https://iqdb.org/?url='], ['trace.moe (anime scenes)', 'https://trace.moe/?url=']
+            ].map(([label, base]) => ({ label, click: () => shell.openExternal(base + encodeURIComponent(full)) })) });
+            items.push({ type: 'separator' });
+        }
+    }
+    if (p.linkURL && !(p.mediaType === 'image' && /4cdn\.org/.test(p.linkURL))) {
+        if (/^https?:/i.test(p.linkURL)) items.push({ label: 'Open link in your browser', click: () => shell.openExternal(p.linkURL) });
+        items.push({ label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) }, { type: 'separator' });
+    }
+    if (p.isEditable) {
+        for (const sug of (p.dictionarySuggestions || []).slice(0, 5)) items.push({ label: sug, click: () => wc.replaceMisspelling(sug) });
+        if (p.misspelledWord) items.push({ label: 'Add to dictionary', click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord) }, { type: 'separator' });
+        items.push({ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy }, { role: 'paste', enabled: p.editFlags.canPaste }, { type: 'separator' }, { role: 'selectAll' });
+    } else if (p.selectionText) items.push({ role: 'copy' });
+    if (!items.length || items[items.length - 1].type === 'separator') {
+        if (items.length) items.pop();
+        if (!items.length) items.push({ label: 'Back', enabled: wc.navigationHistory.canGoBack(), click: () => wc.navigationHistory.goBack() }, { label: 'Reload', click: () => wc.reload() });
+    }
+    Menu.buildFromTemplate(items).popup({ window: w });
 }
 
 /* ---------- your replies on 4chan, for the Interface's checks ----------
@@ -549,6 +587,7 @@ ipcMain.on('board', (e, cmd, arg) => {
     else if (cmd === 'home') wc.loadURL(boardHome);
     else if (cmd === 'reload') wc.reload();
     else if (cmd === 'out') shell.openExternal(wc.getURL() || boardHome);
+    else if (cmd === 'go') { const u = String(arg || '').trim(); if (/^https:\/\//i.test(u) && boardSite(u)) wc.loadURL(u); }
     else if (cmd === 'tint') { boardTint = String(arg || ''); applyBoardTint(); }
 });
 
@@ -964,7 +1003,7 @@ handle('board-posts', (e) => {
 
 /* ---------- pictures from the Interface: save, copy the link, open ---------- */
 const imageUrlOf = (u) => { const x = new URL(String(u || '')); if (x.protocol !== 'https:') throw new Error('Not a picture on the web.'); return x; };
-async function saveImage(w, url, name) {
+async function saveImage(w, url, name, fetcher = net.fetch) {
     const u = imageUrlOf(url);
     const base = decodeURIComponent(u.pathname.split('/').pop() || '') || 'image';
     const ext = path.extname(base) || '.jpg';
@@ -973,7 +1012,7 @@ async function saveImage(w, url, name) {
     const dir = cfg.ui.imageDir && fs.existsSync(cfg.ui.imageDir) ? cfg.ui.imageDir : app.getPath('pictures');
     const r = await dialog.showSaveDialog(w, { title: 'Save the picture', defaultPath: path.join(dir, file), filters: [{ name: ext.slice(1).toUpperCase(), extensions: [ext.slice(1)] }, { name: 'All files', extensions: ['*'] }] });
     if (r.canceled || !r.filePath) return '';
-    const res = await net.fetch(u.href, { signal: AbortSignal.timeout(120000) });
+    const res = await fetcher(u.href, { signal: AbortSignal.timeout(120000) });
     if (!res.ok) throw new Error('The picture is gone (' + res.status + ').');
     fs.writeFileSync(r.filePath, Buffer.from(await res.arrayBuffer()));
     cfg.ui.imageDir = path.dirname(r.filePath); save();

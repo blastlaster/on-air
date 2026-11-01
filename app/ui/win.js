@@ -600,7 +600,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             const url = b().url;
             if (!url) { box.innerHTML = '<div class="empty">This station has no board.</div>'; return; }
             box.classList.add('flush');
-            box.innerHTML = '<div class="bd-bar row"><button type="button" class="btn" data-b="back" title="Back">‹</button><button type="button" class="btn" data-b="home" title="The board’s front page">⌂</button><button type="button" class="btn" data-b="reload" title="Reload">⟳</button><span class="grow"></span>' +
+            box.innerHTML = '<div class="bd-bar row"><button type="button" class="btn" data-b="back" title="Back">‹</button><button type="button" class="btn" data-b="home" title="The board’s front page">⌂</button><button type="button" class="btn" data-b="reload" title="Reload">⟳</button><button type="button" class="btn" data-b="link" title="Open a 4chan link here (say, a verification link from an e-mail)">🔗</button><span class="grow"></span>' +
                 '<label class="dim"><input type="checkbox" class="tint"' + (UI.info.ui.boardTint === false ? '' : ' checked') + '> Tint to the look</label><button type="button" class="btn" data-b="scripts" title="Userscripts: extra features for the board">🧩 Scripts</button><button type="button" class="btn" data-b="out" title="Open in the browser">↗</button></div>' +
                 '<div class="bd"></div>';
             // The board is a real browser view laid over this spot (not a frame in this page),
@@ -622,6 +622,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             box.onclick = (e) => {
                 const k = e.target.dataset && e.target.dataset.b;
                 if (k === 'out') app.board('out');
+                else if (k === 'link') UI.sheet('<form><h2>🔗 Open a 4chan link here</h2><p class="dim">Paste a link to the board, or 4chan’s e-mail verification link, to open it in this window (its cookies live here, not in your browser).</p>' +
+                    '<input name="u" placeholder="https://sys.4chan.org/…" autocomplete="off"><div class="row"><button class="btn go">Open</button><button type="button" class="btn" data-close>Cancel</button></div></form>',
+                    (f) => { const u = f.u.value.trim(); if (!/^https:\/\/([\w-]+\.)*4chan(nel)?\.org\//i.test(u)) return UI.toast('That isn’t a 4chan link.'); app.board('go', u); UI.closeSheet(); });
                 else if (k === 'scripts') scripts();
                 else if (k) app.board(k);
             };
