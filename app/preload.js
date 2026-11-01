@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('onairApp', {
     iface: (req) => ipcRenderer.invoke('iface-req', req),
     ifaceToken: (server, token, station) => ipcRenderer.invoke('iface-token', server, token, station),
     boardGoto: (url) => ipcRenderer.send('board-goto', url),
+    boardPosts: () => ipcRenderer.invoke('board-posts'),
+    onBoardPosted: listen('board-posted'),
+    saveImage: (url, name) => ipcRenderer.invoke('save-image', url, name),
+    imageMenu: (url, name) => ipcRenderer.send('image-menu', url, name),
+    onToast: listen('toast'),
     scripts: {
         list: () => ipcRenderer.invoke('us-list'),
         fetch: (url) => ipcRenderer.invoke('us-fetch', url),

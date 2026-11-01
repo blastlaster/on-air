@@ -28,7 +28,7 @@
    only to the app's own pages (call-in and voicemail).
    ============================================================= */
 'use strict';
-const { app, BrowserWindow, WebContentsView, Tray, Menu, Notification, ipcMain, shell, session, nativeImage, dialog, protocol, net, screen } = require('electron');
+const { app, BrowserWindow, WebContentsView, Tray, Menu, Notification, ipcMain, shell, session, nativeImage, dialog, protocol, net, screen, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -461,6 +461,10 @@ function openBoard(w, url) {
     if (!ses.__onair) {
         ses.__onair = true;
         ses.setPermissionRequestHandler((x, perm, cb) => cb(perm === 'clipboard-sanitized-write' || perm === 'fullscreen'));
+        // To the board this is a plain Chrome: no "Electron/…" or app name in the browser's name.
+        ses.setUserAgent(plainChrome(ses.getUserAgent()));
+        // Your replies, so the Interface can give XP for the repeats they check (read from 4chan afterwards).
+        ses.webRequest.onBeforeRequest({ urls: ['https://sys.4chan.org/*/post'] }, (d, cb) => { cb({}); if (d.method === 'POST') boardPostSent(d); });
     }
     if (process.env.ONAIR_SMOKE) wc.setAudioMuted(true);
     // 4chan's own pages (and its captcha) stay here; links elsewhere go to the browser.
@@ -476,6 +480,57 @@ function openBoard(w, url) {
     wc.loadURL(url);
     w.on('closed', () => { if (boardView) { try { boardView.webContents.close(); } catch { /* gone */ } boardView = null; } });
 }
+/** Electron's browser name, as Chrome's own: Mozilla/5.0 (…) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 */
+function plainChrome(ua) {
+    const platform = (/\([^)]*\)/.exec(String(ua)) || ['(Windows NT 10.0; Win64; x64)'])[0];
+    return 'Mozilla/5.0 ' + platform + ' AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + process.versions.chrome.split('.')[0] + '.0.0.0 Safari/537.36';
+}
+
+/* ---------- your replies on 4chan, for the Interface's checks ----------
+   The board window's reply form posts to sys.4chan.org. If the reply quotes
+   a post ending in repeats, find the reply's number in the thread a little
+   later (4chan's read-only data) and hand it to the Interface, which asks the
+   station: the station reads the reply from 4chan itself before giving XP. */
+const boardPosted = [];               // { board, thread, no, at }
+function formField(text, name) {
+    const m = new RegExp('name="' + name + '"\\r\\n\\r\\n([\\s\\S]*?)\\r\\n--').exec(text);
+    return m ? m[1] : '';
+}
+function chanText(html) {
+    return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
+        .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, '&');
+}
+const quoteSet = (t) => [...new Set([...String(t).matchAll(/>>(\d+)/g)].map(m => m[1]))].sort().join(',');
+function boardPostSent(d) {
+    try {
+        const board = (/^https:\/\/sys\.4chan\.org\/(\w+)\/post/.exec(d.url) || [])[1];
+        const body = Buffer.concat((d.uploadData || []).filter(x => x.bytes).map(x => x.bytes)).toString('utf8');
+        const thread = Number(formField(body, 'resto')), com = formField(body, 'com').replace(/\r/g, '');
+        if (!board || !(thread > 0) || ![...com.matchAll(/>>(\d+)/g)].some(m => /(\d)\1$/.test(m[1]))) return;
+        const sent = Date.now(), want = com.replace(/\s+/g, ''), quotes = quoteSet(com);
+        let tries = 0;
+        const look = async () => {
+            tries++;
+            try {
+                const r = await net.fetch('https://a.4cdn.org/' + board + '/thread/' + thread + '.json?t=' + Date.now(), { signal: AbortSignal.timeout(10000) });
+                const posts = r.ok ? ((await r.json()).posts || []).filter(p => p.time * 1000 >= sent - 120e3) : [];
+                // The same words; or, when the board's filters changed them, the one recent post quoting the same posts.
+                let mine = posts.filter(p => chanText(p.com).replace(/\s+/g, '') === want);
+                if (mine.length !== 1) { const q = posts.filter(p => quoteSet(chanText(p.com)) === quotes); mine = q.length === 1 ? q : []; }
+                if (mine.length === 1) {
+                    boardPosted.push({ board, thread, no: mine[0].no, at: Date.now() });
+                    if (boardPosted.length > 20) boardPosted.shift();
+                    const w = winOf('interface');
+                    if (w && !w.isDestroyed()) w.webContents.send('board-posted');
+                    return;
+                }
+            } catch { /* try again */ }
+            if (tries < 4) setTimeout(look, tries * 15e3);
+        };
+        setTimeout(look, 12e3);
+    } catch { /* not a reply we can read */ }
+}
+
 let tintKey = null;
 async function applyBoardTint() {
     if (!boardView) return;
@@ -881,6 +936,46 @@ handle('iface-token', (e, server, token, forStation) => {
     save(); broadcastUi();
     return !!token;
 });
+handle('board-posts', (e) => {
+    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    const fresh = boardPosted.filter(p => Date.now() - p.at < 3600e3);
+    boardPosted.length = 0;
+    return fresh;
+});
+
+/* ---------- pictures from the Interface: save, copy the link, open ---------- */
+const imageUrlOf = (u) => { const x = new URL(String(u || '')); if (x.protocol !== 'https:') throw new Error('Not a picture on the web.'); return x; };
+async function saveImage(w, url, name) {
+    const u = imageUrlOf(url);
+    const base = decodeURIComponent(u.pathname.split('/').pop() || '') || 'image';
+    const ext = path.extname(base) || '.jpg';
+    let file = String(name || '').trim() ? safeName(name) : safeName(base);
+    if (!path.extname(file)) file += ext;
+    const dir = cfg.ui.imageDir && fs.existsSync(cfg.ui.imageDir) ? cfg.ui.imageDir : app.getPath('pictures');
+    const r = await dialog.showSaveDialog(w, { title: 'Save the picture', defaultPath: path.join(dir, file), filters: [{ name: ext.slice(1).toUpperCase(), extensions: [ext.slice(1)] }, { name: 'All files', extensions: ['*'] }] });
+    if (r.canceled || !r.filePath) return '';
+    const res = await net.fetch(u.href, { signal: AbortSignal.timeout(120000) });
+    if (!res.ok) throw new Error('The picture is gone (' + res.status + ').');
+    fs.writeFileSync(r.filePath, Buffer.from(await res.arrayBuffer()));
+    cfg.ui.imageDir = path.dirname(r.filePath); save();
+    return path.basename(r.filePath);
+}
+handle('save-image', (e, url, name) => {
+    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    return saveImage(BrowserWindow.fromWebContents(e.sender), url, name);
+});
+on('image-menu', (e, url, name) => {
+    if (idOf(e.sender) !== 'interface') return;
+    let u; try { u = imageUrlOf(url); } catch { return; }
+    const w = BrowserWindow.fromWebContents(e.sender);
+    const say = (m) => { if (!e.sender.isDestroyed()) e.sender.send('toast', m); };
+    Menu.buildFromTemplate([
+        { label: 'Save picture as…', click: () => saveImage(w, u.href, name).then((f) => f && say('Saved ' + f + '.'), (err) => say(err.message)) },
+        { label: 'Copy picture address', click: () => clipboard.writeText(u.href) },
+        { label: 'Open in your browser', click: () => shell.openExternal(u.href) }
+    ]).popup({ window: w });
+});
+
 on('board-goto', (e, url) => {
     if (idOf(e.sender) !== 'interface') return;
     url = String(url || '');

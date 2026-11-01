@@ -48,7 +48,7 @@
         const fromStation = () => !UI.info.ui.ifaceServer && !(extras().interface && extras().interface.server);
         const server = () => String(UI.info.ui.ifaceServer || (extras().interface && extras().interface.server) || (core.engineUrl && core.green ? core.engineUrl + '/green' : '')).replace(/\/+$/, '');
         const isAdmin = () => { try { return !!server() && (UI.info.ifaceAdmin === (fromStation() ? 'station' : new URL(server()).origin)); } catch { return false; } };
-        const prefs = Object.assign({ sort: 'bump', greenOnly: false, fade: 0.3 }, store.get('prefs', {}));
+        const prefs = Object.assign({ sort: 'bump', greenOnly: false, fade: 0.3, threadGreen: false }, store.get('prefs', {}));
         const mine = new Set(store.get('mine', []));                  // my green-thread post ids, for (You)
         const watch = store.get('watch', {});                        // key → { title, seen }
         const saveMine = () => store.set('mine', [...mine].slice(-1000));
@@ -56,7 +56,14 @@
         const saveWatch = () => store.set('watch', watch);
 
         let view = 'index', current = null;      // current = { key, kind: 'c'|'g', id }
-        let catalog = [], greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null;
+        let catalog = [], greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
+        // Where you were: the list when you opened a thread, and each thread you've read (this session).
+        let listTop = null, restoreTop = null;
+        const threadTops = new Map();
+        function leaveThread() {
+            const sc = $('.if-posts', box);
+            if (view === 'thread' && current && sc) { threadTops.set(current.key, sc.scrollTop); if (threadTops.size > 200) threadTops.delete(threadTops.keys().next().value); }
+        }
         const seenPosts = new Map();                                 // board post no → its thread (for checks)
         UI.setTitle('Interface', '🟩');
 
@@ -80,6 +87,7 @@
                   '<button type="button" class="btn" data-v="back" title="Back to the threads" hidden>‹</button>' +
                   '<span class="if-tabs seg"><button type="button" class="btn" data-v="index">Threads</button><button type="button" class="btn" data-v="watch" title="Threads you watch">★ <span class="wn"></span></button><button type="button" class="btn" data-v="archive" title="Green threads that died">Archive</button>' +
                   '<button type="button" class="btn" data-v="reports" hidden>Reports</button></span>' +
+                  '<input type="search" class="if-search" placeholder="Search threads" title="Search the threads: subject, text or number">' +
                   '<select class="sort" title="Order"><option value="bump">Bump order</option><option value="green">Green on top</option></select>' +
                   '<label class="dim"><input type="checkbox" class="gonly"> Green only</label>' +
                   '<label class="dim fadeset" title="How far threads with nothing green fade">Fade <input type="range" class="fade" min="0.08" max="1" step="0.02"></label>' +
@@ -95,6 +103,8 @@
             box.style.setProperty('--fade', prefs.fade);
             $('.sort', box).onchange = (e) => { prefs.sort = e.target.value; savePrefs(); render(); };
             $('.gonly', box).onchange = (e) => { prefs.greenOnly = e.target.checked; savePrefs(); render(); };
+            $('.if-search', box).oninput = (e) => { query = e.target.value.trim().toLowerCase(); $('.if-main', box).scrollTop = 0; render(); };
+            $('.if-search', box).onkeydown = (e) => { if (e.key === 'Escape' && e.target.value) { e.target.value = ''; e.target.oninput(e); } };
             $('.fade', box).oninput = (e) => { prefs.fade = Number(e.target.value); box.style.setProperty('--fade', prefs.fade); savePrefs(); };
             $('.if-bar', box).onclick = (e) => {
                 const b = e.target.closest('[data-v]'); if (!b) return;
@@ -110,11 +120,16 @@
             // A picture that's gone from 4chan: no broken-image box.
             $('.if-main', box).addEventListener('error', (e) => { if (e.target.tagName !== 'IMG') return; const f = e.target.closest('.if-file'); if (f) f.hidden = true; else e.target.style.visibility = 'hidden'; }, true);
             $('.if-main', box).addEventListener('mouseover', onHover);
+            $('.if-main', box).addEventListener('contextmenu', onContext);
             $('.if-main', box).addEventListener('mouseout', (e) => { if (e.target.closest('.ql')) hidePreview(); });
             UI.onUi(() => { $('[data-v="reports"]', box).hidden = !isAdmin(); });
             $('[data-v="reports"]', box).hidden = !isAdmin();
             go('index');
             loadMe();
+            // Your own replies on 4chan (in the board window) that check someone's repeats.
+            app.onBoardPosted(checkBoardPosts);
+            if (app.onToast) app.onToast(UI.toast);
+            checkBoardPosts();
             // Light on purpose: one look a while, and none while the window is hidden.
             timer = setInterval(() => { if (!document.hidden) refresh(false); }, 20000);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(false); });
@@ -122,6 +137,15 @@
 
         const boardRefs = (text) => [...new Set([...String(text).matchAll(/>>(\d{3,})(?!\d)/g)].map(m => Number(m[1])))]
             .filter(no => seenPosts.has(no) && /(\d)\1$/.test(String(no))).slice(0, 6).map(no => ({ no, thread: seenPosts.get(no) }));
+
+        /** Posts you made on 4chan itself: the station reads them from 4chan and gives the (bigger) checking XP. */
+        async function checkBoardPosts() {
+            if (!server()) return;
+            for (const p of await app.boardPosts().catch(() => [])) {
+                if (p.board !== boardName()) continue;
+                toServer('/api/check', { thread: p.thread, post: p.no }).then(celebrate).catch(() => {});
+            }
+        }
 
         /* ---------- you: level, XP, achievements ---------- */
         async function loadMe() {
@@ -145,7 +169,7 @@
             const bits = [];
             if (r.dubs) bits.push({ dubs: 'Dubs! +22 XP', trips: 'TRIPS! +111 XP', quads: 'QUADS!!! +1111 XP' }[r.dubs]);
             const NAMED = { 2: 'dubs', 3: 'trips', 4: 'quads', 5: 'quints', 6: 'sexts' };
-            for (const c of r.checks || []) bits.push('✓ Checked ' + (NAMED[Math.min(6, c.repeats)] || 'repeats') + ' (>>' + (c.no || c.id) + ') +' + c.xp + ' XP');
+            for (const c of r.checks || []) bits.push('✓ Checked ' + (NAMED[Math.min(6, c.repeats)] || 'repeats') + ' (>>' + (c.no || c.id) + ')' + (c.via === '4chan' ? ' on 4chan' : '') + ' +' + c.xp + ' XP');
             for (const a of r.earned || []) if (!/^(dubs|trips|quads)$/.test(a.id)) bits.push('🏆 ' + a.name + (a.xp ? ' +' + a.xp + ' XP' : ''));
             if (r.levelUp) {
                 const k = kindOf(r.levelUp);
@@ -168,7 +192,7 @@
                 '<div class="if-xpbig"><i style="width:' + pct + '%"></i></div><p class="dim">' + m.xp + ' XP · ' + (m.next - m.xp) + ' to level ' + (m.level + 1) + ' · today ' + m.today + ' / ' + m.todayCap + ' from posting</p>' +
                 (m.canThread ? '<p>' + (m.thread ? 'Your live thread: <a class="ql" data-goto="g:' + esc(m.thread) + '">&gt;&gt;' + esc(m.thread) + '</a> (one at a time).' : 'You can start a green thread (one at a time).') + '</p>'
                     : '<p>Reach <b>level ' + m.threadLevel + '</b> to start green threads. Until then, post in them.</p>') +
-                '<h3>How XP works</h3><p class="dim">+10 a real post (12+ characters, not a repeat), up to 120 a day · +5 when someone quotes you · +22 / +111 / +1111 when your post id ends in dubs / trips / quads · <b>checking</b> someone else’s repeats by quoting them (green posts, and board posts from the last day): +5 dubs, +11 trips, +22 quads, +111 quints, +1111 sexts (dubs and trips checks: up to 55 a day). Milestone levels are the repeating ones: 11, 22, 33… 111, 1111, palindromes like 121 and 3113, patterns like 1313.</p>' +
+                '<h3>How XP works</h3><p class="dim">+10 a real post (12+ characters, not a repeat), up to 120 a day · +5 when someone quotes you · +22 / +111 / +1111 when your post id ends in dubs / trips / quads · <b>checking</b> someone else’s repeats by quoting them (green posts, and board posts from the last day): +5 dubs, +11 trips, +22 quads, +111 quints, +1111 sexts (dubs and trips checks: up to 55 a day) · <b>double</b> for checking with a real reply on 4chan, from the board window: +11 dubs, +22 trips, +44 quads, +222 quints, +2222 sexts (up to 111 a day for dubs and trips). Milestone levels are the repeating ones: 11, 22, 33… 111, 1111, palindromes like 121 and 3113, patterns like 1313.</p>' +
                 '<h3>Achievements</h3><ul class="list if-ach">' + all.map(([id, name, about]) => '<li class="' + (have.has(id) ? 'got' : '') + '">' + (have.has(id) ? '🏆' : '·') + ' <b>' + esc(name) + '</b> <span class="dim">' + esc(about) + '</span></li>').join('') + '</ul>' +
                 '<div class="row"><button type="button" class="btn" data-close>Close</button></div></div>');
             const g = $('.sheet-card [data-goto]');
@@ -217,10 +241,12 @@
 
         /* ---------- views ---------- */
         function go(v) {
+            leaveThread();
+            restoreTop = view === 'thread' && listTop && listTop.view === v ? listTop.top : null;
             view = v;
             $('[data-v="back"]', box).hidden = v === 'index';
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.toggle('on', b.dataset.v === v);
-            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
+            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset, .if-search')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
             if (v === 'index' || v === 'watch') {
                 $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the board…</p>';
                 if (catalog.length) render();
@@ -252,12 +278,14 @@
                 list = list.filter(t => watch[t.key]);
                 for (const k of Object.keys(watch)) if (!list.some(t => t.key === k)) list.push({ key: k, kind: k[0], id: k.slice(2), sub: watch[k].title, text: '', gone: true, replies: 0, gcount: 0 });
             } else if (prefs.greenOnly) list = list.filter(t => t.lit);
+            if (query) list = list.filter(t => (String(t.sub) + ' ' + t.text + ' ' + t.id).toLowerCase().includes(query));
             if (!list.length) {
-                main.innerHTML = '<p class="dim if-load">' + (view === 'watch' ? 'You aren’t watching any threads. Open one and press ★.' : catalog.length || green.length ? 'Nothing green right now. Start a green thread, or untick “Green only”.' : 'The board didn’t answer. ⟳ to try again.') + '</p>';
+                main.innerHTML = '<p class="dim if-load">' + (query ? 'No threads match “' + esc(query) + '”.' : view === 'watch' ? 'You aren’t watching any threads. Open one and press ★.' : catalog.length || green.length ? 'Nothing green right now. Start a green thread, or untick “Green only”.' : 'The board didn’t answer. ⟳ to try again.') + '</p>';
                 return;
             }
             main.innerHTML = '<div class="if-list">' + list.map(card).join('') + '</div>' +
                 (server() ? '' : '<p class="dim if-note">Green threads are offline while the station’s PC is off. The board and its green posts still show.</p>');
+            if (restoreTop != null) { main.scrollTop = restoreTop; restoreTop = null; }
         }
 
         function card(t) {
@@ -279,11 +307,13 @@
         /* ---------- a thread ---------- */
         async function openThread(key) {
             const kind = key[0], id = key.slice(2);
+            leaveThread();
+            if (view === 'index' || view === 'watch') listTop = { view, top: $('.if-main', box).scrollTop };
             current = { key, kind, id };
             view = 'thread';
             $('[data-v="back"]', box).hidden = false;
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.remove('on');
-            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset')) (el.closest('label') || el).hidden = true;
+            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset, .if-search')) (el.closest('label') || el).hidden = true;
             $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the thread…</p>';
             await loadThread(current, false);
         }
@@ -326,22 +356,24 @@
                 readOnly = t.archived || t.closed;
                 markSeen(cur.key, t.replies + t.replies + 1, head.title);
             }
-            const watched = !!watch[cur.key];
+            const watched = !!watch[cur.key], greenIn = posts.filter(p => p.kind === 'f').length;
             main.innerHTML =
-                '<div class="if-thread' + (head.green ? ' green' : '') + '"><div class="if-thead row">' +
+                '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '"><div class="if-thead row">' +
                     '<b class="grow ell">' + esc(head.title) + '</b>' +
                     (head.green && !head.archived ? '<span class="dim if-exp" title="Green threads die after 3 days without a reply, then go to the archive">' + esc(expiresIn(head.expires)) + '</span>' : '') +
                     (head.archived ? '<span class="dim">archived</span>' : '') +
+                    (cur.kind === 'c' ? '<button type="button" class="btn' + (prefs.threadGreen ? ' on' : '') + '" data-tgreen title="Show only the green posts (and the opening post)">🟩 Green only' + (greenIn ? ' (' + greenIn + ')' : '') + '</button>' : '') +
                     '<button type="button" class="btn" data-watch="' + esc(cur.key) + '" title="Watch this thread">' + (watched ? '★ Watching' : '☆ Watch') + '</button>' +
                     (head.url ? '<button type="button" class="btn" data-open4="' + esc(head.url) + '" title="This thread on 4chan, in the board window">4chan ↗</button>' : '') +
-                '</div><div class="if-posts">' + posts.map(postHtml).join('') + '</div>' +
+                '</div><div class="if-posts">' + posts.map(postHtml).join('') + (cur.kind === 'c' && !greenIn ? '<p class="dim if-load if-gempty">No green posts in this thread yet.</p>' : '') + '</div>' +
                 (readOnly ? '<p class="dim if-note">' + (head.archived ? 'This thread is archived — read only.' : 'This thread is closed.') + '</p>' : replyForm(cur)) +
                 '</div>';
             if (draft) { const f = $('.if-reply', box); if (f) { f.text.value = draft.text; f.name.value = draft.name; f.options.value = draft.opt; } }
             const sc = $('.if-posts', box);
-            if (sc) sc.scrollTop = keepScroll ? top : 0;
+            if (sc) sc.scrollTop = keepScroll ? top : threadTops.get(cur.key) || 0;
             const f = $('.if-reply', box);
-            if (f) f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); };
+            if (f) { f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); }; optionsMenu(f.options, cur); }
+
         }
 
         function replyForm(cur) {
@@ -356,6 +388,35 @@
                         : '<button class="btn go" data-send="g">Reply</button>') +
                     '<span class="grow"></span><span class="dim if-hint">&gt;text greentext · &gt;&gt;' + (cur.kind === 'c' ? '123' : '7xK2') + ' quotes</span>' +
                 '</div></form>';
+        }
+
+        /** The Options field: every option, shown when you click into it. */
+        function optionsMenu(input, cur) {
+            const opts = (cur.kind === 'c'
+                ? [['sage', 'Don’t bump the thread'], ['numberless', 'Hide your post number (shows as XXXXXX)']]
+                : [['sage', 'Don’t bump the thread']]).concat(isAdmin() ? [['station', 'Post with the Station badge (moderators)']] : []);
+            const menu = document.createElement('div');
+            menu.className = 'if-opts';
+            menu.hidden = true;
+            menu.innerHTML = opts.map(([o, about]) => '<button type="button" class="if-opt" data-opt="' + o + '"><b>' + o + '</b> <span class="dim">' + esc(about) + '</span></button>').join('');
+            input.parentNode.style.position = 'relative';
+            input.after(menu);
+            const has = () => new Set(input.value.split(/[\s,]+/).filter(Boolean));
+            const mark = () => { const h = has(); for (const b of menu.children) b.classList.toggle('on', h.has(b.dataset.opt)); };
+            const show = () => { mark(); menu.hidden = false; };
+            input.addEventListener('focus', show);
+            input.addEventListener('click', show);
+            input.addEventListener('input', mark);
+            input.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; }, 150));
+            input.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.hidden = true; });
+            menu.addEventListener('mousedown', (e) => e.preventDefault());           // keep the field focused
+            menu.addEventListener('click', (e) => {
+                const b = e.target.closest('[data-opt]'); if (!b) return;
+                const h = has(), o = b.dataset.opt;
+                if (h.has(o)) h.delete(o); else h.add(o);
+                input.value = [...h].join(' ');
+                mark();
+            });
         }
 
         async function sendReply(f, how) {
@@ -444,6 +505,7 @@
                     ' <a class="if-no" data-quote="' + esc(p.id) + '" title="Quote this post">No.' + (p.shown && p.shown !== p.id ? esc(p.shown) : idHtml(p.id, esc)) + '</a>' +
                     (p.kind === 'g' ? ' <a class="if-act" data-report="g:' + esc(p.id) + '">report</a>' + (isAdmin() ? ' <a class="if-act" data-del="' + esc(p.id) + '">delete</a> <a class="if-act" data-ban="' + esc(p.id) + '">ban</a>' : '') : '') +
                     (p.kind === 'f' && p.report ? ' <a class="if-act" data-report="f:' + esc(String(p.report)) + '">report</a>' : '') +
+                    (p.file ? ' <a class="if-act" data-save="' + esc(p.file.full) + '" data-name="' + esc(p.file.name || '') + '" title="Save the picture to your computer (or right-click it)">↓ save</a>' : '') +
                 '</div>' +
                 (p.file ? '<a class="if-file" data-full="' + esc(p.file.full) + '" data-video="' + (p.file.video ? 1 : '') + '" title="' + esc(p.file.name || '') + '"><img loading="lazy" alt="" src="' + esc(p.file.thumb) + '"' + (p.file.tw ? ' width="' + p.file.tw + '" height="' + p.file.th + '"' : '') + '></a>' : '') +
                 '<div class="if-text">' + p.html + '</div></div>';
@@ -518,6 +580,13 @@
                 if (open) { img.dataset.thumb = img.src; img.removeAttribute('width'); img.removeAttribute('height'); img.src = d.full; } else { img.src = img.dataset.thumb; }
                 return;
             }
+            if (d.save) return saveImage(d.save, d.name);
+            if (d.tgreen !== undefined) {
+                prefs.threadGreen = !prefs.threadGreen; savePrefs();
+                a.classList.toggle('on', prefs.threadGreen);
+                $('.if-thread', box).classList.toggle('gonly', prefs.threadGreen);
+                return;
+            }
             if (d.href) return app.openExternal(d.href);
             if (d.open4) return app.boardGoto(d.open4);
             if (d.watch) { if (watch[d.watch]) delete watch[d.watch]; else watch[d.watch] = { title: $('.if-thead b', box) ? $('.if-thead b', box).textContent : '', seen: 0 }; saveWatch(); a.textContent = watch[d.watch] ? '★ Watching' : '☆ Watch'; updateWatchCount(); return; }
@@ -541,9 +610,20 @@
             if (d.goto) return openThread(d.goto);
         }
 
+        async function saveImage(url, name) {
+            try { const r = await app.saveImage(url, name); if (r) UI.toast('Saved ' + r + '.'); } catch (e) { UI.toast(String(e.message || e).replace(/^Error invoking remote method '[\w-]+': (Error: )?/, '')); }
+        }
+        function onContext(e) {
+            const f = e.target.closest('.if-file, .if-vid');
+            if (!f) return;
+            e.preventDefault();
+            const url = f.dataset.full || f.getAttribute('src'), post = f.closest('.if-post'), s = post && post.querySelector('[data-save]');
+            app.imageMenu(url, s ? s.dataset.name : '');
+        }
+
         async function jump(id) {
             const el = box.querySelector('.if-post[data-id="' + CSS.escape(id) + '"]');
-            if (el) { el.scrollIntoView({ block: 'center' }); el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); return; }
+            if (el) { el.classList.add('shown'); el.scrollIntoView({ block: 'center' }); el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); return; }
             if (/^\d+$/.test(id)) return openThread('c:' + id);                          // another 4chan thread
             if (/[a-zA-Z]/.test(id) && server()) {                                        // a green thread's opening post
                 try { await toServer('/api/thread/' + id); return openThread('g:' + id); } catch { /* a reply elsewhere */ }

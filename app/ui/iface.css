@@ -89,3 +89,14 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-ach li { padding: 2px 0; opacity: 0.55; }
 .if-ach li.got { opacity: 1; }
 .if-prof h2 { display: flex; align-items: center; gap: 8px; }
+/* the search box, the thread's green-only view, the Options list */
+.if-search { width: 150px; flex: 0 1 150px; min-width: 80px; font: inherit; font-size: 0.85em; padding: 2px 6px; }
+.if-thead .btn.on { outline: 2px solid var(--if-green); outline-offset: -2px; }
+.if-thread.gonly .if-post.chan:not(:first-child):not(.shown) { display: none; }
+.if-gempty { display: none; }
+.if-thread.gonly .if-gempty { display: block; }
+.if-opts { position: absolute; z-index: 40; right: 0; top: 100%; min-width: 260px; max-width: 100%; padding: 4px; border-radius: 5px; background: var(--sk-card-bg); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; gap: 2px; }
+.if-opts[hidden] { display: none; }
+.if-opt { all: unset; cursor: pointer; padding: 3px 6px; border-radius: 3px; font-size: 0.9em; }
+.if-opt:hover { background: rgba(127, 127, 127, 0.18); }
+.if-opt.on b::before { content: '✓ '; color: var(--if-green); }

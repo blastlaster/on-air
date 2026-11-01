@@ -44,10 +44,14 @@ Along the top:
 | **Threads · ★ · Archive** | Everything; the threads you watch (with a count of new replies); green threads that died. Moderators also get **Reports**. |
 | **Bump order / Green on top** | Mixed by last bump, or everything green first. |
 | **Green only** | Hide the rest. |
+| **Search** | Find threads by subject, text or number (Esc clears it). |
 | **Fade** | How far threads with nothing green fade. Hover one to see it clearly. |
 | **Lv** | Your level and how close the next one is. Click for your profile. |
 | **＋ Green thread** | Start one (level 11). |
 | **⟳ · ⚙** | Refresh; the green-thread server and the moderator token. |
+
+Open a thread and come back: the list is where you left it, and so is each
+thread you've read.
 
 The Interface is light on purpose: it looks again every 20 seconds only while
 its window is showing, and asks the station only *"anything new?"*.
@@ -55,7 +59,8 @@ its window is showing, and asks the station only *"anything new?"*.
 ## Reading
 
 - **Quotes** (`>>123`, `>>123-45`, `>>7xK2`) are links: hover for a preview, click to jump to the post (or open the thread it's in).
-- **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place.
+- **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address or open it in your browser.
+- **🟩 Green only** at the top of a board thread shows just the opening post and the green posts (the number is how many). It stays on until you switch it off.
 - **Repeating ids are marked**, the way they should be: No.13256**611**, No.7x**KK**.
 - Every poster's **level** shows next to their name, coloured for the special ones; the station's posts carry **## Station**.
 - **Report** on any green post: green-thread posts go to the station's moderators, green posts on the board to funposters.club's.
@@ -70,7 +75,7 @@ At the bottom of every thread:
 | **Reply on 4chan ↗** — opens the board window at that thread, where 4chan's own captcha lives. | |
 
 - **Name**: your app name to start with; `name#secret` gives a tripcode (`!Ab3…`).
-- **Options**: `sage` replies without bumping; `numberless` hides your number on a green post; moderators can write `station` for the Station badge.
+- **Options** (click the field for the list): `sage` replies without bumping; `numberless` hides your number on a green post; moderators can write `station` for the Station badge.
 - `>text` is greentext; `>>id` quotes. Click a post's number to quote it.
 
 ## Green threads
@@ -135,10 +140,15 @@ Spotted someone's repeating digits? **Check'em** — quote the post — and get 
 | Quints (5) | **+111** |
 | Sexts or better (6+) | **+1111** |
 
+**Check on 4chan itself and it's worth double**: reply on 4chan from the board
+window (Reply on 4chan ↗) quoting the repeats, and the app spots your reply
+— +11 dubs, +22 trips, +44 quads, +222 quints, +2222 sexts. The station reads
+your reply from 4chan before it pays, and each reply counts once.
+
 - **In green threads**: quote a green post whose id ends in repeats (`>>7xKK`).
 - **On the board at large**: quote a real 4chan post whose number repeats — in a green post on its thread, or in a green thread. The station's PC checks it with 4chan's own data: the post must exist and be **from the last 24 hours**.
 - **Never your own**, and **once per post**.
-- Dubs and trips checks share **55 XP a day**; quads and up always count.
+- Dubs and trips checks share **55 XP a day** (**111** for checks on 4chan); quads and up always count.
 
 ## Achievements
 
