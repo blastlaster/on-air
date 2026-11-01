@@ -148,7 +148,9 @@ browser), and can be **tinted** to match the app's look. ‹ ⌂ ⟳ and ↗ (op
 your browser) are along the top.
 
 **Right-click** a picture to save it (under the name it was posted with), copy
-it or search for it; right-click links and the reply box as usual.
+it or search for it; right-click links and the reply box as usual. YouTube's **[Embed]** works even
+with scripts that restyle posts, and links to other sites skip 4chan's
+"Redirecting…" page.
 
 **"Your IP range is blocked… verify your e-mail"?** The board window keeps its
 own cookies, so verifying in your browser doesn't count here. The window

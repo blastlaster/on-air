@@ -448,6 +448,11 @@ function fullScreen(w) {
    ============================================================= */
 let boardView = null, boardHome = '', boardTint = '';
 const boardSite = (u) => { try { const h = new URL(u).hostname; const home = new URL(boardHome).hostname.split('.').slice(-2).join('.'); return h === home || h.endsWith('.' + home); } catch { return false; } };
+/** 4chan sends links to other sites through its "Redirecting you…" page: skip that, straight to where it goes. */
+const deref = (u) => {
+    try { const x = new URL(u); if (/(^|\.)4chan(nel)?\.org$/i.test(x.hostname) && x.pathname === '/derefer' && x.searchParams.get('url')) return x.searchParams.get('url'); } catch { /* not a URL */ }
+    return u;
+};
 let boardNext = '';                    // a thread the Interface asked for, before the board window was open
 function openBoard(w, url) {
     if (!/^https:\/\//i.test(url)) return;
@@ -472,11 +477,16 @@ function openBoard(w, url) {
     if (process.env.ONAIR_SMOKE) wc.setAudioMuted(true);
     // 4chan's own pages (and its captcha) stay here; links elsewhere go to the browser.
     wc.setWindowOpenHandler(({ url: u }) => {
+        u = deref(u);
         if (boardSite(u)) { wc.loadURL(u); return { action: 'deny' }; }
         if (/^https?:/i.test(u)) shell.openExternal(u);
         return { action: 'deny' };
     });
-    wc.on('will-navigate', (e, u) => { if (!boardSite(u)) { e.preventDefault(); if (/^https?:/i.test(u)) shell.openExternal(u); } });
+    wc.on('will-navigate', (e, u) => {
+        const to = deref(u);
+        if (to !== u) { e.preventDefault(); if (boardSite(to)) wc.loadURL(to); else if (/^https?:/i.test(to)) shell.openExternal(to); return; }
+        if (!boardSite(u)) { e.preventDefault(); if (/^https?:/i.test(u)) shell.openExternal(u); }
+    });
     wc.on('dom-ready', () => applyBoardTint());
     w.contentView.addChildView(boardView);
     boardView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
@@ -509,8 +519,9 @@ async function boardMenu(w, wc, p) {
         }
     }
     if (p.linkURL && !(p.mediaType === 'image' && /4cdn\.org/.test(p.linkURL))) {
-        if (/^https?:/i.test(p.linkURL)) items.push({ label: 'Open link in your browser', click: () => shell.openExternal(p.linkURL) });
-        items.push({ label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) }, { type: 'separator' });
+        const link = deref(p.linkURL);
+        if (/^https?:/i.test(link)) items.push({ label: 'Open link in your browser', click: () => shell.openExternal(link) });
+        items.push({ label: 'Copy link address', click: () => clipboard.writeText(link) }, { type: 'separator' });
     }
     if (p.isEditable) {
         for (const sug of (p.dictionarySuggestions || []).slice(0, 5)) items.push({ label: sug, click: () => wc.replaceMisspelling(sug) });

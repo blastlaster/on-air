@@ -55,6 +55,8 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-file.big { float: none; cursor: zoom-out; }
 .if-file.big img { max-width: 100%; max-height: none; }
 .if-vid { max-width: 100%; display: block; }
+.if-ytbox { width: 100%; max-width: 560px; aspect-ratio: 16 / 9; margin: 4px 0; }
+.if-ytbox iframe { width: 100%; height: 100%; border: 0; display: block; }
 .if-text { line-height: 1.35; }
 .if-text .gt { color: #789922; }
 .if-text .dead { text-decoration: line-through; color: var(--sk-dim); }

@@ -17,6 +17,43 @@ const { ipcRenderer, webFrame, contextBridge } = require('electron');
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
 
+// 4chan's [Embed] buttons (YouTube, SoundCloud) read the link from the element right before them,
+// and put the video in front of the element right after. Scripts that wrap a post's text in spans
+// ([Better] [s4s]) put a span on both sides: the button says "Error", or the video lands inside
+// the [ ]. So point it past those spans: back to the link, and on past the "]".
+const EMBED_FIX = `(function () {
+    var re = /youtube\\.com\\/watch|youtu\\.be\\/|soundcloud\\.com\\/|snd\\.sc\\//i;
+    var M = window.Media;
+    if (!M || M.__onair) return;
+    M.__onair = true;
+    var withLink = function (fn) {
+        if (typeof fn !== 'function') return fn;
+        return function (e) {
+            if (!e) return fn.apply(this, arguments);
+            var p = e.previousElementSibling, nx = e.nextElementSibling, set = [];
+            if (p && !re.test(p.textContent)) {
+                for (var n = p.previousElementSibling; n; n = n.previousElementSibling) {
+                    if (re.test(n.textContent)) { Object.defineProperty(e, 'previousElementSibling', { value: n, configurable: true }); set.push('previousElementSibling'); break; }
+                }
+            }
+            if (nx && !/\\bmedia-embed\\b/.test(nx.className) && /^\\s*\\]/.test(nx.textContent)) {
+                Object.defineProperty(e, 'nextElementSibling', { value: nx.nextElementSibling, configurable: true });
+                set.push('nextElementSibling');
+            }
+            try { return fn.apply(this, arguments); } finally { set.forEach(function (k) { delete e[k]; }); }
+        };
+    };
+    M.toggleYouTube = withLink(M.toggleYouTube);
+    M.toggleSoundCloud = withLink(M.toggleSoundCloud);
+    M.showYTPreview = withLink(M.showYTPreview);
+    if (M.map) { M.map.yt = M.toggleYouTube; M.map.sc = M.toggleSoundCloud; }
+})();`;
+if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
+    const fix = () => webFrame.executeJavaScript(EMBED_FIX).catch(() => {});
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix, { once: true }); else fix();
+    window.addEventListener('load', fix, { once: true });
+}
+
 const scripts = ipcRenderer.sendSync('us-for', location.href) || [];
 if (scripts.length) {
     const values = {};

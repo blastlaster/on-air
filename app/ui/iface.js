@@ -544,25 +544,64 @@
 
         /* ---------- text: 4chan's HTML made safe, our plain text formatted ---------- */
         const ql = (id) => '<a class="ql" data-q="' + esc(id) + '">&gt;&gt;' + esc(id) + (mine.has(id) ? ' (You)' : '') + '</a>';
+        // Web addresses in text, up to (not including) a closing bracket or the full stop after one.
+        const URL_RE = /https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]}]/g;
+        const quotes = (h) => h.replace(new RegExp('&gt;&gt;' + ID_RE + '(?![\\w-])', 'g'), (m, id) => ql(id));
+        /** A YouTube link's video (and where to start, in seconds), or null. */
+        function ytOf(u) {
+            const m = /^https?:\/\/(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?(?:[^#\s]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i.exec(u);
+            if (!m) return null;
+            const t = /[?&#]t=(?:(\d+)h)?(?:(\d+)m)?(\d+)?s?(?:&|$)/.exec(u);
+            return { id: m[1], start: t ? (+t[1] || 0) * 3600 + (+t[2] || 0) * 60 + (+t[3] || 0) : 0 };
+        }
+        /** 4chan's [Embed] after a YouTube link: a player in the post, on asking. */
+        const ytToggle = (u) => { const y = ytOf(u); return y ? ' [<a class="ext" data-yt="' + y.id + '" data-start="' + y.start + '">Embed</a>]' : ''; };
+        function toggleYT(a) {
+            if (a.__player) { a.__player.remove(); a.__player = null; a.textContent = 'Embed'; return; }
+            const p = document.createElement('div');
+            p.className = 'if-ytbox';
+            p.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(a.dataset.yt) + '?autoplay=1&rel=0' + (+a.dataset.start ? '&start=' + (+a.dataset.start) : '') +
+                '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+            // After the "]": split it off whatever text follows, and put the player there.
+            let after = a.nextSibling;
+            if (after && after.nodeType === 3 && after.data.startsWith(']') && after.data.length > 1) after.splitText(1);
+            a.parentNode.insertBefore(p, after ? after.nextSibling : null);
+            a.__player = p;
+            a.textContent = 'Remove';
+        }
+        /** Plain text as HTML: escaped, with its quotes and web addresses made links (not inside a link already). */
+        function textHtml(raw, inLink) {
+            if (inLink) return esc(raw);
+            let out = '', i = 0;
+            for (const m of raw.matchAll(URL_RE)) {
+                out += quotes(esc(raw.slice(i, m.index))) + '<a class="ext" data-href="' + esc(m[0]) + '">' + esc(m[0]) + '</a>' + ytToggle(m[0]);
+                i = m.index + m[0].length;
+            }
+            return out + quotes(esc(raw.slice(i)));
+        }
         function clean(html) {
-            const doc = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html');
-            const walk = (node) => {
+            // 4chan breaks long addresses with <wbr>: join them up again first, so they read as one link.
+            const doc = new DOMParser().parseFromString('<div>' + String(html).replace(/<wbr\s*\/?>/gi, '') + '</div>', 'text/html');
+            const walk = (node, inLink) => {
                 let out = '';
                 for (const n of node.childNodes) {
-                    if (n.nodeType === 3) { out += esc(n.data).replace(new RegExp('&gt;&gt;' + ID_RE + '(?![\\w-])', 'g'), (m, id) => ql(id)); continue; }
+                    if (n.nodeType === 3) { out += textHtml(n.data, inLink); continue; }
                     if (n.nodeType !== 1) continue;
                     const t = n.tagName.toLowerCase();
                     if (t === 'br') { out += '<br>'; continue; }
-                    if (t === 'wbr' || t === 'script' || t === 'style') continue;
+                    if (t === 'script' || t === 'style') continue;
                     const q = new RegExp('^>>' + ID_RE + '$').exec((n.textContent || '').replace(/\s*\(You\)$/, '').trim());
                     if (t === 'a') {
                         const h = n.getAttribute('href') || '';
+                        // >>>/board/123 and >>>/board/: 4chan pages, for the board window.
+                        const board = /^\/\/boards\.4chan(nel)?\.org\//.test(h) ? 'https:' + h : /^\/[a-z0-9]+\//i.test(h) ? 'https://boards.4chan.org' + h : '';
                         if (q) out += ql(q[1]);
-                        else if (/^https?:\/\//.test(h)) out += '<a class="ext" data-href="' + esc(h) + '">' + walk(n) + '</a>';
-                        else out += walk(n);
+                        else if (board) out += '<a class="ext" data-open4="' + esc(board) + '">' + walk(n, true) + '</a>';
+                        else if (/^https?:\/\//.test(h)) out += '<a class="ext" data-href="' + esc(h) + '">' + walk(n, true) + '</a>' + ytToggle(h);
+                        else out += walk(n, inLink);
                         continue;
                     }
-                    const inner = walk(n);
+                    const inner = walk(n, inLink);
                     if (t === 'span') out += /\bquote\b/.test(n.className) ? '<span class="gt">' + inner + '</span>' : /deadlink/.test(n.className) ? '<span class="dead">' + inner + '</span>' : inner;
                     else if (t === 's') out += '<s class="spoiler">' + inner + '</s>';
                     else if (t === 'b' || t === 'strong') out += '<b>' + inner + '</b>';
@@ -577,9 +616,7 @@
         }
         function plain(text) {
             return String(text || '').split('\n').map(line => {
-                let h = esc(line)
-                    .replace(new RegExp('&gt;&gt;' + ID_RE + '(?![\\w-])', 'g'), (m, id) => ql(id))
-                    .replace(/https?:\/\/[^\s<]+/g, (u) => '<a class="ext" data-href="' + u + '">' + u + '</a>');
+                let h = textHtml(line);
                 if (/^&gt;(?!&gt;)/.test(esc(line))) h = '<span class="gt">' + h + '</span>';
                 return h;
             }).join('<br>');
@@ -618,6 +655,7 @@
                 $('.if-thread', box).classList.toggle('gonly', prefs.threadGreen);
                 return;
             }
+            if (d.yt) return toggleYT(a);
             if (d.href) return app.openExternal(d.href);
             if (d.open4) return app.boardGoto(d.open4);
             if (d.watch) { if (watch[d.watch]) delete watch[d.watch]; else watch[d.watch] = { title: $('.if-thead b', box) ? $('.if-thead b', box).textContent : '', seen: 0 }; saveWatch(); a.textContent = watch[d.watch] ? '★ Watching' : '☆ Watch'; updateWatchCount(); return; }

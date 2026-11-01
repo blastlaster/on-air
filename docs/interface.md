@@ -59,6 +59,7 @@ its window is showing, and asks the station only *"anything new?"*.
 ## Reading
 
 - **Quotes** (`>>123`, `>>123-45`, `>>7xK2`) are links: hover for a preview, click to jump to the post (or open the thread it's in).
+- **Links** in posts open in your browser; `>>>/s4s/123` and `>>>/g/` open in the board window. YouTube links get an **[Embed]** to play them in the post.
 - **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address, open it in your browser, or **search for it** (Google Lens, Yandex, SauceNAO, TinEye, IQDB, trace.moe).
 - **🟩 Green only** at the top of a board thread shows just the opening post and the green posts (the number is how many). It stays on until you switch it off.
 - **Repeating ids are marked**, the way they should be: No.13256**611**, No.7x**KK**.
