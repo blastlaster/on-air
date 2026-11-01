@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('onairApp', {
     iface: (req) => ipcRenderer.invoke('iface-req', req),
     ifaceToken: (server, token, station) => ipcRenderer.invoke('iface-token', server, token, station),
     boardGoto: (url) => ipcRenderer.send('board-goto', url),
+    onBoardBlocked: listen('board-blocked'),
+    boardClip: () => ipcRenderer.invoke('board-clip'),
     boardPosts: () => ipcRenderer.invoke('board-posts'),
     onBoardPosted: listen('board-posted'),
     saveImage: (url, name) => ipcRenderer.invoke('save-image', url, name),

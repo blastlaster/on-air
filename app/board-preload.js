@@ -6,6 +6,17 @@
 'use strict';
 const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
+// 4chan's "your IP range is blocked … verify your e-mail" message: tell the board window, so it can help.
+(function watchForBlock() {
+    let told = false;
+    const look = () => {
+        if (told || !document.body) return;
+        if (/blocked due to abuse|verify your e-?mail/i.test(document.body.innerText || '')) { told = true; ipcRenderer.send('board-blocked'); }
+    };
+    const start = () => { look(); new MutationObserver(look).observe(document.body, { childList: true, subtree: true, characterData: true }); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})();
+
 const scripts = ipcRenderer.sendSync('us-for', location.href) || [];
 if (scripts.length) {
     const values = {};

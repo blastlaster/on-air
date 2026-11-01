@@ -1040,6 +1040,18 @@ on('image-menu', (e, url, name) => {
     ]).popup({ window: w });
 });
 
+ipcMain.on('board-blocked', (e) => {
+    if (!boardView || e.sender !== boardView.webContents) return;
+    const w = winOf('board');
+    if (w && !w.isDestroyed()) w.webContents.send('board-blocked');
+});
+/** A 4chan link the listener copied (from 4chan's verification e-mail), or '' — nothing else is read out. */
+handle('board-clip', (e) => {
+    if (idOf(e.sender) !== 'board') throw new Error('Not allowed.');
+    const t = String(clipboard.readText() || '').trim();
+    return /^https:\/\/([\w-]+\.)*4chan(nel)?\.org\/\S+$/i.test(t) && t.length < 2000 ? t : '';
+});
+
 on('board-goto', (e, url) => {
     if (idOf(e.sender) !== 'interface') return;
     url = String(url || '');

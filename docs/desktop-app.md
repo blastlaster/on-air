@@ -142,6 +142,17 @@ the rest of the app), stays on the board's own site (other links open in your
 browser), and can be **tinted** to match the app's look. ‹ ⌂ ⟳ and ↗ (open in
 your browser) are along the top.
 
+**Right-click** a picture to save it (under the name it was posted with), copy
+it or search for it; right-click links and the reply box as usual.
+
+**"Your IP range is blocked… verify your e-mail"?** The board window keeps its
+own cookies, so verifying in your browser doesn't count here. The window
+notices 4chan's message and walks you through it (or press **🔗**):
+
+1. Press **Start**, click **verify your e-mail address** in 4chan's message, and enter your e-mail.
+2. In 4chan's e-mail, **don't click the link**: right-click it → **Copy link**.
+3. Come back to the board window: it spots the copied link and opens it there (or press **Paste link**).
+
 **🧩 Scripts** runs Tampermonkey-style userscripts in the board:
 
 1. Paste a Greasy Fork page or a `.user.js` link (or pick one **suggested by the station**).
@@ -239,4 +250,5 @@ station that runs them elsewhere names it as
 | **"Windows protected your PC"** | More info → Run anyway (the app isn't code-signed yet). |
 | **A window is off-screen** | Tray → Put the windows back on screen. |
 | **The board looks stuck** | ⟳ in its bar, or tray → Reload. |
+| **4chan says my IP range is blocked** | Verify your e-mail in the board window itself: **🔗** → Start, then copy (don't click) the link in 4chan's e-mail ([details](#the-board-and-its-scripts)). |
 | **Green threads say offline** | The station's PC is off; the board and its green posts still show. |

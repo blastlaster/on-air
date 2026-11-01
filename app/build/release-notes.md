@@ -2,4 +2,4 @@
 
 **📋 The board**
 - **Right-click works.** Save pictures and videos (with the name they were posted under), copy them or their address, search for a picture, copy links, and cut, copy and paste with spelling suggestions.
-- **🔗 Open a 4chan link in the board window**, such as 4chan's e-mail verification link, so it applies to the board window and not your browser.
+- **Blocked from posting? Verify right in the board window.** When 4chan says your IP range is blocked, the board window walks you through verifying your e-mail. Copy the link in 4chan's e-mail (don't click it), and the board window opens it itself. Also under **🔗**.

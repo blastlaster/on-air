@@ -93,3 +93,8 @@ label { display: block; margin: 4px 0; }
 .seg .btn { padding: 4px 10px; }
 .els label { font-size: 0.92em; }
 .els .dim { font-size: 0.85em; }
+/* The board window's "waiting for 4chan's link" bar and the verification steps */
+.bd-wait { flex: none; padding: 5px 8px; gap: 6px; align-items: center; font-size: 0.88em; background: var(--sk-card-bg); border-top: 1px solid rgba(127, 127, 127, 0.25); }
+.bd-wait[hidden] { display: none; }
+.bd-steps { margin: 6px 0 8px; padding-left: 1.3em; }
+.bd-steps li { margin: 4px 0; }

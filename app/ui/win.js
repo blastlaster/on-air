@@ -600,8 +600,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             const url = b().url;
             if (!url) { box.innerHTML = '<div class="empty">This station has no board.</div>'; return; }
             box.classList.add('flush');
-            box.innerHTML = '<div class="bd-bar row"><button type="button" class="btn" data-b="back" title="Back">‹</button><button type="button" class="btn" data-b="home" title="The board’s front page">⌂</button><button type="button" class="btn" data-b="reload" title="Reload">⟳</button><button type="button" class="btn" data-b="link" title="Open a 4chan link here (say, a verification link from an e-mail)">🔗</button><span class="grow"></span>' +
+            box.innerHTML = '<div class="bd-bar row"><button type="button" class="btn" data-b="back" title="Back">‹</button><button type="button" class="btn" data-b="home" title="The board’s front page">⌂</button><button type="button" class="btn" data-b="reload" title="Reload">⟳</button><button type="button" class="btn" data-b="link" title="Verify your e-mail with 4chan here, or open a 4chan link in this window">🔗</button><span class="grow"></span>' +
                 '<label class="dim"><input type="checkbox" class="tint"' + (UI.info.ui.boardTint === false ? '' : ' checked') + '> Tint to the look</label><button type="button" class="btn" data-b="scripts" title="Userscripts: extra features for the board">🧩 Scripts</button><button type="button" class="btn" data-b="out" title="Open in the browser">↗</button></div>' +
+                '<div class="bd-wait row" hidden><span class="grow"></span><button type="button" class="btn" data-b="paste">Paste link</button><button type="button" class="btn" data-b="stopwait" title="Stop waiting">✕</button></div>' +
                 '<div class="bd"></div>';
             // The board is a real browser view laid over this spot (not a frame in this page),
             // so the site sees an ordinary visit: its captcha, cookies and posting all work.
@@ -616,15 +617,68 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             app.onWin(() => setTimeout(place, 50));
             app.board('open', url);
             place();
+            /* ---- 4chan's e-mail verification, done in this window ----
+               4chan remembers a verified e-mail with a cookie, and this window keeps its own
+               cookies (not your browser's). The link in 4chan's e-mail opens your browser if
+               you click it, so: copy it instead, and this window opens it here. */
+            const isChan = (u) => /^https:\/\/([\w-]+\.)*4chan(nel)?\.org\/\S+$/i.test(u);
+            let waiting = false, waitT = 0, lastClip = '', guided = 0;
+            const say = (html) => { $('.bd-wait span', box).innerHTML = html; };
+            function waitFor(on) {
+                waiting = on;
+                clearInterval(waitT);
+                $('.bd-wait', box).hidden = !on;
+                if (!on) return;
+                say('📧 <b>Waiting for 4chan’s link.</b> In the e-mail from 4chan, <b>right-click</b> the link → <b>Copy link</b>, then come back here. (Don’t click it: it would open your browser.)');
+                app.boardClip().then(t => { lastClip = t; }).catch(() => {});      // a link already copied before is not the one
+                waitT = setInterval(checkClip, 1500);
+                setTimeout(() => { if (waiting) waitFor(false); }, 30 * 60e3);
+            }
+            async function checkClip() {
+                if (!waiting) return;
+                const t = await app.boardClip().catch(() => '');
+                if (t && t !== lastClip) openLink(t);
+            }
+            function openLink(u) {
+                waiting = false; clearInterval(waitT);
+                app.board('go', u);
+                $('.bd-wait', box).hidden = false;
+                say('✓ <b>Opened the link here.</b> When 4chan says you’re verified, go back to the thread and post again.');
+                setTimeout(() => { if (!waiting) $('.bd-wait', box).hidden = true; }, 20000);
+            }
+            async function pasteLink() {
+                const t = await app.boardClip().catch(() => '');
+                if (t) return openLink(t);
+                UI.toast('No 4chan link copied yet. Right-click the link in the e-mail → Copy link.');
+            }
+            function verifyGuide(blocked) {
+                UI.sheet('<form><h2>📧 Verify your e-mail with 4chan, here</h2>' +
+                    (blocked ? '<p>4chan says your connection is blocked from posting until you verify an e-mail address. ' : '<p>') +
+                    'Verifying in your browser doesn’t count here: this window keeps its own cookies. Do it in this window:</p>' +
+                    '<ol class="bd-steps"><li>Press <b>Start</b>. In 4chan’s message, click <b>verify your e-mail address</b> and enter your e-mail. (Verified already in your browser? Do it again here.)</li>' +
+                    '<li>Open 4chan’s e-mail. <b>Don’t click the link</b>: right-click it and choose <b>Copy link</b> (<i>Copy link address</i>).</li>' +
+                    '<li>Come back here. The board window notices the copied link and opens it itself (or press <b>Paste link</b>).</li></ol>' +
+                    '<p class="dim">Already have the link? Paste it here:</p><input name="u" placeholder="https://…4chan.org/…" autocomplete="off">' +
+                    '<div class="row"><button class="btn go">Start</button><button type="button" class="btn" data-close>Not now</button></div></form>',
+                    (f) => {
+                        const u = f.u.value.trim();
+                        UI.closeSheet();
+                        if (u) { if (isChan(u)) openLink(u); else UI.toast('That isn’t a 4chan link.'); return; }
+                        waitFor(true);
+                    });
+            }
+            app.onBoardBlocked(() => { if (!waiting && Date.now() - guided > 10 * 60e3) { guided = Date.now(); verifyGuide(true); } });
+            window.addEventListener('focus', checkClip);
+
             const tint = () => app.board('tint', $('.tint', box).checked ? (TINT[UI.skin] || '') : '');
             tint(); UI.onLook(tint);
             $('.tint', box).onchange = tint;
             box.onclick = (e) => {
                 const k = e.target.dataset && e.target.dataset.b;
                 if (k === 'out') app.board('out');
-                else if (k === 'link') UI.sheet('<form><h2>🔗 Open a 4chan link here</h2><p class="dim">Paste a link to the board, or 4chan’s e-mail verification link, to open it in this window (its cookies live here, not in your browser).</p>' +
-                    '<input name="u" placeholder="https://sys.4chan.org/…" autocomplete="off"><div class="row"><button class="btn go">Open</button><button type="button" class="btn" data-close>Cancel</button></div></form>',
-                    (f) => { const u = f.u.value.trim(); if (!/^https:\/\/([\w-]+\.)*4chan(nel)?\.org\//i.test(u)) return UI.toast('That isn’t a 4chan link.'); app.board('go', u); UI.closeSheet(); });
+                else if (k === 'link') verifyGuide(false);
+                else if (k === 'paste') pasteLink();
+                else if (k === 'stopwait') waitFor(false);
                 else if (k === 'scripts') scripts();
                 else if (k) app.board(k);
             };
