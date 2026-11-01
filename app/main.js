@@ -905,9 +905,17 @@ handle('iface-req', async (e, r) => {
         r.json = { ...r.json, key: cfg.ifaceKey };
     }
     let body;
-    if (r.form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(Object.entries(r.form).map(([k, v]) => [k, String(v)])).toString(); }
+    if (r.form && r.file && r.to === 'fp' && r.path === 'post.php') {
+        // A green post with a picture: sent the way the [s4s] interface script sends it (multipart, as "upfile").
+        const f = r.file, bytes = f && f.bytes instanceof Uint8Array ? f.bytes : null;
+        if (!bytes || bytes.length > 8 * 1024 * 1024 || !/^image\/[\w.+-]+$/.test(String(f.type))) throw new Error('That picture can’t be posted (images up to 8 MB).');
+        body = new FormData();
+        for (const [k, v] of Object.entries(r.form)) body.append(k, String(v));
+        body.append('upfile', new Blob([bytes], { type: f.type }), safeName(f.name).replace(/^Album$/, 'image'));
+    }
+    else if (r.form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(Object.entries(r.form).map(([k, v]) => [k, String(v)])).toString(); }
     else if (r.json) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(r.json); }
-    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers, body, signal: AbortSignal.timeout(15000) }).catch(() => null);
+    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers, body, signal: AbortSignal.timeout(r.file ? 60000 : 15000) }).catch(() => null);
     if (!res) return { status: 0, json: null, text: 'Could not reach ' + new URL(url).host + '.' };
     const text = await res.text();
     let json = null;
@@ -972,7 +980,13 @@ on('image-menu', (e, url, name) => {
     Menu.buildFromTemplate([
         { label: 'Save picture as…', click: () => saveImage(w, u.href, name).then((f) => f && say('Saved ' + f + '.'), (err) => say(err.message)) },
         { label: 'Copy picture address', click: () => clipboard.writeText(u.href) },
-        { label: 'Open in your browser', click: () => shell.openExternal(u.href) }
+        { label: 'Open in your browser', click: () => shell.openExternal(u.href) },
+        { type: 'separator' },
+        { label: 'Search for this picture', submenu: [
+            ['Google Lens', 'https://lens.google.com/uploadbyurl?url='], ['Yandex', 'https://yandex.com/images/search?rpt=imageview&url='],
+            ['SauceNAO', 'https://saucenao.com/search.php?url='], ['TinEye', 'https://tineye.com/search?url='],
+            ['IQDB', 'https://iqdb.org/?url='], ['trace.moe (anime scenes)', 'https://trace.moe/?url=']
+        ].map(([label, base]) => ({ label, click: () => shell.openExternal(base + encodeURIComponent(u.href)) })) }
     ]).popup({ window: w });
 });
 

@@ -100,3 +100,6 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-opt { all: unset; cursor: pointer; padding: 3px 6px; border-radius: 3px; font-size: 0.9em; }
 .if-opt:hover { background: rgba(127, 127, 127, 0.18); }
 .if-opt.on b::before { content: '✓ '; color: var(--if-green); }
+.if-pick { cursor: pointer; }
+.if-picked { display: inline-flex; align-items: center; gap: 4px; max-width: 40%; font-size: 0.85em; }
+.if-picked[hidden], .if-pick[hidden] { display: none; }

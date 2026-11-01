@@ -59,7 +59,7 @@ its window is showing, and asks the station only *"anything new?"*.
 ## Reading
 
 - **Quotes** (`>>123`, `>>123-45`, `>>7xK2`) are links: hover for a preview, click to jump to the post (or open the thread it's in).
-- **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address or open it in your browser.
+- **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address, open it in your browser, or **search for it** (Google Lens, Yandex, SauceNAO, TinEye, IQDB, trace.moe).
 - **🟩 Green only** at the top of a board thread shows just the opening post and the green posts (the number is how many). It stays on until you switch it off.
 - **Repeating ids are marked**, the way they should be: No.13256**611**, No.7x**KK**.
 - Every poster's **level** shows next to their name, coloured for the special ones; the station's posts carry **## Station**.
@@ -71,7 +71,7 @@ At the bottom of every thread:
 
 | In a board thread | In a green thread |
 |---|---|
-| **🟩 Green post** — goes to funposters.club, so everyone using the interface (in the app or the [s4s] interface userscript) sees it in that thread. | **Reply** — goes to the station's green threads. Text only. |
+| **🟩 Green post** — goes to funposters.club, so everyone using the interface (in the app or the [s4s] interface userscript) sees it in that thread. **📎 Picture** adds an image (or paste one into the comment, or drop it on the form), up to 8 MB. | **Reply** — goes to the station's green threads. Text only. |
 | **Reply on 4chan ↗** — opens the board window at that thread, where 4chan's own captcha lives. | |
 
 - **Name**: your app name to start with; `name#secret` gives a tripcode (`!Ab3…`).

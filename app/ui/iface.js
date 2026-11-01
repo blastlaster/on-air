@@ -59,6 +59,8 @@
         let catalog = [], greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
         // Where you were: the list when you opened a thread, and each thread you've read (this session).
         let listTop = null, restoreTop = null;
+        let attached = null;                                          // the picture for your next green post (a File)
+        const PIC_MAX = 8 * 1024 * 1024;
         const threadTops = new Map();
         function leaveThread() {
             const sc = $('.if-posts', box);
@@ -372,7 +374,7 @@
             const sc = $('.if-posts', box);
             if (sc) sc.scrollTop = keepScroll ? top : threadTops.get(cur.key) || 0;
             const f = $('.if-reply', box);
-            if (f) { f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); }; optionsMenu(f.options, cur); }
+            if (f) { f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); }; optionsMenu(f.options, cur); if (f.upfile) pictureField(f); }
 
         }
 
@@ -381,13 +383,38 @@
             return '<form class="if-reply">' +
                 '<div class="row"><input name="name" class="grow" maxlength="60" placeholder="Name (name#secret for a tripcode)" value="' + esc(name) + '">' +
                 '<input name="options" maxlength="20" placeholder="Options" title="sage = don’t bump' + (cur.kind === 'c' ? '; numberless = hide your number' : '') + '"></div>' +
-                '<textarea name="text" rows="3" maxlength="2000" placeholder="' + (cur.kind === 'c' ? 'A green post: everyone on the interface sees it' : 'Reply (text only)') + '"></textarea>' +
+                '<textarea name="text" rows="3" maxlength="2000" placeholder="' + (cur.kind === 'c' ? 'A green post: everyone on the interface sees it (a picture too, if you like)' : 'Reply (text only)') + '"></textarea>' +
                 '<div class="row">' +
                     (cur.kind === 'c'
-                        ? '<button class="btn go" data-send="fp">🟩 Green post</button><button type="button" class="btn" data-open4="https://boards.4chan.org/' + boardName() + '/thread/' + cur.id + '">Reply on 4chan ↗</button>'
+                        ? '<button class="btn go" data-send="fp">🟩 Green post</button>' +
+                          '<label class="btn if-pick" title="Add a picture to your green post (or paste one into the comment)">📎 Picture<input type="file" name="upfile" accept="image/*" hidden></label>' +
+                          '<span class="if-picked" hidden><span class="dim ell"></span> <a class="if-act" data-unpick title="Remove the picture">✕</a></span>' +
+                          '<button type="button" class="btn" data-open4="https://boards.4chan.org/' + boardName() + '/thread/' + cur.id + '">Reply on 4chan ↗</button>'
                         : '<button class="btn go" data-send="g">Reply</button>') +
                     '<span class="grow"></span><span class="dim if-hint">&gt;text greentext · &gt;&gt;' + (cur.kind === 'c' ? '123' : '7xK2') + ' quotes</span>' +
                 '</div></form>';
+        }
+
+        /** A picture for a green post: pick one, paste one, or drop one on the form. Kept across refreshes until it's posted. */
+        function pictureField(f) {
+            const show = () => {
+                const p = $('.if-picked', f);
+                p.hidden = !attached;
+                $('.ell', p).textContent = attached ? (attached.name || 'pasted picture') + ' · ' + Math.max(1, Math.round(attached.size / 1024)) + ' KB' : '';
+                $('.if-pick', f).hidden = !!attached;
+            };
+            const take = (file) => {
+                if (!file) return;
+                if (!/^image\//.test(file.type)) return UI.toast('Pictures only (JPG, PNG, GIF, WebP).');
+                if (file.size > PIC_MAX) return UI.toast('That picture is too big (8 MB at most).');
+                attached = file; show();
+            };
+            f.upfile.onchange = () => { take(f.upfile.files[0]); f.upfile.value = ''; };
+            f.text.addEventListener('paste', (e) => { const it = [...(e.clipboardData && e.clipboardData.items || [])].find(i => i.kind === 'file' && /^image\//.test(i.type)); if (it) { e.preventDefault(); take(it.getAsFile()); } });
+            f.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+            f.addEventListener('drop', (e) => { const file = e.dataTransfer && e.dataTransfer.files[0]; if (file) { e.preventDefault(); take(file); } });
+            $('[data-unpick]', f).onclick = () => { attached = null; show(); };
+            show();
         }
 
         /** The Options field: every option, shown when you click into it. */
@@ -421,14 +448,17 @@
 
         async function sendReply(f, how) {
             const text = f.text.value.trim();
-            if (!text) return UI.toast('Write something first.');
+            const pic = how === 'fp' ? attached : null;
+            if (!text && !pic) return UI.toast('Write something first.');
             store.set('name', f.name.value.trim());
             const btn = f.querySelector('[data-send]');
             btn.disabled = true;
             try {
                 if (how === 'fp') {
                     // funposters.club: the green post goes into the 4chan thread for everyone on the interface.
-                    const r = await app.iface({ to: 'fp', path: 'post.php', form: { thread: current.id, username: f.name.value.trim(), options: f.options.value.trim(), text: text.replace(/\r?\n/g, '\r') } });
+                    const form = { thread: current.id, username: f.name.value.trim(), options: f.options.value.trim(), text: pic ? text : text.replace(/\r?\n/g, '\r') };
+                    const file = pic ? { name: pic.name || 'image.png', type: pic.type, bytes: new Uint8Array(await pic.arrayBuffer()) } : undefined;
+                    const r = await app.iface({ to: 'fp', path: 'post.php', form, file });
                     if (!/Post Successful/i.test(r.text || '')) throw new Error(r.status && r.status !== 200 ? 'funposters.club answered ' + r.status : 'Not posted: ' + htmlText(r.text || '').slice(0, 160));
                     // Checked someone's repeats in it? The station checks with 4chan and gives the XP.
                     const refs = boardRefs(text);
@@ -439,6 +469,7 @@
                     celebrate(r);
                 }
                 f.text.value = '';
+                if (pic) attached = null;
                 if (!watch[current.key]) { watch[current.key] = { title: '', seen: 0 }; saveWatch(); }
                 await loadThread(current, false);
                 const sc = $('.if-posts', box); if (sc) sc.scrollTop = sc.scrollHeight;
