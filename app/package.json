@@ -1,7 +1,7 @@
 {
   "name": "on-air-app",
   "productName": "On Air",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "The radio on your desktop: a small player with the station’s chat, requests, call-in, sign, albums, board and video as windows you arrange yourself.",
   "main": "main.js",
   "type": "commonjs",
@@ -73,7 +73,10 @@
         "repo": "on-air",
         "releaseType": "release"
       }
-    ]
+    ],
+    "releaseInfo": {
+      "releaseNotesFile": "build/release-notes.md"
+    }
   },
   "devDependencies": {
     "electron": "^45.0.0",
