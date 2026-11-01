@@ -51,6 +51,7 @@ person setting it up, never from this file.
          GET  /api/requestable      search the library to request
          POST /api/voicemail        a voicemail upload
          POST /api/call/away        a caller's "I switched away" beacon
+         POST /api/skip             (optional) a vote to skip the AutoDJ song
          GET  /extras.json          (optional) same as onair/extras.json
          /green/api/…               green threads (the Interface)
                     │
@@ -106,6 +107,7 @@ Defaults in brackets.
 | **Requests** | Off, free text, or from the library [library]; how many waiting per listener [3]. |
 | **Calls** | Allow call-in [yes, opened per show]; max queue [25]. |
 | **Voicemail** | Allow [yes]; max length [5 minutes]; where files go [data/voicemail]. |
+| **Skip votes** | Let listeners vote AutoDJ songs off [no]. Needs the hosting panel's login (a login without a two-step code), *typed into the setup page only*. |
 | **Chat** | Off-air community chat room on Chattable (room name), if any. |
 | **Green threads** | Serve them for the Interface [yes]. |
 | **Extras** | Albums (archive.org identifiers or track URLs), links, a board URL, a YouTube channel — for `extras.json` (§5). |
@@ -157,6 +159,7 @@ unless noted.
   "history": [{ "title": "…", "artist": "…", "requestedBy": "", "at": 0, "art": "" }],
   "onAir": [{ "name": "…", "lane": "host|cohost|caller", "color": "#…" }],
   "green": true,
+  "skip": { "on": true, "musicId": 126, "votes": 1, "needed": 2, "listeners": 2, "skipped": false },
   "ping": { "id": "a1b2c3", "at": 1790000000000, "title": "…", "body": "…" }
 }
 ```
@@ -176,6 +179,18 @@ unless noted.
   if there isn't one.
 - `green`: this engine serves green threads at `/green/api/` (§4.7).
 - `ping`: the host's latest 📣 Ping, kept for an hour (§4.6).
+- `skip` (optional): a vote to skip the AutoDJ song. `on` only off air, while
+  the engine can skip (the host switched it on and saved a panel login);
+  `musicId` is the panel's id for the song now playing (`all_music_id` in its
+  history); `needed` is more than half of `listeners`. The app shows ⏭ and a
+  bar under the volume, and votes with `POST /api/skip` (text/plain body
+  `{ "voter": "<stable id per app>", "musicId": 126 }`; answer: this same
+  object, or `{ "error": "…" }`). One vote per voter per song, a few per
+  address. At the threshold the engine signs in to the panel
+  (`POST api-token-auth/` → `{ access }`, then `Authorization: JWT <access>`),
+  finds the AutoDJ (`GET djs/?server=N`, the entry with `cat: "auto"`) and
+  presses its Next Track (`POST djs/<id>/rewind/`), and records the song in a
+  list of skipped songs for the host. Push a `status` after every vote.
 
 ### 4.2 WebSocket `/ws`
 
