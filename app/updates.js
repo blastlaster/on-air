@@ -12,6 +12,9 @@
    ============================================================= */
 'use strict';
 const { app, Notification, shell } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
 
 const RELEASES = 'https://github.com/blastlaster/on-air/releases/latest';
 const EVERY = 6 * 3600e3;
@@ -30,7 +33,10 @@ function setup({ icon, onChange, enabled, onInstall }) {
         updater.autoDownload = canSelf;
         // Not electron-updater's own install-on-quit: that one never reopens the app. Quitting calls install('quit').
         updater.autoInstallOnAppQuit = false;
-        updater.logger = null;
+        // A short log of what the updater did, for when an update misbehaves (userData/logs/updates.log).
+        const LOG = path.join(app.getPath('userData'), 'logs', 'updates.log');
+        const line = (lv) => (m) => { try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); if (fs.existsSync(LOG) && fs.statSync(LOG).size > 200e3) fs.renameSync(LOG, LOG + '.old'); fs.appendFileSync(LOG, new Date().toISOString() + ' ' + lv + ' ' + String(m) + '\n'); } catch { /* no log, no matter */ } };
+        updater.logger = { info: line('info'), warn: line('warn'), error: line('error'), debug: () => {} };
         updater.on('checking-for-update', () => { state.status = 'checking'; tell(); });
         updater.on('update-not-available', () => { state.status = 'none'; tell(); });
         updater.on('update-available', (i) => {
@@ -60,8 +66,29 @@ function setup({ icon, onChange, enabled, onInstall }) {
         if (state.status !== 'ready') return false;
         if (onInstall) onInstall(state.version, how || 'restart');
         state.status = 'installing'; tell();
+        if (process.platform === 'win32') reopenAfter();
         updater.quitAndInstall(true, true);         // quietly, then run the new version
         return true;
+    }
+    /**
+     * The installer reopens On Air itself through its shortcut, but that can quietly fail. So a small
+     * hidden helper waits for this app to close and the installer to finish, then starts On Air
+     * if it isn't running yet. (Windows; the AppImage reopens itself.)
+     */
+    function reopenAfter() {
+        const q = (x) => "'" + String(x).replace(/'/g, "''") + "'";
+        const ps = [
+            '$me=' + process.pid + '; $exe=' + q(process.execPath) + '; $name=' + q(path.basename(process.execPath, '.exe')) + '; $t=(Get-Date).AddMinutes(4)',
+            'while ((Get-Process -Id $me -EA 0) -and (Get-Date) -lt $t) { Start-Sleep -m 400 }',
+            'Start-Sleep -s 3',
+            "while ((Get-Date) -lt $t -and (Get-Process -EA 0 | ? { ($_.Path -like '*\\pending\\*') -or ($_.ProcessName -like 'Un_*') })) { Start-Sleep -m 700 }",
+            'Start-Sleep -s 3',
+            'if (-not (Get-Process -Name $name -EA 0)) { if (Test-Path $exe) { Start-Process -FilePath $exe } }'
+        ].join('\n');
+        try {
+            spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')],
+                { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+        } catch (e) { if (updater.logger) updater.logger.warn('reopen helper: ' + e.message); }
     }
     setTimeout(check, 60e3).unref?.();
     setInterval(check, EVERY).unref?.();

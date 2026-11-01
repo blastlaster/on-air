@@ -142,17 +142,16 @@
             default: return true;
         }
     };
-    let lastButtons = '';
+    let lastButtons = '', lastFit = '';
     function buttons() {
         const list = ELEMENTS.filter(available);
         const label = (el) => (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
         const key = list.map(el => el.id + ':' + label(el)).join(',');
         if (key !== lastButtons) {
             lastButtons = key;
-            $('.side').style.gridTemplateRows = '';
             $('.side').innerHTML = list.map(el => '<button type="button" data-el="' + el.id + '" title="' + esc(el.about) + '"><span class="e">' + el.icon + '</span><span class="l">' + esc(label(el)) + '</span></button>').join('');
         }
-        if (!$('.side').style.gridTemplateRows) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        if (key !== lastFit) { lastFit = key; requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); }      // re-measure for the new set
         for (const b of $('.side').children) {
             const id = b.dataset.el;
             b.classList.toggle('open', elState[id] === 'open');
@@ -210,11 +209,22 @@
         if (!n) return;
         // Columns shared out evenly (10 buttons in two columns = 5 and 5); the buttons
         // stretch to the full height, so the last row meets the sign with the same gap as everywhere.
-        const per = Math.max(1, Math.floor((side.clientHeight + 4) / (BTN_MIN + 4)));
+        // A button's own height in this look (thick borders and big fonts make them taller than BTN_MIN).
+        const probe = side.children[0].cloneNode(true);
+        probe.style.cssText = 'position:absolute;visibility:hidden;height:auto;';
+        side.appendChild(probe);
+        const btn = Math.max(BTN_MIN, Math.ceil(probe.getBoundingClientRect().height));
+        probe.remove();
+        const per = Math.max(1, Math.floor((side.clientHeight + 4) / (btn + 4)));
         const cols = Math.ceil(n / Math.min(per, n));
-        side.style.gridTemplateRows = 'repeat(' + Math.ceil(n / cols) + ', minmax(' + BTN_MIN + 'px, 1fr))';
+        const rows = 'repeat(' + Math.ceil(n / cols) + ', minmax(' + btn + 'px, 1fr))';
+        if (side.style.gridTemplateRows !== rows) side.style.gridTemplateRows = rows;
     };
     window.addEventListener('resize', fit); fit();
+    // …and again whenever the room changes: the sign coming and going, the look's font arriving, a new look.
+    new ResizeObserver(() => fit()).observe($('.radio'));
+    if (document.fonts) document.fonts.ready.then(fit);
+    UI.onLook(() => requestAnimationFrame(fit));
 
     paint(core.state);
     // The windows that were open last time, back where they were.

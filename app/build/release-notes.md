@@ -1,5 +1,5 @@
-## What's new in 0.4.5
+## What's new in 0.4.6
 
-**📋 The board**
-- **Right-click works.** Save pictures and videos (with the name they were posted under), copy them or their address, search for a picture, copy links, and cut, copy and paste with spelling suggestions.
-- **Blocked from posting? Verify right in the board window.** When 4chan says your IP range is blocked, the board window walks you through verifying your e-mail. Copy the link in 4chan's e-mail (don't click it), and the board window opens it itself. Also under **🔗**.
+- **The radio's buttons keep their shape** in every look, from the first moment the radio opens.
+- **Updates reopen On Air more reliably.** If the installer doesn't bring it back, the app now does.
+- **📋 Paste the link…** in the board window's verification bar now opens a box with the link you copied, ready to open, or for you to paste it in.

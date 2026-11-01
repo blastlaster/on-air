@@ -1046,10 +1046,12 @@ ipcMain.on('board-blocked', (e) => {
     if (w && !w.isDestroyed()) w.webContents.send('board-blocked');
 });
 /** A 4chan link the listener copied (from 4chan's verification e-mail), or '' — nothing else is read out. */
-handle('board-clip', (e) => {
+handle('board-clip', (e, anyLink) => {
     if (idOf(e.sender) !== 'board') throw new Error('Not allowed.');
     const t = String(clipboard.readText() || '').trim();
-    return /^https:\/\/([\w-]+\.)*4chan(nel)?\.org\/\S+$/i.test(t) && t.length < 2000 ? t : '';
+    if (t.length > 2000) return '';
+    // Watching: only a 4chan link. The paste box (opened by the listener) also shows any other web link, so they see what they copied.
+    return /^https:\/\/([\w-]+\.)*4chan(nel)?\.org\/\S+$/i.test(t) || (anyLink && /^https?:\/\/\S+$/i.test(t)) ? t : '';
 });
 
 on('board-goto', (e, url) => {

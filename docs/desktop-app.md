@@ -151,7 +151,7 @@ notices 4chan's message and walks you through it (or press **🔗**):
 
 1. Press **Start**, click **verify your e-mail address** in 4chan's message, and enter your e-mail.
 2. In 4chan's e-mail, **don't click the link**: right-click it → **Copy link**.
-3. Come back to the board window: it spots the copied link and opens it there (or press **Paste link**).
+3. Come back to the board window: it spots the copied link and opens it there (or press **📋 Paste the link…**, which shows the link you copied, or lets you paste it, and opens it).
 
 **🧩 Scripts** runs Tampermonkey-style userscripts in the board:
 
