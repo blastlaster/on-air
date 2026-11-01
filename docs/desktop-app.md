@@ -190,7 +190,9 @@ blue for AutoDJ.
 
 The app checks this repository's releases a minute after it starts and every
 six hours. A new version downloads quietly; a notification and the tray then
-offer **Restart to update**, and quitting installs it anyway. On a Linux `.deb`
+offer **Restart to update**, and On Air comes back on the new version by
+itself. Quitting installs it too: the new version then opens with a short
+note — **Open On Air** or **Close**. On a Linux `.deb`
 the notification links to the download instead. Settings → Updates switches
 this off.
 

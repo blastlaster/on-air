@@ -1134,7 +1134,12 @@ handle('stations-window', () => { showStations(); });
 
 /* ---------- go ---------- */
 app.on('second-instance', () => createWindow(true));
-app.on('before-quit', () => { quitting = true; if (saveT) save(); });
+let updating = false;
+app.on('before-quit', (e) => {
+    // A new version is ready: quitting installs it, and the new version opens and asks "Open On Air / Close".
+    if (!updating && updates && updates.state.status === 'ready') { e.preventDefault(); updating = true; setImmediate(() => { if (!updates.install('quit')) app.quit(); }); return; }
+    quitting = true; if (saveT) save();
+});
 app.on('window-all-closed', () => { /* stay in the tray */ });
 
 app.whenReady().then(async () => {
@@ -1153,7 +1158,23 @@ app.whenReady().then(async () => {
     refreshTray();
     startWatch();
     ensureIcons().catch(() => {});
-    updates = require('./updates').setup({ icon: () => iconPath(), enabled: () => cfg.updates !== false, onChange: () => { refreshTray(); broadcastUi(); } });
+    updates = require('./updates').setup({
+        icon: () => iconPath(), enabled: () => cfg.updates !== false, onChange: () => { refreshTray(); broadcastUi(); },
+        onInstall: (version, how) => { updating = true; quitting = true; cfg.updated = { to: version, ask: how === 'quit' }; save(); }
+    });
+    // Just updated: say so, and after an update that happened on quitting, ask before opening.
+    const upd = cfg.updated;
+    if (upd) { delete cfg.updated; save(); }
+    if (upd && upd.to === app.getVersion() && !process.env.ONAIR_SMOKE) {
+        if (upd.ask) {
+            const r = await dialog.showMessageBox({
+                type: 'info', title: 'On Air', message: 'On Air ' + upd.to + ' is installed',
+                detail: 'The new version was installed when you closed On Air.', buttons: ['Open On Air', 'Close'], defaultId: 0, cancelId: 1,
+                icon: nativeImage.createFromPath(iconPath()), noLink: true
+            });
+            if (r.response === 1) { quitting = true; app.quit(); return; }
+        } else tip('On Air ' + upd.to, 'Updated. Welcome back.');
+    }
     if (!process.argv.includes('--hidden') || !station()) createWindow(!process.env.ONAIR_SMOKE || !!process.env.ONAIR_SMOKE_SHOW);
     else if (process.env.ONAIR_SMOKE) createWindow(false);
     if (process.env.ONAIR_SMOKE) smoke();

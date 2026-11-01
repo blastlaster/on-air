@@ -4,7 +4,9 @@
    Checks a minute after start and every six hours (never in test
    runs or an unpacked copy). A new version downloads quietly in the
    background; then a notification says it's ready, and the tray
-   offers "Restart to update". Quitting installs it too. Where this
+   offers "Restart to update". Quitting installs it too. Either way
+   On Air opens again on the new version (after a quit, it first
+   asks whether to open or close). Where this
    kind of install can't update itself (a .deb, say), the
    notification opens the download page instead.
    ============================================================= */
@@ -14,7 +16,7 @@ const { app, Notification, shell } = require('electron');
 const RELEASES = 'https://github.com/blastlaster/on-air/releases/latest';
 const EVERY = 6 * 3600e3;
 
-function setup({ icon, onChange, enabled }) {
+function setup({ icon, onChange, enabled, onInstall }) {
     const state = { status: 'idle', version: '', error: '' };       // idle | checking | downloading | ready | none | error | manual
     const tell = () => onChange && onChange({ ...state });
     const page = () => shell.openExternal(RELEASES);
@@ -26,7 +28,8 @@ function setup({ icon, onChange, enabled }) {
     const canSelf = !!updater && (process.platform === 'win32' || !!process.env.APPIMAGE);
     if (updater) {
         updater.autoDownload = canSelf;
-        updater.autoInstallOnAppQuit = true;
+        // Not electron-updater's own install-on-quit: that one never reopens the app. Quitting calls install('quit').
+        updater.autoInstallOnAppQuit = false;
         updater.logger = null;
         updater.on('checking-for-update', () => { state.status = 'checking'; tell(); });
         updater.on('update-not-available', () => { state.status = 'none'; tell(); });
@@ -52,7 +55,14 @@ function setup({ icon, onChange, enabled }) {
         if (!updater || !enabled()) return;
         try { await updater.checkForUpdates(); } catch (e) { state.status = 'error'; state.error = String(e.message || e).slice(0, 200); tell(); }
     }
-    function install() { if (state.status === 'ready') updater.quitAndInstall(false, true); }
+    /** Install the downloaded version and open On Air again on it. how: 'restart' (asked for) or 'quit' (it asks first, then). */
+    function install(how) {
+        if (state.status !== 'ready') return false;
+        if (onInstall) onInstall(state.version, how || 'restart');
+        state.status = 'installing'; tell();
+        updater.quitAndInstall(true, true);         // quietly, then run the new version
+        return true;
+    }
     setTimeout(check, 60e3).unref?.();
     setInterval(check, EVERY).unref?.();
     return { state, check, install, page };

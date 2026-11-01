@@ -4,6 +4,7 @@
 .linkish:hover { text-decoration: underline; }
 .linkish.on { font-weight: bold; }
 section + section { margin-top: 14px; }
+section[hidden] + section { margin-top: 0; }          /* nothing above it showing: no gap */
 label { display: block; margin: 4px 0; }
 .consent { font-size: 0.88em; }
 

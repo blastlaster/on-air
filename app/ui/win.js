@@ -774,7 +774,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             $('.dl-dir', box).innerHTML = 'Albums go to <b>' + esc(i.downloads) + '</b>';
             $('.st', box).textContent = (i.station ? i.station.name + ' — ' + i.station.pageUrl : 'No station') + ' · On Air ' + i.version;
             const u = i.update || {};
-            $('.upd', box).textContent = 'You have ' + i.version + '. ' + ({ checking: 'Checking…', downloading: 'Downloading ' + u.version + '…', ready: u.version + ' is ready.', none: 'That’s the newest.', manual: u.version + ' is out — download it from the release page.', error: 'Couldn’t check just now.' }[u.status] || '');
+            $('.upd', box).textContent = 'You have ' + i.version + '. ' + ({ checking: 'Checking…', downloading: 'Downloading ' + u.version + '…', ready: u.version + ' is ready.', installing: 'Installing ' + u.version + '…', none: 'That’s the newest.', manual: u.version + ' is out — download it from the release page.', error: 'Couldn’t check just now.' }[u.status] || '');
             $('[data-upd="install"]', box).hidden = u.status !== 'ready';
         }
         paint(UI.info); UI.onUi(paint);
