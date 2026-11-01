@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('onairApp', {
     ping: (p) => ipcRenderer.send('ping', p),
     // Fetching what a station publishes (its site may not allow pages to read it directly)
     getJSON: (url) => ipcRenderer.invoke('get-json', url),
+    skipVote: (musicId) => ipcRenderer.invoke('skip-vote', musicId),
     openExternal: (url) => ipcRenderer.send('open-external', url),
     // Albums
     download: (job) => ipcRenderer.invoke('download-album', job),

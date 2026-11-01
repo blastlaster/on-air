@@ -20,7 +20,9 @@
             '<button class="play" type="button" title="Play"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg></button>' +
             '<input class="vol" type="range" min="0" max="1" step="0.02" title="Volume" aria-label="Volume">' +
             '<span class="vote" hidden><button type="button" data-v="like" title="I like this one">👍</button><button type="button" data-v="dislike" title="Not for me">👎</button></span>' +
+            '<button type="button" class="skipb" title="Vote to skip this song (more than half of the listeners skips it)" hidden>⏭</button>' +
           '</div>' +
+          '<div class="skipbar" hidden><span class="sk-t"></span><b><i></i></b></div>' +
           '<div class="extra"></div>' +
         '</div><nav class="side"></nav></div>' +
         '<div class="led" data-bg="transparent" data-off="rgba(255,255,255,0.10)" hidden></div>';
@@ -31,12 +33,27 @@
     vol.value = core.state.volume == null ? 0.8 : core.state.volume;
     vol.oninput = () => core.setVolume(vol.value);
     $('.play').onclick = () => core.toggle();
+    $('.skipb').onclick = () => core.skipVote();
     $('.vote').onclick = async (e) => {
         const b = e.target.closest('button');
         if (!b || $('.vote').classList.contains('done')) return;
         const r = await core.vote(b.dataset.v);
         if (r.done) $('.vote').classList.add('done');
     };
+
+    /** A song title too long for the radio scrolls by, marquee-style; one that fits sits still. */
+    function marquee(el, text) {
+        if (el.dataset.text === text && el.dataset.w === String(el.clientWidth)) return;
+        el.dataset.text = text; el.dataset.w = String(el.clientWidth);
+        el.classList.remove('mq-on');
+        el.textContent = text;
+        if (el.scrollWidth <= el.clientWidth + 1) return;
+        const one = '<span>' + esc(text) + '</span><span class="mq-gap">•</span>';
+        el.innerHTML = '<span class="mq">' + one + one + '</span>';
+        el.firstChild.style.animationDuration = Math.max(6, el.firstChild.scrollWidth / 2 / 40) + 's';     // about 40 pixels a second
+        el.classList.add('mq-on');
+    }
+    new ResizeObserver(() => marquee($('.np-main'), $('.np-main').dataset.text || ' ')).observe($('.np-main'));
 
     let sign = null, s = core.state;
     function paint(st) {
@@ -48,10 +65,10 @@
         light.style.color = light.style.background;
         $('.state').textContent = st.onAir ? 'Live' + (st.who ? ' with ' + st.who : '') : (st.ready ? 'AutoDJ' : 'Tuning in…');
         $('.count').textContent = st.listeners == null ? '' : st.listeners + ' listening';
-        $('.np-main').textContent = st.main || ' ';
+        marquee($('.np-main'), st.main || ' ');
         const t = st.track;
         $('.np-sub').textContent = (st.sub || '') + (t && t.requestedBy ? ' · requested by ' + t.requestedBy + (t.note ? ' (“' + t.note + '”)' : '') : '');
-        $('.np-main').title = $('.np-main').textContent; $('.np-sub').title = $('.np-sub').textContent;
+        $('.np-main').title = st.main || ''; $('.np-sub').title = $('.np-sub').textContent;
         if (st.img) { if (art.getAttribute('src') !== st.img) art.src = st.img; art.hidden = false; } else art.hidden = true;
         const playing = st.playing || (st.album && st.album.playing);
         $('.play').innerHTML = playing ? '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>';
@@ -60,6 +77,16 @@
         const vote = $('.vote'), id = st.canVote ? String(t.id) : '';
         vote.hidden = !id;
         if (id && vote.dataset.id !== id) { vote.dataset.id = id; vote.classList.toggle('done', core.hasVoted(id)); }
+        // A vote to skip: the ⏭ button, and under the volume how close it is (for everyone listening)
+        const sk = st.skip;
+        $('.skipb').hidden = !sk || sk.skipped;
+        $('.skipb').classList.toggle('done', !!(sk && sk.mine));
+        $('.skipbar').hidden = !sk || (!sk.votes && !sk.skipped);
+        if (sk && (sk.votes || sk.skipped)) {
+            $('.sk-t').textContent = sk.skipped ? '⏭ Skipped by vote' : '⏭ Skip vote: ' + sk.votes + ' of ' + sk.needed;
+            $('.skipbar').title = sk.skipped ? 'Listeners voted this song off.' : sk.votes + ' of the ' + sk.needed + ' votes needed to skip this song (more than half of the ' + sk.listeners + ' listening).' + (sk.mine ? ' You voted.' : ' Press ⏭ to join.');
+            $('.skipbar i').style.width = Math.min(100, Math.round((sk.skipped ? 1 : sk.votes / Math.max(1, sk.needed)) * 100)) + '%';
+        }
         // An album playing, a call in progress
         const ex = [];
         if (st.album) ex.push('<div class="line album">📀 <span class="grow ell" title="' + esc(st.album.title) + '">' + esc(st.album.track || st.album.title) + '</span>' +

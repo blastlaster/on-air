@@ -52,3 +52,18 @@ body.skin-win95 .play, body.skin-netscape .play, body.skin-dos .play, body.skin-
 .side button:hover { filter: brightness(1.15); }
 body.narrow .side .l { display: none; }
 body.short .art { width: 52px; height: 52px; }
+/* A title too long to fit scrolls by (radio.js marquee) */
+.np-main.mq-on { text-overflow: clip; }
+.np-main .mq { display: inline-block; white-space: nowrap; animation: npMarquee linear infinite; padding-right: 0; }
+.np-main .mq-gap { display: inline-block; padding: 0 1.2em; opacity: 0.6; }
+.np-main.mq-on:hover .mq { animation-play-state: paused; }
+@keyframes npMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .np-main .mq { animation: none; } }
+/* A vote to skip the song: the button, and the bar under the volume */
+.skipb { flex: none; font: inherit; font-size: 0.85em; padding: 2px 6px; cursor: pointer; background: var(--sk-btn-bg); color: var(--sk-btn-text); border: var(--sk-btn-border); border-radius: var(--sk-btn-radius, 6px); }
+.skipb.done { opacity: 0.45; }
+.skipbar { display: flex; align-items: center; gap: 8px; font-size: 0.82em; margin-top: 3px; color: var(--hd); }
+.skipbar[hidden] { display: none; }
+.skipbar .sk-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skipbar b { flex: 1; min-width: 30px; height: 4px; border-radius: 2px; background: rgba(127, 127, 127, 0.3); overflow: hidden; }
+.skipbar i { display: block; height: 100%; width: 0; background: var(--sk-accent, #ff3d6e); transition: width 0.3s; }

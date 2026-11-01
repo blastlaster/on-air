@@ -32,6 +32,8 @@ adds more, switches between them, and sets each one's icon.
 - **Now playing**: the live light (red when someone is live, blue for AutoDJ),
   who is on, how many are listening, the song, its cover, and how far into it.
 - **▶ / ⏸** and the volume. **👍 / 👎** vote on AutoDJ songs from the station's library.
+- **⏭ Skip vote** (when the station allows it, and its PC is on): when more than half of the people listening press ⏭, the AutoDJ song is skipped. A bar under the volume shows everyone how close a vote is.
+- A song title too long for the radio scrolls by.
 - An **📀 album** you're playing, or a **📞 call** you're on, gets a line of its own with its controls.
 - The **LED sign** runs along the bottom (Settings can move it to its own window).
 - A button for each window. Press once to open, again to tuck it away, again to

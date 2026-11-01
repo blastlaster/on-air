@@ -944,6 +944,17 @@ handle('iface-token', (e, server, token, forStation) => {
     save(); broadcastUi();
     return !!token;
 });
+/* ---------- a vote to skip the AutoDJ song, to the station's PC ---------- */
+handle('skip-vote', async (e, musicId) => {
+    const eng = await stationEngine();
+    if (!eng) return { error: 'The station’s PC is off, so there’s no skipping right now.' };
+    if (!cfg.ifaceKey) { cfg.ifaceKey = crypto.randomBytes(24).toString('base64url'); save(); }
+    const voter = crypto.createHash('sha256').update(cfg.ifaceKey + '|skip').digest('base64url').slice(0, 32);
+    const r = await fetch(eng + '/api/skip', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ voter, musicId: Number(musicId) || 0 }), signal: AbortSignal.timeout(20000) }).catch(() => null);
+    if (!r) return { error: 'Could not reach the station.' };
+    try { return await r.json(); } catch { return { error: 'The station didn’t answer properly.' }; }
+});
+
 handle('board-posts', (e) => {
     if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
     const fresh = boardPosted.filter(p => Date.now() - p.at < 3600e3);

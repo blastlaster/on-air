@@ -276,6 +276,9 @@
             main, sub, img,
             track: track ? { title: track.title || '', artist: track.artist || '', requestedBy: track.requestedBy || '', note: track.note || '', at: track.at || 0, length: track.length || 0, id: track.id || 0 } : null,
             canVote: !!(track && track.id && panel() && !live),
+            // A vote to skip this AutoDJ song (the station's PC counts it; more than half of the listeners skips it).
+            skip: !live && track && track.id && engineUp && status && status.skip && status.skip.on && status.skip.musicId === track.id
+                ? { votes: status.skip.votes, needed: status.skip.needed, listeners: status.skip.listeners, skipped: !!status.skip.skipped, mine: hasSkipped(track.id) } : null,
             onLine: live ? (status.onAir || []).filter(p => p.lane !== 'host').map(p => ({ name: p.name, color: p.color })) : [],
             listeners: typeof n === 'number' ? n : null,
             played, comingUp: live || !forecastOk ? [] : forecast,
@@ -409,6 +412,21 @@
     const votedList = () => { try { return JSON.parse(pref('voted', '[]')) || []; } catch { return []; } };
     const hasVoted = (id) => votedList().includes(String(id));
     const rememberVote = (id) => setPref('voted', JSON.stringify([...votedList(), String(id)].slice(-60)));
+    const skippedList = () => { try { return JSON.parse(pref('skipVoted', '[]')) || []; } catch { return []; } };
+    const hasSkipped = (id) => skippedList().includes(String(id));
+    async function skipVote() {
+        const id = S.track && S.track.id;
+        if (!id || !S.skip || !window.onairApp || !window.onairApp.skipVote) return;
+        if (hasSkipped(id)) return toast('You’ve voted to skip this one.');
+        try {
+            const r = await window.onairApp.skipVote(id);
+            if (r && r.error) { toast(r.error); return; }
+            setPref('skipVoted', JSON.stringify([...skippedList(), String(id)].slice(-60)));
+            if (r && r.on && typeof r.votes === 'number') status.skip = { ...status.skip, ...r };
+            toast(r && r.skipped ? 'Skipped. ⏭' : 'Vote counted: ' + r.votes + ' of ' + r.needed + ' to skip.');
+            render();
+        } catch { toast('Could not reach the station to vote.'); }
+    }
     async function vote(kind) {
         const id = S.track && S.track.id, api = panelApi();
         if (!id || !api) return { ok: false };
@@ -551,7 +569,7 @@
         get site() { return SITE; },
         get panelApi() { return panelApi(); },
         get panelServer() { return (panel() || {}).server || 1; },
-        on, toast, now: serverNow,
+        on, toast, now: serverNow, skipVote,
         play, stop, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,
         send, setName,
