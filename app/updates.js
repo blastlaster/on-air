@@ -71,24 +71,33 @@ function setup({ icon, onChange, enabled, onInstall }) {
         return true;
     }
     /**
-     * The installer reopens On Air itself through its shortcut, but that can quietly fail. So a small
+     * The installer starts the new version itself (build/installer.nsh). As a fallback, a small
      * hidden helper waits for this app to close and the installer to finish, then starts On Air
-     * if it isn't running yet. (Windows; the AppImage reopens itself.)
+     * if it isn't running yet; it notes what it did in the update log. (Windows; the AppImage reopens itself.)
      */
     function reopenAfter() {
         const q = (x) => "'" + String(x).replace(/'/g, "''") + "'";
+        const LOG = path.join(app.getPath('userData'), 'logs', 'updates.log');
         const ps = [
-            '$me=' + process.pid + '; $exe=' + q(process.execPath) + '; $name=' + q(path.basename(process.execPath, '.exe')) + '; $t=(Get-Date).AddMinutes(4)',
+            '$me=' + process.pid + '; $exe=' + q(process.execPath) + '; $name=' + q(path.basename(process.execPath, '.exe')) + '; $log=' + q(LOG) + '; $t=(Get-Date).AddMinutes(4)',
+            'function say($m) { try { Add-Content -LiteralPath $log -Value ((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ") + " info reopen helper: " + $m) } catch {} }',
+            'say "waiting for On Air to close"',
             'while ((Get-Process -Id $me -EA 0) -and (Get-Date) -lt $t) { Start-Sleep -m 400 }',
             'Start-Sleep -s 3',
             "while ((Get-Date) -lt $t -and (Get-Process -EA 0 | ? { ($_.Path -like '*\\pending\\*') -or ($_.ProcessName -like 'Un_*') })) { Start-Sleep -m 700 }",
             'Start-Sleep -s 3',
-            'if (-not (Get-Process -Name $name -EA 0)) { if (Test-Path $exe) { Start-Process -FilePath $exe } }'
+            'if (Get-Process -Name $name -EA 0) { say "On Air is running again" } elseif (Test-Path $exe) { say "starting On Air"; Start-Process -FilePath $exe } else { say "On Air is not where it was" }'
         ].join('\n');
+        const log = (lv, m) => { if (updater.logger) updater.logger[lv]('reopen helper: ' + m); };
+        // Windows PowerShell by its full path: the app's PATH can't be counted on.
+        const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
         try {
-            spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')],
-                { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-        } catch (e) { if (updater.logger) updater.logger.warn('reopen helper: ' + e.message); }
+            const child = spawn(exe, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')],
+                { detached: true, stdio: 'ignore', windowsHide: true });
+            child.on('error', (e) => log('warn', e.message));
+            child.unref();
+            log('info', 'started (pid ' + child.pid + ')');
+        } catch (e) { log('warn', e.message); }
     }
     setTimeout(check, 60e3).unref?.();
     setInterval(check, EVERY).unref?.();
