@@ -224,7 +224,7 @@ async function ensureIcons() {
 // Sizes a window starts at; where it goes after that, it remembers.
 const SIZES = {
     radio: [480, 250], chat: [360, 520], request: [430, 560], playlist: [360, 440], studio: [360, 400],
-    banner: [760, 74], albums: [440, 560], board: [920, 720], tv: [640, 400], links: [380, 520], settings: [470, 620], interface: [940, 760]
+    banner: [760, 74], albums: [440, 560], board: [920, 720], tv: [640, 400], links: [380, 520], settings: [470, 620], interface: [940, 760], hall: [900, 640]
 };
 const MIN = { radio: [300, 150], banner: [240, 44] };
 const WEB_PREFS = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false };
@@ -1147,6 +1147,7 @@ on('win-cmd', (e, cmd, arg) => {
     } else if (cmd === 'fullscreen' && id === 'tv') fullScreen(w);
 });
 // From the radio: show or tuck one of its windows.
+on('open-el', (e, elId) => { if (SIZES[elId] && elId !== 'radio') toPage('open-element', elId); });
 on('element', (e, elId, show) => { if (idOf(e.sender) === 'radio' && SIZES[elId]) setVisible(elId, !!show); });
 handle('get-json', async (e, url) => {
     if (!/^https?:\/\//i.test(String(url))) throw new Error('Not a web address.');

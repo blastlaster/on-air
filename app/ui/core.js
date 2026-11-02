@@ -68,6 +68,7 @@
             if (window.onairApp) send({ t: 'app' });           // the desktop app: the studio counts us for 📣 Ping
             if (myName) send({ t: 'hello', name: myName });
             if (call && call.token) send({ t: 'resume', token: call.token });
+            emit('connected');                                   // the Hall walks back in
         };
         ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } onMessage(m); };
         ws.onclose = () => {
@@ -131,6 +132,7 @@
             case 'rtc-restart': if (call && call.pc) call.restart(); break;
             case 'resumed-call': if (call) { call.restart(); toast('Back on the line.'); } break;
             case 'error': toast(m.message); pendingPassCall = false; break;
+            default: if (typeof m.t === 'string' && m.t.startsWith('hall-')) emit('hall', m); return;
             case 'requested': toast(m.bumped ? '“' + m.title + '” was already queued — it’s now up next.' : m.queued ? '“' + m.title + '” is in the queue.' : 'Request sent — the DJ will try to find it.'); break;
         }
     }
@@ -564,6 +566,7 @@
         get pins() { return pinList; },
         get name() { return myName; },
         get engineUrl() { return ENGINE; },
+        get connected() { return !!(ws && ws.readyState === 1); },
         get green() { return !!(status && status.green); },
         get engine() { return ENGINE; },
         get site() { return SITE; },

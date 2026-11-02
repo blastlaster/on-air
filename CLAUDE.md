@@ -300,6 +300,24 @@ rules — levels, milestones, checks, achievements — are in
 - The moderator token is generated once, kept in `data/`, readable only from
   the studio page; the person pastes it into the app (Interface → ⚙).
 
+### 4.7b The Hall (optional): over `/ws`
+
+A pixel room the app opens from its Chat window. The engine keeps only who is
+in it, where they are heading and what they look like; every app animates
+the rest. Chat is the station's own `chat` — tag a Hall member's message with
+`hid` (their Hall id) so the bubble comes out of their character.
+
+| app → engine | engine → app |
+|---|---|
+| `hall-join {look}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
+
+`look` = `{ skin 0–5, hair 0–6, hairColor 0–8, shirt 0–9, pants 0–5, extra 0–5 }`;
+a person is `{ h, n, l, x, y, e }`. `air.talking`: someone is talking on air
+(the studio's voice meter); `air.music`: music is playing. Guards: a cap on
+people (40), walking sent in one batch a few times a second and only when
+someone moved, per-person limits on moves, emotes and looks, and all of it
+held back while the event loop lags. Reference: `engine/hall.js`.
+
 ### 4.8 Voicemail: `POST /api/voicemail?name=…&note=…`
 
 Body: the audio file (recorded in the app as WebM/Opus, or a file the person

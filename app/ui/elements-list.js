@@ -10,6 +10,7 @@ window.ELEMENTS = [
     { id: 'board', icon: '📋', label: 'Board', about: 'The station’s message board (18+)', needs: 'board', nsfw: true },
     { id: 'tv', icon: '📺', label: 'TV', about: 'The station’s video stream when it is on (its channel when it is not)', needs: 'tv' },
     { id: 'interface', icon: '🟩', label: 'Interface', about: 'The board with its green posts and the community’s green threads', needs: 'board', nsfw: true, secret: true },
+    { id: 'hall', icon: '🕺', label: 'Hall', about: 'A room to hang out in while the station plays (opened from Chat)', hidden: true },
     { id: 'links', icon: '💫', label: 'Links', about: 'The station’s friends and links', needs: 'links' },
     { id: 'settings', icon: '⚙️', label: 'Settings', about: 'Looks, text size, windows, effects, downloads', always: true }
 ];

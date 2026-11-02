@@ -1,0 +1,29 @@
+/* The Hall: a pixel room, a bar to talk and dance, and the look picker. */
+.el-hall .body.flush { display: flex; flex-direction: column; }
+.hall { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.hall-stage { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; background: #0d0a16; overflow: hidden; cursor: pointer; }
+.hall-stage canvas { display: block; image-rendering: pixelated; }
+.hall-msg { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); max-width: 80%; padding: 8px 14px; text-align: center;
+    background: rgba(0, 0, 0, 0.78); color: #fff; border: 2px solid #fff; font: bold 14px "Courier New", monospace; cursor: pointer; }
+.hall-log { position: absolute; left: 6px; bottom: 6px; margin: 0; padding: 0; list-style: none; max-width: 46%; pointer-events: none;
+    font: 12px "Courier New", monospace; color: #eee; }
+.hall-log li { background: rgba(0, 0, 0, 0.55); padding: 1px 6px; margin-top: 2px; overflow-wrap: anywhere; transition: opacity 1.5s; }
+.hall-log li.old { opacity: 0; }
+.hall-bar { flex: none; display: flex; gap: 4px; align-items: center; padding: 5px 6px; background: var(--sk-card-bg); flex-wrap: wrap; }
+.hall-bar input { flex: 1; min-width: 120px; }
+.hall-bar .btn { padding: 3px 8px; }
+.hall-emotes { display: inline-flex; gap: 2px; }
+.hall-look { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); z-index: 5; }
+.hl-card { display: grid; grid-template-columns: auto 1fr; gap: 12px 16px; padding: 14px; max-width: min(620px, 94%); max-height: 92%; overflow: auto;
+    background: var(--sk-panel-bg); color: var(--sk-panel-text); border: var(--sk-panel-border); border-radius: var(--sk-radius); }
+.hl-prev { width: 120px; height: 130px; image-rendering: pixelated; background: #1a1424; border: 2px solid #000; }
+.hl-row { display: grid; grid-template-columns: 84px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+.hl-row > span { font-size: 0.85em; color: var(--sk-dim); }
+.hl-row > div { display: flex; flex-wrap: wrap; gap: 3px; }
+.hl-sw { width: 20px; height: 20px; padding: 0; border: 2px solid rgba(0, 0, 0, 0.6); cursor: pointer; }
+.hl-sw.on { outline: 2px solid #fff; outline-offset: 1px; }
+.hl-nm { padding: 1px 7px; font-size: 0.85em; }
+.hl-nm.on { background: var(--sk-btn-active); color: var(--sk-btn-active-text); }
+.hl-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; }
+.hall-tv { position: absolute; pointer-events: none; background: #000; }
+.hall-tv iframe { width: 100%; height: 100%; border: 0; display: block; }

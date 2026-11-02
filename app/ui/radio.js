@@ -132,6 +132,7 @@
     const available = (el) => {
         if (info.ui.off.includes(el.id) && !el.always) return false;
         if (el.secret && !info.ui.ifaceOn) return false;
+        if (el.hidden) return false;                     // opened from another window (the Hall: from Chat)
         const x = s.extras || {};
         switch (el.needs) {
             case 'requests': return !!s.requestMode;

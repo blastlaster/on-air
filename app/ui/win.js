@@ -8,11 +8,13 @@
     const app = window.onairApp, { $, esc, clock, mmss } = UI;
     const id = new URLSearchParams(location.search).get('w') || '';
     const core = window.opener && window.opener.core;
-    const VIEWS = { chat, request, playlist, studio, banner, albums, board, tv, links, settings, interface: (box) => window.IfaceView(box, { app, core }) };
+    const VIEWS = { chat, request, playlist, studio, banner, albums, board, tv, links, settings, interface: (box) => window.IfaceView(box, { app, core }), hall: (box) => window.HallView(box, { app, core }) };
     if (!core || !VIEWS[id]) { window.close(); return; }
     const meta = ELEMENTS.find(e => e.id === id) || { label: id, icon: '' };
     document.body.classList.add('el-' + id);
-    await UI.init({ id, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>' : '' });
+    await UI.init({ id, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>'
+        : id === 'chat' ? '<button type="button" data-hall title="The Hall: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
+    if (id === 'chat') $('.bar [data-hall]').onclick = () => app.openElement('hall');
     const body = $('.body');
     const on = (ev, fn) => core.on(ev, fn, window);
     on('toast', (m) => { if (document.hasFocus()) UI.toast(m); });
@@ -805,7 +807,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
     function settings(box) {
         const skins = ((window.LOOKS && window.LOOKS.skins) || [{ id: '', name: 'Classic', swatch: '#333' }]).slice();
         skins.push({ id: 'hud', name: 'HUD (see-through)', swatch: 'repeating-conic-gradient(#666 0 25%, #999 0 50%) 0 0 / 10px 10px' });
-        const els = ELEMENTS.filter(e => !e.always && (!e.secret || UI.info.ui.ifaceOn));
+        const els = ELEMENTS.filter(e => !e.always && !e.hidden && (!e.secret || UI.info.ui.ifaceOn));
         box.innerHTML =
             '<section><h3>Look</h3><div class="skin-grid">' + skins.map(s => '<button type="button" class="btn" data-skin="' + esc(s.id) + '"><span class="sw" style="background:' + esc(s.swatch) + '"></span>' + esc(s.name) + '</button>').join('') + '</div>' +
             '<label><input type="checkbox" data-ui="holidays"> Holiday looks on their day — Spooky on Halloween, Crimbus, the board’s birthdays and more (pick any look that day to skip it)</label>' +

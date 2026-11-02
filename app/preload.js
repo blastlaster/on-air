@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('onairApp', {
     updateCmd: (cmd) => ipcRenderer.invoke('update-cmd', cmd),
     // The radio: its windows, and what the tray asks of it
     element: (id, show) => ipcRenderer.send('element', id, show),
+    openElement: (id) => ipcRenderer.send('open-el', id),       // any window: ask the radio to open one
     onElements: listen('elements'),
     onOpenElement: listen('open-element'),
     onTogglePlay: listen('toggle-play'),
