@@ -1,6 +1,4 @@
-## What's new in 0.4.7
+## What's new in 0.4.8
 
-- **YouTube in threads.** YouTube links in the Interface get an **[Embed]** to play them right in the post, like on 4chan.
-- **Links work in the Interface.** Web addresses in posts are clickable, and `>>>/board/` links open in the board window.
-- **The board's [Embed] works again** with [Better] [s4s] and similar scripts, with the video below the [Remove].
-- **Links from the board open straight away** in your browser, without 4chan's "Redirecting…" page taking over the thread.
+- **Copy text from the Interface.** Right-click selected text for **Copy** (and Cut / Paste in text boxes), in every On Air window. Selecting text on a thread card no longer opens the thread.
+- **After an update, On Air comes to the front** instead of opening behind your other windows.

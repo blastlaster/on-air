@@ -635,6 +635,9 @@
         /* ---------- clicks: open, quote, jump, images, links, watch, moderate ---------- */
         async function onMainClick(e) {
             const t = e.target;
+            // The end of a drag that selected text (to copy it) is not a click on what's under it.
+            const sel = getSelection();
+            if (sel && !sel.isCollapsed && String(sel).trim() && !t.closest('button')) return;
             const card = t.closest('.if-th');
             if (card) return card.classList.contains('gone') ? (delete watch[card.dataset.k], saveWatch(), render()) : openThread(card.dataset.k);
             const a = t.closest('a, button');

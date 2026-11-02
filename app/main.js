@@ -686,6 +686,30 @@ function guard(wc, isRadio) {
         e.preventDefault();
         outside(url);
     });
+    // Right-click text: copy it, or cut and paste in a field (pictures have their own menu, from the page).
+    wc.on('context-menu', (e, p) => {
+        const f = p.editFlags || {}, items = [];
+        if (p.isEditable) {
+            items.push({ role: 'cut', label: 'Cut', enabled: !!f.canCut }, { role: 'copy', label: 'Copy', enabled: !!f.canCopy },
+                { role: 'paste', label: 'Paste', enabled: !!f.canPaste }, { type: 'separator' }, { role: 'selectAll', label: 'Select all' });
+        } else if (p.selectionText && p.selectionText.trim()) {
+            items.push({ role: 'copy', label: 'Copy' });
+        }
+        if (!items.length) return;
+        const w = BrowserWindow.fromWebContents(wc);
+        Menu.buildFromTemplate(items).popup(w ? { window: w } : {});
+    });
+}
+
+/** Lift a window above the others for a moment (Windows won't let a background start take the focus). */
+function toFront(w) {
+    if (!w || w.isDestroyed()) return;
+    const was = w.isAlwaysOnTop();
+    if (w.isMinimized()) w.restore();
+    w.setAlwaysOnTop(true);
+    w.show(); w.focus(); w.moveTop();
+    if (process.platform === 'win32') w.flashFrame(true);
+    setTimeout(() => { if (!w.isDestroyed()) { w.setAlwaysOnTop(was); w.flashFrame(false); } }, 2500);
 }
 
 function reloadPage() {
@@ -1240,17 +1264,22 @@ app.whenReady().then(async () => {
     // Just updated: say so, and after an update that happened on quitting, ask before opening.
     const upd = cfg.updated;
     if (upd) { delete cfg.updated; save(); }
-    if (upd && upd.to === app.getVersion() && !process.env.ONAIR_SMOKE) {
+    // The new version is started by the installer (or the helper that waits for it), in the background:
+    // Windows keeps what such a process opens behind your other windows. So after an update, on top.
+    const justUpdated = !!(upd && upd.to === app.getVersion() && !process.env.ONAIR_SMOKE);
+    if (justUpdated) {
         if (upd.ask) {
-            const r = await dialog.showMessageBox({
+            const host = new BrowserWindow({ width: 1, height: 1, x: -10000, y: -10000, frame: false, skipTaskbar: true, alwaysOnTop: true, show: true, transparent: true, focusable: true });
+            const r = await dialog.showMessageBox(host, {
                 type: 'info', title: 'On Air', message: 'On Air ' + upd.to + ' is installed',
                 detail: 'The new version was installed when you closed On Air.', buttons: ['Open On Air', 'Close'], defaultId: 0, cancelId: 1,
                 icon: nativeImage.createFromPath(iconPath()), noLink: true
-            });
+            }).finally(() => host.destroy());
             if (r.response === 1) { quitting = true; app.quit(); return; }
         } else tip('On Air ' + upd.to, 'Updated. Welcome back.');
     }
     if (!process.argv.includes('--hidden') || !station()) createWindow(!process.env.ONAIR_SMOKE || !!process.env.ONAIR_SMOKE_SHOW);
+    if (justUpdated && win) win.once('ready-to-show', () => toFront(win));
     else if (process.env.ONAIR_SMOKE) createWindow(false);
     if (process.env.ONAIR_SMOKE) smoke();
 });
