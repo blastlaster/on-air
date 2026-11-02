@@ -67,7 +67,7 @@
         /* ---------- joining ---------- */
         function join() {
             if (refused || pending) return;
-            if (!core.state.engineUp) return notice('The Hall opens when the station’s PC is on.');
+            if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             if (!core.send({ t: 'hall-join', look })) return notice('Connecting to the station…');
             pending = true;
@@ -77,7 +77,7 @@
         msgEl.addEventListener('click', (e) => { e.stopPropagation(); if (refused) { refused = false; join(); } });
         sub('connected', () => { joined = false; pending = false; join(); }, window);
         sub('state', (s) => {
-            if (!s.engineUp) { joined = false; pending = false; people.clear(); me = ''; notice('The Hall opens when the station’s PC is on.'); }
+            if (!s.engineUp) { joined = false; pending = false; people.clear(); me = ''; notice('blug.dj/jej opens when the station’s PC is on.'); }
             else if (!joined) join();
         }, window);
         listen('beforeunload', () => { if (joined) core.send({ t: 'hall-leave' }); });
@@ -107,7 +107,7 @@
                 case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen }; break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
-                    notice((m.reason || 'The Hall is closed right now.') + ' Click to try again.');
+                    notice((m.reason || 'blug.dj/jej is closed right now.') + ' Click to try again.');
                     break;
             }
         }, window);

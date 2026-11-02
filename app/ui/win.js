@@ -13,7 +13,7 @@
     const meta = ELEMENTS.find(e => e.id === id) || { label: id, icon: '' };
     document.body.classList.add('el-' + id);
     await UI.init({ id, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>'
-        : id === 'chat' ? '<button type="button" data-hall title="The Hall: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
+        : id === 'chat' ? '<button type="button" data-hall title="blug.dj/jej: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
     if (id === 'chat') $('.bar [data-hall]').onclick = () => app.openElement('hall');
     const body = $('.body');
     const on = (ev, fn) => core.on(ev, fn, window);
