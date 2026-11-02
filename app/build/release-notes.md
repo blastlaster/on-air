@@ -1,6 +1,4 @@
-## What's new in 0.5.5
+## What's new in 0.5.6
 
-- **Bonk, fish slap, snowball.** In blug.dj/jej, click someone to bonk them with a hammer, slap them with a fish (you walk over first) or throw a snowball from anywhere. Not your thing? Switch it off in 🎨 Look: then nobody can hit you, and you can't hit anyone.
-- **Glowsticks.** Pick one in 😀 → 🪄 Glow, in six colours or rainbow. Dance or walk to swing big glowing trails.
-- **Stage effects.** Spotlights, lasers, a disco ball, smoke and fire that go with the music, and calm down while someone's talking on air. Press 🔥 or 🎊 to set off fire or confetti for everyone (when the host allows it).
-- **FunpostTV's screen stands on a tripod** on the stage instead of floating.
+- **Board games in blug.dj/jej.** Press 🎲 to start a table of tic-tac-toe, checkers, or Chinese checkers for 2, 3, 4 or 6 players, or sit down at someone else's. Everyone else can watch, and you can click a player to watch their game.
+- **The station's own emotes.** Picture emotes like :nicedance: show as pictures in the Chat window and in blug.dj/jej, speech bubbles included.
