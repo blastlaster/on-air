@@ -167,7 +167,7 @@
                     while (bursts.length > 12) bursts.shift();
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
                     break;
-                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx }; paintBursts(); break;
+                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx, tag: m.tag }; paintBursts(); break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
                     notice((m.reason || 'blug.dj/jej is closed right now.') + ' Click to try again.');
@@ -1057,7 +1057,7 @@
             A.lights(lc, t, onAir, fx);
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
             let cameoAt = null;
-            if (hostTalking && !onAir.live) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25));
+            if (hostTalking && !onAir.live) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(low, 0, 0, cv.width, cv.height);
             // Names under feet, bubbles over heads, at screen resolution.

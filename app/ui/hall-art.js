@@ -149,7 +149,7 @@
      * frame in the bottom-left corner, mouth going. `k` 0–1 slides it in.
      * Returns the frame's top centre, for the speech bubble.
      */
-    function cameo(t, talking, k) {
+    function cameo(t, talking, k, tag) {
         const fw = 26, fh = 32, x = Math.round(3 - (1 - k) * (fw + 6)), y = H - fh - 3;
         R(x - 1, y - 1, fw + 2, fh + 2, '#ffffff'); R(x, y, fw, fh, '#1d1830');
         for (let i = 0; i < fw; i += 4) R(x + i, y, 2, fh, '#211b37');           // the studio wall behind him
@@ -159,7 +159,16 @@
             for (let c = 0; c < row.length; c++) if (row[c] !== '.') R(x + 3 + c, y + 3 + r + bob, 1, 1, RM_PAL[row[c]]);
         });
         if (talking && Math.floor(t * 6) % 2) { R(x + fw - 2, y + 15, 1, 1, '#ffffff'); R(x + fw - 3, y + 19, 2, 1, '#ffffff'); }
-        R(x, y + fh - 7, fw, 7, '#d0302a'); text(l, 'DJ', x + Math.round((fw - textWidth('DJ')) / 2), y + fh - 6, '#ffffff');   // a little red name strip
+        // A little red name strip (the studio sets the name): centred if it fits, scrolling if it doesn't.
+        const name = String(tag == null ? 'LRM' : tag).toUpperCase(), nw = textWidth(name);
+        R(x, y + fh - 7, fw, 7, '#d0302a');
+        if (nw <= fw - 2) text(l, name, x + Math.round((fw - nw) / 2), y + fh - 6, '#ffffff');
+        else {
+            const loop = nw + 12, off = Math.floor((t * 14) % loop);
+            l.save(); l.beginPath(); l.rect(x + 1, y + fh - 7, fw - 2, 7); l.clip();
+            text(l, name, x + 1 - off, y + fh - 6, '#ffffff'); text(l, name, x + 1 - off + loop, y + fh - 6, '#ffffff');
+            l.restore();
+        }
         return { x: x + fw / 2, y: y - 1 };
     }
 
@@ -585,5 +594,5 @@
     window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
-        cameo: (ctx, t, talking, k) => { l = ctx; return cameo(t, talking, k); } };
+        cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); } };
 })();
