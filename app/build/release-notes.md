@@ -1,6 +1,6 @@
-## What's new in 0.5.4
+## What's new in 0.5.5
 
-- **A faster way to request.** In the Request window, type part of a song, artist or album and matching songs appear as you type. With nothing typed you can browse the station's albums and open one to see its songs. 🖼 shows cover pictures if you like them.
-- **Chat extras.** Lines starting with > turn green. Type :emoji: codes (suggestions pop up as you type). Shift+Up and Shift+Down bring back messages you sent before.
-- **More to do in blug.dj/jej.** Space jumps and Shift dashes. Poses stay on until you pick them again, and keep going while you walk. Show how you feel with 😊 Feel (a face plus a little emoji over your head). Change your name from 🎨 Look.
-- **The stage when no one's live.** Radioman and his desk show up only during live shows. The rest of the time a big radio (or FunpostTV) sits in the middle of the stage.
+- **Bonk, fish slap, snowball.** In blug.dj/jej, click someone to bonk them with a hammer, slap them with a fish (you walk over first) or throw a snowball from anywhere. Not your thing? Switch it off in 🎨 Look: then nobody can hit you, and you can't hit anyone.
+- **Glowsticks.** Pick one in 😀 → 🪄 Glow, in six colours or rainbow. Dance or walk to swing big glowing trails.
+- **Stage effects.** Spotlights, lasers, a disco ball, smoke and fire that go with the music, and calm down while someone's talking on air. Press 🔥 or 🎊 to set off fire or confetti for everyone (when the host allows it).
+- **FunpostTV's screen stands on a tripod** on the stage instead of floating.
