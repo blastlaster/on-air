@@ -535,6 +535,23 @@
         }
     }
 
+    /* ---------- the AutoDJ's library index, for the request picker ---------- */
+    // From the station PC while it's on, or the copy it publishes next to station.json.
+    let library = null;
+    async function loadLibrary() {
+        if (library) return library;
+        const tries = [];
+        if (ENGINE && engineUp) tries.push(ENGINE + '/api/autodj-library');
+        if (POINTER) tries.push(new URL('library.json', POINTER).href + '?v=' + Math.floor(Date.now() / 3600e3));
+        for (const u of tries) {
+            try {
+                const { json } = await app.getJSON(u);
+                if (json && json.tracks && json.tracks.length) return (library = json);
+            } catch { /* try the next */ }
+        }
+        return null;
+    }
+
     /* =========================================================
        GO
        ========================================================= */
@@ -576,6 +593,7 @@
         get site() { return SITE; },
         get panelApi() { return panelApi(); },
         get panelServer() { return (panel() || {}).server || 1; },
+        loadLibrary,
         on, toast, now: serverNow, skipVote,
         play, stop, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,

@@ -38,7 +38,7 @@
             if (m.role === 'system') li.innerHTML = '<span class="sys">' + esc(m.text) + '</span>';
             else li.innerHTML = '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b>' +
                 (m.role === 'host' || m.role === 'cohost' ? '<span class="tag">' + (m.role === 'host' ? 'DJ' : 'co-host') + '</span>' : '') +
-                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.linkText ? LT.linkText(m.text) : esc(m.text)) +
+                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text)) +
                 (m.at ? '<span class="when">' + clock(m.at) + '</span>' : '');
             return li;
         }
@@ -61,11 +61,12 @@
             else if (c.hide) { const li = log.querySelector('[data-mid="' + CSS.escape(String(c.hide)) + '"]'); if (li) li.remove(); }
         });
         on('pins', pins);
+        const sayBox = LT.chatInput(say.querySelector('input'));            // :emoji: suggestions, Shift+↑ history
         say.onsubmit = (e) => {
             e.preventDefault();
-            const t = say.querySelector('input'), text = t.value;
+            const t = say.querySelector('input'), typed = t.value, text = LT.emojiCodes(typed);
             if (!text.trim()) return;
-            const go = () => { if (core.chatSend(text)) t.value = ''; else UI.toast('Chat is reconnecting…'); };
+            const go = () => { if (core.chatSend(text)) { t.value = ''; sayBox.sent(typed); } else UI.toast('Chat is reconnecting…'); };
             if (!core.name) UI.askName(core, go); else go();
         };
 
@@ -149,7 +150,33 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         on('state', show); show(core.state);
     }
 
-    function autodjBrowser(box) {
+    /** The request picker over the library index (LT.songPicker); without one, the panel's own search. */
+    async function autodjBrowser(box) {
+        box.innerHTML = '<div class="empty">Loading the music…</div>';
+        const lib = await core.loadLibrary().catch(() => null);
+        if (!lib || !window.LT || !LT.songPicker) return autodjPaged(box);
+        const api = core.panelApi, sid = core.panelServer;
+        LT.songPicker(box, {
+            lib, go: 'btn go', quiet: 'btn', list: 'list', toast: UI.toast,
+            name: () => core.name, setName: (n) => core.setName(n),
+            send: async (t, message, ok, again) => {
+                try {
+                    const res = await fetch(api + '/track_requests/', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        // The same fields the panel's own request widget sends.
+                        body: JSON.stringify({ server_id: sid, person: core.name, message, music_id: t.id, ip_timeout: 0, track_timeout: 0 })
+                    });
+                    let d = {}; try { d = await res.json(); } catch { /* empty */ }
+                    if (res.ok) ok();
+                    else if (d.track_blocked) again('That one was played or asked for recently. Pick another.');
+                    else if (d.ip_blocked) again('You have requested recently — try again a little later.');
+                    else again('The request did not go through. Try again.');
+                } catch { again('Could not reach the request line.'); }
+            }
+        });
+    }
+
+    function autodjPaged(box) {
         const api = core.panelApi, sid = core.panelServer, PAGE = 12;
         let page = 0, pages = 1, total = 0, q = '', rows = [], seq = 0, timer = 0, openRow = -1;
         const done = {};
