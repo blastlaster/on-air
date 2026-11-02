@@ -355,7 +355,7 @@
                     ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
                     : emojiTab === 'hold' ? HOLDS.map(e => emo(e, e === held)).join('')
                     // Emote: the station's own pictures first, then the emoji.
-                    : (pics.length ? '<div class="he-sub">The station’s</div>' + pics.map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('') +
+                    : (pics.length ? '<div class="he-sub">Memeoji</div>' + pics.map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('') +
                         '<div class="he-sub">Emoji</div>' : '') + SAY.concat(HOLDS).map(e => emo(e, false)).join('')) + '</div>';
         }
         const stationEmotes = () => Object.keys((window.LT && LT.EMOTES) || {});
