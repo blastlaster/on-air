@@ -15,7 +15,13 @@
     const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['jump', '⤴️', 'Jump'], ['sit', '🪑', 'Sit'], ['cheer', '🙌', 'Cheer'],
         ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep']];
     // Seconds; the rest (dance, sit, headbang, sleep) last until you move.
-    const ONE_SHOT = { wave: 2.4, jump: 1.2, cheer: 2.4, clap: 2.4, point: 2.4, spin: 1.6 };
+    // Poses stay on until you pick them again (or another one), and keep going while you walk.
+    const ONE_SHOT = {};
+    // How you feel: a face, and a little emoji over your head (the same list as engine/hall.js MOODS).
+    const MOODS = [['happy', '😄', '✨'], ['sad', '😞', '💧'], ['angry', '😠', '💢'], ['surprised', '😮', '❗'], ['love', '😍', '❤️'],
+        ['cry', '😭', '💦'], ['smug', '😏', ''], ['cool', '😎', '✨'], ['confused', '😕', '❓'], ['sick', '🤢', '🤢']];
+    const MOOD_BUBBLE = Object.fromEntries(MOODS.map(([id, , b]) => [id, b]));
+    const JUMP_S = 0.6, DASH_S = 0.3, DASH_SPEED = 2.6;
     const HANDS = { rock: '✊', paper: '✋', scissors: '✌️' };
     // The emoji picker: anything to say, and things to carry (the same list as engine/hall.js HOLDS).
     const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️'.split(' ');
@@ -75,7 +81,7 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
 
@@ -115,13 +121,20 @@
                         if (!p || h === me) continue;
                         [p.tx, p.ty] = toPx(xy[0], xy[1]);
                         if (Math.hypot(p.tx - p.x, p.ty - p.y) > 120) { p.x = p.tx; p.y = p.ty; }     // too far behind: catch up
-                        if (!ONE_SHOT[p.e]) p.e = '';                // dancing, sitting… stop when they walk
+                        // (their pose carries on while they walk)
                     }
                     break;
                 case 'hall-emote': { const p = people.get(m.h); if (p && m.h !== me) { p.e = m.e; p.et = now(); } break; }
                 case 'hall-look': { const p = people.get(m.h); if (p) p.l = m.l; break; }
                 case 'hall-name': { const p = people.get(m.h); if (p) { p.n = m.n; p.c = m.c || ''; } break; }
                 case 'hall-hold': { const p = people.get(m.h); if (p) p.o = m.o; if (m.h === me) paintEmoji(); break; }
+                case 'hall-mood': { const p = people.get(m.h); if (p) p.f = m.f; if (m.h === me) paintEmoji(); break; }
+                case 'hall-act': {
+                    const p = people.get(m.h);
+                    if (p && m.a === 'jump') p.jumpAt = now();
+                    if (p && m.a === 'dash') p.dashUntil = now() + DASH_S;
+                    break;
+                }
                 case 'hall-rps': onGame(m); break;
                 case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen }; break;
                 case 'hall-closed':
@@ -185,7 +198,7 @@
             if (m.id) li.dataset.mid = m.id;
             if (cls) li.className = cls;
             // Links you can click (they open in a new tab, or the browser in the app); the game lines are plain.
-            const text = !cls && window.LT && LT.linkText ? LT.linkText(m.text) : esc(m.text);
+            const text = !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text);
             li.innerHTML = (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
             logEl.appendChild(li);
             while (logEl.children.length > 150) logEl.removeChild(logEl.firstChild);
@@ -207,11 +220,12 @@
             else if (m.role === 'host') hostSay = { text: m.text, id: m.id, until: now() + sayFor(m.text) };
         }, window);
 
+        const sayBox = window.LT && LT.chatInput ? LT.chatInput(input) : null;      // :emoji: suggestions, Shift+↑ history
         bar.onsubmit = (e) => {
             e.preventDefault();
-            const text = input.value;
+            const typed = input.value, text = window.LT && LT.emojiCodes ? LT.emojiCodes(typed) : typed;
             if (!text.trim()) { input.blur(); return; }
-            const go = () => { if (core.chatSend(text)) input.value = ''; else U.toast('Chat is reconnecting…'); };
+            const go = () => { if (core.chatSend(text)) { input.value = ''; if (sayBox) sayBox.sent(typed); } else U.toast('Chat is reconnecting…'); };
             if (!core.name) U.askName(core, go); else go();
         };
 
@@ -231,6 +245,21 @@
             const next = p.e === id && !ONE_SHOT[id] ? '' : id;
             p.e = next; p.et = now();
             core.send({ t: 'hall-emote', e: next });
+            paintPoses();
+        }
+        /** Your pose's button stays lit while it's on. */
+        function paintPoses() {
+            const e = (mine() || {}).e || '';
+            for (const b of bar.querySelectorAll('[data-e]')) b.classList.toggle('on', b.dataset.e === e);
+        }
+        /** Space: jump. Shift: dash (a burst of speed the way you're going). */
+        let jumpReady = 0, dashReady = 0;
+        function act(a) {
+            const p = mine(), t = now();
+            if (!p) return;
+            if (a === 'jump') { if (t < jumpReady) return; jumpReady = t + JUMP_S + 0.1; p.jumpAt = t; }
+            if (a === 'dash') { if (t < dashReady) return; dashReady = t + 1; p.dashUntil = t + DASH_S; }
+            core.send({ t: 'hall-act', a });
         }
         /** Someone (not you) under the pointer: their feet are at (x, y), about 9×20 room pixels above that. */
         function personAt(x, y) {
@@ -247,7 +276,7 @@
             if (q) return openPop(q, e);
             popEl.hidden = true;
             const x = clampX(rx), y = clampY(ry);
-            p.tx = x; p.ty = y; p.e = '';
+            p.tx = x; p.ty = y;
             sendGo(x, y);
         });
 
@@ -256,13 +285,17 @@
         function paintEmoji() {
             if (emojiEl.hidden) return;
             const held = (mine() || {}).o || '';
-            const list = emojiTab === 'hold' ? HOLDS : SAY.concat(HOLDS);
+            const feel = (mine() || {}).f || '';
+            const list = emojiTab === 'hold' ? HOLDS : emojiTab === 'feel' ? [] : SAY.concat(HOLDS);
             emojiEl.innerHTML = '<div class="he-tabs"><button type="button" class="btn' + (emojiTab === 'say' ? ' on' : '') + '" data-tab="say">💬 Say</button>' +
                 '<button type="button" class="btn' + (emojiTab === 'hold' ? ' on' : '') + '" data-tab="hold">✋ Hold</button>' +
+                '<button type="button" class="btn' + (emojiTab === 'feel' ? ' on' : '') + '" data-tab="feel">😊 Feel</button>' +
                 (held ? '<button type="button" class="btn" data-drop>Drop ' + held + '</button>' : '') +
-                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : 'Adds it to what you’re typing') + '</span>' +
+                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
-                '<div class="he-grid">' + list.map(e => '<button type="button" class="he-e' + (e === held ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>').join('') + '</div>';
+                '<div class="he-grid">' + (emojiTab === 'feel'
+                    ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
+                    : list.map(e => '<button type="button" class="he-e' + (e === held ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>').join('')) + '</div>';
         }
         function hold(o) {
             const p = mine();
@@ -277,6 +310,14 @@
             if (t) { emojiTab = t.dataset.tab; return paintEmoji(); }
             if (e.target.closest('[data-close]')) { emojiEl.hidden = true; return; }
             if (e.target.closest('[data-drop]')) return hold('');
+            const md = e.target.closest('[data-mood]');
+            if (md) {
+                const p = mine();
+                if (!p) return;
+                p.f = p.f === md.dataset.mood ? '' : md.dataset.mood;
+                core.send({ t: 'hall-mood', f: p.f });
+                return paintEmoji();
+            }
             if (!em) return;
             const v = em.dataset.em;
             if (emojiTab === 'hold') { hold((mine() || {}).o === v ? '' : v); emojiEl.hidden = true; return; }
@@ -286,6 +327,18 @@
             input.focus();
             input.setSelectionRange(a + v.length, a + v.length);
         });
+        /** How people feel: a little emoji bobbing beside their head. */
+        function drawMoods(sorted, heads, u, t) {
+            const fs = Math.max(11, Math.round(4 * u / dpr)) * dpr;
+            ctx.font = fs + 'px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            for (const p of sorted) {
+                const b = p.f && MOOD_BUBBLE[p.f];
+                if (!b || !heads.has(p.h)) continue;
+                const f = p.face < 0 ? -1 : 1;
+                ctx.fillText(b, Math.round((p.x - f * 6) * u), Math.round((heads.get(p.h) - 1 + Math.sin(t * 3 + p.x) * 1.2) * u));
+            }
+        }
         /** What everyone is carrying, in the hand on the side they face. */
         function drawHeld(sorted, heads, u) {
             const fs = Math.max(14, Math.round(5.5 * u / dpr)) * dpr;
@@ -404,6 +457,8 @@
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
             if (/^[0-9]$/.test(k)) { emote(EMOTES[(+k + 9) % 10][0]); return; }      // 1–9, then 0 for the tenth
+            if (e.key === ' ') { act('jump'); e.preventDefault(); return; }
+            if (e.key === 'Shift') { act('dash'); return; }
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
         });
         listen('keyup', (e) => keys.delete(e.key.toLowerCase()));
@@ -436,8 +491,10 @@
                 if (Math.abs(ay) > 0.25) dy += ay;
                 const b = (i) => !!(g.buttons[i] && g.buttons[i].pressed);
                 if (b(14)) dx -= 1; if (b(15)) dx += 1; if (b(12)) dy -= 1; if (b(13)) dy += 1;
-                // Face buttons: dance, wave, jump, cheer (on press, not while held).
-                [[0, 'dance'], [2, 'wave'], [1, 'jump'], [3, 'cheer']].forEach(([i, id]) => { if (b(i) && !padWas[i]) emote(id); padWas[i] = b(i); });
+                // Face buttons: dance, jump, wave, cheer; right bumper dashes (on press, not while held).
+                [[0, 'dance'], [2, 'wave'], [3, 'cheer']].forEach(([i, id]) => { if (b(i) && !padWas[i]) emote(id); padWas[i] = b(i); });
+                if (b(1) && !padWas[1]) act('jump'); padWas[1] = b(1);
+                if (b(5) && !padWas[5]) act('dash'); padWas[5] = b(5);
             }
             const len = Math.hypot(dx, dy);
             return len > 0.1 ? [dx / Math.max(1, len), dy / Math.max(1, len)] : null;
@@ -448,9 +505,10 @@
             if (p) {
                 const push = pushing();
                 if (push) {
-                    p.x = clampX(p.x + push[0] * SPEED * dt);
-                    p.y = clampY(p.y + push[1] * SPEED * 0.7 * dt);
-                    p.tx = p.x; p.ty = p.y; p.walking = true; p.e = '';
+                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1);
+                    p.x = clampX(p.x + push[0] * sp * dt);
+                    p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
+                    p.tx = p.x; p.ty = p.y; p.walking = true;
                     if (Math.abs(push[0]) > 0.2) p.face = push[0] < 0 ? -1 : 1;
                     // Tell the room where you'll be a moment from now, a few times a second.
                     if (t - sentAt > 0.22) sendGo(clampX(p.x + push[0] * SPEED * 0.3), clampY(p.y + push[1] * SPEED * 0.2));
@@ -462,7 +520,7 @@
                 const dx = q.tx - q.x, dy = q.ty - q.y, d = Math.hypot(dx, dy);
                 q.walking = d > 0.6;
                 if (q.walking) {
-                    const s = Math.min(d, SPEED * dt);
+                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * dt);
                     q.x += dx / d * s; q.y += dy / d * s;
                     if (Math.abs(dx) > 0.5) q.face = dx < 0 ? -1 : 1;
                 }
@@ -520,7 +578,7 @@
 
         /* FunpostTV on the stage screen, when the studio chose it and the stream is on.
            Sound off: everyone keeps listening to the radio. Clicks go through to the floor. */
-        let tvVid = '';
+        let tvVid = '', screenLive = false;
         function screenTv(on, vid) {
             const want = on && vid ? vid : '';
             if (want !== tvVid) {
@@ -530,7 +588,7 @@
                 tvEl.hidden = !want;
             }
             if (!want) return false;
-            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, S = A.SCREEN;
+            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, S = A.screenFor(screenLive);
             const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * k) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * k) + 'px';
             if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
             return true;
@@ -547,14 +605,17 @@
             const t = now(), s = core.state, tr = s.track;
             // In the room, the station says; outside it, the radio's own idea of what's on.
             const onAir = joined ? air : { live: s.live, talking: false, music: !!tr };
+            screenLive = !!onAir.live;
             const tv = screenTv(joined && air.screen === 'tv' && s.tv && s.tv.live, s.tv && s.tv.videoId);
             const sign = s.banner && s.banner.on ? { items: s.banner.items || [], color: s.banner.color } : null;
-            A.room(lc, t, onAir, { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign });
-            A.radioman(lc, t, onAir);
+            const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign };
+            A.room(lc, t, onAir, info);
+            A.centre(lc, t, onAir, info);            // Radioman at his desk while live; a big radio (or FunpostTV) off air
             const sorted = [...people.values()].sort((a, b) => a.y - b.y);
             const heads = new Map();
             for (const p of sorted) {
-                heads.set(p.h, A.person(lc, p.l, { x: p.x, y: p.y, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t }));
+                heads.set(p.h, A.person(lc, p.l, { x: p.x, y: p.y, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                    mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t }));
             }
             A.lights(lc, t, onAir);
             ctx.imageSmoothingEnabled = false;
@@ -570,6 +631,7 @@
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
             drawHeld(sorted, heads, u);
+            drawMoods(sorted, heads, u, t);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
             if (hostSay && hostSay.until > t) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);

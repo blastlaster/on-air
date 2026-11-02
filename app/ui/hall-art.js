@@ -187,19 +187,12 @@
         R(nx - 3, 7, nw + 6, 11, '#120e1e');
         l.globalAlpha = 0.35; text(l, name, nx + 1, 11, '#ff5ab0'); l.globalAlpha = 1;
         text(l, name, nx, 10, air.music && beat % 2 ? '#ff9ad2' : '#ff5ab0');
-        // The screen on the right: what's on (or FunpostTV, laid over it by the window).
-        R(150, 6, 60, 30, '#05050a'); R(152, 8, 56, 26, info.tv ? '#000000' : '#0b1424');
-        if (info.tv) {
-            // FunpostTV covers the screen: the station's Sign scrolls along a strip under it
-            // (or what's playing, if the Sign is off).
-            R(150, 36, 60, 8, '#05050a'); R(151, 37, 58, 6, '#140a06');
-            const sign = info.sign && info.sign.items && info.sign.items.filter(Boolean);
-            const msg = (sign && sign.length ? sign.map(x => String(x).replace(/\s+/g, ' ').trim()).join('    *    ') : '♪ ' + (info.song || 'FunpostTV')).toUpperCase();
-            const col = SIGN_COLORS[info.sign && info.sign.color] || SIGN_COLORS.amber;
-            l.save(); l.beginPath(); l.rect(152, 37, 56, 6); l.clip();
-            const tw = textWidth(msg) + 24, off = (t * 16) % tw;
-            text(l, msg, 153 - off, 38, col); text(l, msg, 153 - off + tw, 38, col);
-            l.restore();
+        // The screen on the right: what's on. While live, FunpostTV plays here (the window lays
+        // it over); off air it gets the centre of the stage instead (see centre()).
+        const tvHere = info.tv && air.live;
+        R(150, 6, 60, 30, '#05050a'); R(152, 8, 56, 26, tvHere ? '#000000' : '#0b1424');
+        if (tvHere) {
+            ticker(150, 36, 60, t, info);
             return floor(t, air, beat);
         }
         const chip = air.live ? 'LIVE' : 'AUTODJ';
@@ -218,6 +211,55 @@
             R(154 + i * 4, 33 - h, 3, h, i % 2 ? '#ff6b4f' : '#ffc046');
         }
         floor(t, air, beat);
+    }
+
+    /** Under FunpostTV: the station's Sign scrolling (or what's playing, if the Sign is off). */
+    function ticker(x, y, w, t, info) {
+        R(x, y, w, 8, '#05050a'); R(x + 1, y + 1, w - 2, 6, '#140a06');
+        const sign = info.sign && info.sign.items && info.sign.items.filter(Boolean);
+        const msg = (sign && sign.length ? sign.map(s => String(s).replace(/\s+/g, ' ').trim()).join('    *    ') : '♪ ' + (info.song || 'FunpostTV')).toUpperCase();
+        const col = SIGN_COLORS[info.sign && info.sign.color] || SIGN_COLORS.amber;
+        l.save(); l.beginPath(); l.rect(x + 2, y + 1, w - 4, 6); l.clip();
+        const tw = textWidth(msg) + 24, off = (t * 16) % tw;
+        text(l, msg, x + 3 - off, y + 2, col); text(l, msg, x + 3 - off + tw, y + 2, col);
+        l.restore();
+    }
+
+    /* The middle of the stage: Radioman at his desk while the show is live; off air,
+       FunpostTV big in the middle if it's on, or else a big radio playing the AutoDJ. */
+    const CENTRE_TV = { x: 80, y: 6, w: 80, h: 38 };
+    function centre(t, air, info) {
+        if (air.live) return radioman(t, air);
+        if (info.tv) {
+            const S = CENTRE_TV;
+            R(S.x - 3, S.y - 2, S.w + 6, S.h + 4, '#05050a'); R(S.x, S.y, S.w, S.h, '#000000');
+            ticker(S.x - 3, S.y + S.h + 2, S.w + 6, t, info);
+            return;
+        }
+        boombox(t, air);
+    }
+    function boombox(t, air) {
+        const cx = RX, top = 16, pump = air.music && Math.floor(t * 4) % 2 ? 1 : 0;
+        R(cx - 2, top - 9, 1, 9, '#8a8aa0');                                   // antenna
+        R(cx - 20, top - 3, 40, 3, '#3d3552'); R(cx - 20, top - 3, 3, 6, '#3d3552'); R(cx + 17, top - 3, 3, 6, '#3d3552');   // handle
+        R(cx - 30, top, 60, 33, '#2b2838'); R(cx - 30, top, 60, 2, '#4a4360'); R(cx - 30, top + 31, 60, 2, '#1a1724');
+        for (const sx of [cx - 17, cx + 17]) {                                  // speakers, thumping with the music
+            R(sx - 9 - pump, top + 9 - pump, 18 + 2 * pump, 18 + 2 * pump, '#0c0a12');
+            R(sx - 6, top + 12, 12, 12, '#3d3552'); R(sx - 2, top + 16, 4, 4, '#0c0a12');
+        }
+        R(cx - 7, top + 5, 14, 9, '#0b1424');                                   // the dial
+        text(l, 'FM', cx - 3, top + 7, air.music ? '#ffc046' : '#665');
+        R(cx - 7, top + 17, 14, 2, '#5a5470'); R(cx - 7 + Math.round((Math.sin(t * 0.7) * 0.5 + 0.5) * 12), top + 16, 1, 4, '#ff4a4a');
+        for (let i = 0; i < 3; i++) R(cx - 6 + i * 5, top + 23, 3, 2, i === 1 ? '#d0302a' : '#5a5470');   // buttons
+        if (!air.music) return;
+        for (const [sx, dir] of [[cx - 17, Math.PI], [cx + 17, 0]]) {            // noise lines out of both sides
+            for (let i = 0; i < 2; i++) {
+                const r = 13 + ((t * 18 + i * 7) % 14);
+                l.globalAlpha = Math.max(0.2, 1 - (r - 13) / 14);
+                arc(sx, top + 18, r, dir - 0.6, dir + 0.6, i ? '#ffc046' : '#ffffff');
+            }
+        }
+        l.globalAlpha = 1;
     }
 
     /** Lamps, stage, speakers and the dance floor. */
@@ -267,10 +309,18 @@
         // Spinning turns them round and round; everyone else faces where they're going.
         const f = e === 'spin' ? (Math.floor(t * 8) % 2 ? 1 : -1) : o.face < 0 ? -1 : 1;
         let x = Math.round(o.x), y = Math.round(o.y), lift = 0;
+        const jumpT = o.jumpT, mood = o.mood || '';
         if (e === 'jump') lift = Math.round(Math.abs(Math.sin(o.et * Math.PI / 0.6)) * 6);
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
         else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
+        if (jumpT != null && jumpT >= 0 && jumpT < 0.6) lift = Math.max(lift, Math.round(Math.sin(jumpT / 0.6 * Math.PI) * 8));     // Space: a jump
         R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,0.45)');                   // shadow stays on the floor
+        if (o.dash) {                                                   // Shift: a dash, with speed lines behind
+            const back = f > 0 ? -1 : 1;
+            l.globalAlpha = 0.6;
+            for (let i = 0; i < 3; i++) R(back > 0 ? x + 5 + i : x - 10 - i, y - 12 + i * 4, 6, 1, '#ffffff');
+            l.globalAlpha = 1;
+        }
         y -= lift;
         const sit = e === 'sit' || e === 'sleep';
         if (sit) {
@@ -311,10 +361,18 @@
         else { armDown(-1); armDown(1); }
         // Head, face.
         const hy = by - 6 + (e === 'headbang' && Math.floor(t * 8) % 2 ? 2 : 0);
-        R(x - 3, hy, 7, 6, skin);
+        R(x - 3, hy, 7, 6, mood === 'sick' ? '#a8d08a' : skin);
         const ex = f > 0 ? [x, x + 2] : [x - 2, x];
+        // Eyes, by how they feel.
         if (e === 'sleep') { R(ex[0] - 1, hy + 3, 2, 1, '#111'); R(ex[1], hy + 3, 2, 1, '#111'); }
+        else if (mood === 'love') { for (const ey of ex) { R(ey - 1, hy + 2, 1, 1, '#ff3d6e'); R(ey + 1, hy + 2, 1, 1, '#ff3d6e'); R(ey, hy + 3, 1, 1, '#ff3d6e'); } }
+        else if (mood === 'surprised') { R(ex[0], hy + 1, 1, 3, '#111'); R(ex[1], hy + 1, 1, 3, '#111'); }
+        else if (mood === 'smug' || mood === 'happy') { R(ex[0], hy + 3, 1, 1, '#111'); R(ex[1], hy + 3, 1, 1, '#111'); R(ex[0], hy + 2, 1, 1, mood === 'happy' ? '#111' : 'rgba(0,0,0,0.35)'); R(ex[1], hy + 2, 1, 1, mood === 'happy' ? '#111' : 'rgba(0,0,0,0.35)'); }
+        else if (mood === 'confused') { R(ex[0], hy + 2, 1, 2, '#111'); R(ex[1], hy + 3, 1, 1, '#111'); }
         else { R(ex[0], hy + 2, 1, 2, '#111'); R(ex[1], hy + 2, 1, 2, '#111'); }
+        if (mood === 'angry') { R(ex[0] - 1, hy + 1, 2, 1, '#111'); R(ex[1], hy + 1, 2, 1, '#111'); }
+        if (mood === 'cry' || mood === 'sad') { R(ex[0], hy + 4, 1, mood === 'cry' ? 2 : 1, '#6ab0ff'); if (mood === 'cry') R(ex[1], hy + 4, 1, 2, '#6ab0ff'); }
+        if (mood === 'cool') { R(x - 3, hy + 2, 7, 1, '#111'); R(ex[0] - 1, hy + 2, 3, 2, '#111'); R(ex[1], hy + 2, 2, 2, '#111'); }
         // Face: beard, moustache, blush or freckles (drawn before the mouth so it shows through).
         switch (L.face) {
             case 1: R(x - 3, hy + 3, 7, 3, hc); R(x - 2, hy + 6, 5, 1, hc); break;
@@ -322,8 +380,16 @@
             case 3: R(ex[0] - 1, hy + 4, 1, 1, '#ff8a9a'); R(ex[1] + 1, hy + 4, 1, 1, '#ff8a9a'); break;
             case 4: R(ex[0] - 1, hy + 4, 1, 1, '#a0603a'); R(ex[0] + 1, hy + 4, 1, 1, '#a0603a'); R(ex[1] + 1, hy + 4, 1, 1, '#a0603a'); break;
         }
-        if (o.talk && Math.floor(t * 8) % 2) R(f > 0 ? x : x - 1, hy + 4, 2, 1, '#6b2a2a');
-        else R(f > 0 ? x : x - 1, hy + 4, 2, 1, 'rgba(90,40,40,0.55)');
+        // Mouth: talking, or how they feel.
+        const mx = f > 0 ? x : x - 1;
+        if (o.talk && Math.floor(t * 8) % 2) R(mx, hy + 4, 2, 1, '#6b2a2a');
+        else if (mood === 'happy' || mood === 'love') { R(mx - 1, hy + 4, 4, 1, '#6b2a2a'); R(mx - 1, hy + 3, 1, 1, '#6b2a2a'); R(mx + 2, hy + 3, 1, 1, '#6b2a2a'); }
+        else if (mood === 'sad' || mood === 'cry' || mood === 'sick') { R(mx, hy + 4, 2, 1, '#6b2a2a'); R(mx - 1, hy + 5, 1, 1, '#6b2a2a'); R(mx + 2, hy + 5, 1, 1, '#6b2a2a'); }
+        else if (mood === 'surprised') R(mx, hy + 4, 2, 2, '#3a1414');
+        else if (mood === 'angry') R(mx - 1, hy + 4, 4, 1, '#3a1414');
+        else if (mood === 'smug') { R(mx, hy + 4, 3, 1, '#6b2a2a'); R(mx + 2, hy + 3, 1, 1, '#6b2a2a'); }
+        else if (mood === 'confused') { R(mx - 1, hy + 4, 1, 1, '#6b2a2a'); R(mx, hy + 5, 1, 1, '#6b2a2a'); R(mx + 1, hy + 4, 1, 1, '#6b2a2a'); }
+        else R(mx, hy + 4, 2, 1, 'rgba(90,40,40,0.55)');
         // Hair.
         switch (L.hair) {
             case 1: R(x - 3, hy - 1, 7, 2, hc); R(f > 0 ? x - 3 : x + 3, hy + 1, 1, 2, hc); break;
@@ -359,5 +425,9 @@
 
     /** The stage screen's picture area, in room pixels (FunpostTV goes here). */
     const SCREEN = { x: 152, y: 8, w: 56, h: 26 };
-    window.HallArt = { W, H, FLOOR, SCREEN, PARTS, randomLook, room, radioman: (ctx, t, air) => { l = ctx; radioman(t, air); }, lights, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 } };
+    /** Where FunpostTV plays: the right-hand screen while live, the middle of the stage off air. */
+    const screenFor = (live) => (live ? SCREEN : CENTRE_TV);
+    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+        radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
+        centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); } };
 })();
