@@ -192,10 +192,17 @@
         function layoutChat() {
             const [w, h] = CHAT_DIM[chatSize], sw = stage.clientWidth;
             // Beside the room only when there's still room for the room; otherwise over the floor.
-            const docked = !logBox.hidden && (chatPos === 'right' || chatPos === 'left') && sw - w >= 480;
+            // Beside the room when the room still fits nearly as big as the height allows (a short, wide screen: a phone on its side).
+            const docked = !logBox.hidden && (chatPos === 'right' || chatPos === 'left') && sw - w - 6 >= Math.min(480, stage.clientHeight * A.W / A.H * 0.9);
+            // Upright phone: the room across the top, the chat in the space under it (instead of over the room).
+            const sh = stage.clientHeight, roomH = Math.round(sw * A.H / A.W), below = !logBox.hidden && !docked && sh - roomH >= 150;
             const side = chatPos === 'left' || chatPos === 'floatL' ? 'left' : 'right';
             logBox.classList.toggle('docked', docked);
-            logBox.classList.toggle('floating', !docked);
+            logBox.classList.toggle('floating', !docked && !below);
+            logBox.classList.toggle('below', below);
+            stage.style.paddingBottom = below ? (sh - roomH) + 'px' : '';
+            logBox.style.height = below ? (sh - roomH - 4) + 'px' : '';
+            if (below) { logBox.style.width = ''; logBox.style.maxHeight = ''; stage.style.paddingLeft = stage.style.paddingRight = ''; return; }
             logBox.classList.toggle('at-left', side === 'left');
             logBox.classList.toggle('at-right', side === 'right');
             logBox.style.width = (docked ? w : Math.min(w + 80, Math.round(sw * 0.6))) + 'px';
@@ -935,7 +942,9 @@
             cv.height = Math.round(A.H * scale * dpr);
         }
         layoutChat();
-        const ro = new ResizeObserver(fit);
+        // The stage changes size (the window, a phone turned round, the bar wrapping): place the chat again, then the room.
+        let laying = false;
+        const ro = new ResizeObserver(() => { if (laying) return; laying = true; layoutChat(); fit(); laying = false; });
         ro.observe(stage);
         offs.push(() => ro.disconnect());
 
@@ -951,11 +960,23 @@
             if (out.length === lines && words.join(' ').length > out.join(' ').length) out[lines - 1] = out[lines - 1].replace(/.?.?.?$/, '…');
             return out.map(s => { while (ctx.measureText(s).width > maxW && s.length > 2) s = s.slice(0, -2) + '…'; return s; });
         }
+        // The station's picture emotes in bubbles: a row of up to three pictures over the words.
+        const emoteImgs = {};
+        function emotePic(k) {
+            const src = window.LT && LT.EMOTES && LT.EMOTES[k];
+            if (!src) return null;
+            let im = emoteImgs[k];
+            if (!im || im.src !== src) { im = emoteImgs[k] = new Image(); im.src = src; }
+            return im;
+        }
         function bubble(text, x, y, u) {
             const fs = Math.max(11, Math.round(3.3 * u / dpr)) * dpr;
             ctx.font = 'bold ' + fs + 'px "Courier New", monospace';
-            const lines = wrap(text, 70 * u, 3), lh = fs * 1.15, pad = Math.round(fs * 0.45);
-            const w = Math.max(...lines.map(s => ctx.measureText(s).width)) + pad * 2, h = lines.length * lh + pad * 1.4;
+            const pics = [];
+            text = String(text).replace(/:([a-z0-9_]{2,30}):/gi, (m, k) => { const im = emotePic(k.toLowerCase()); if (!im) return m; if (pics.length < 3) pics.push(im); return ' '; }).trim();
+            const ph = pics.length ? fs * 2.2 : 0;
+            const lines = text ? wrap(text, 70 * u, 3) : [], lh = fs * 1.15, pad = Math.round(fs * 0.45);
+            const w = Math.max(pics.length * ph * 1.15, ...lines.map(s => ctx.measureText(s).width)) + pad * 2, h = lines.length * lh + ph + pad * 1.4;
             let bx = Math.round(x - w / 2), by = Math.round(y - h - 3 * u);
             bx = Math.max(2, Math.min(cv.width - w - 2, bx)); by = Math.max(2, by);
             const s = Math.max(1, Math.round(u / 2));
@@ -963,8 +984,13 @@
             ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, w, h);
             const tx = Math.max(bx + s * 2, Math.min(bx + w - s * 4, Math.round(x - s)));
             ctx.fillRect(tx, by + h, s * 2, s * 2); ctx.fillStyle = '#000'; ctx.fillRect(tx - s, by + h, s, s * 2); ctx.fillRect(tx + s * 2, by + h, s, s * 2); ctx.fillRect(tx, by + h + s * 2, s * 2, s);
+            pics.forEach((im, i) => {
+                if (!im.complete || !im.naturalWidth) return;
+                const pw = Math.min(ph * 1.5, ph * im.naturalWidth / im.naturalHeight), cx = bx + w / 2 + (i - (pics.length - 1) / 2) * ph * 1.15;
+                ctx.drawImage(im, Math.round(cx - pw / 2), Math.round(by + pad * 0.7), Math.round(pw), Math.round(ph));
+            });
             ctx.fillStyle = '#141018'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            lines.forEach((ln, i) => ctx.fillText(ln, bx + w / 2, by + pad * 0.8 + i * lh));
+            lines.forEach((ln, i) => ctx.fillText(ln, bx + w / 2, by + pad * 0.8 + ph + i * lh));
         }
 
         /* FunpostTV on the stage screen, when the studio chose it and the stream is on.

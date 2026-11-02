@@ -63,8 +63,8 @@
 /* On a web page (the FunpostFM site): the Hall over everything, with its own buttons. */
 .hall-page { position: fixed; inset: 0; z-index: 900; display: flex; flex-direction: column; background: #0d0a16; color: #eee8f6; font: 14px system-ui, sans-serif; }
 .hall-page-top { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: linear-gradient(90deg, #ff2f6e, #7b3cff 55%, #00c2ff); color: #fff; font-weight: bold; }
-.hall-page-top span { flex: 1; }
-.hall-page-top button { background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; }
+.hall-page-top .hp-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hall-page-top button { flex: none; white-space: nowrap; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; }
 .hall-page-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .hall-page .btn { background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; font: inherit; cursor: pointer; }
 .hall-page .btn:hover { border-color: #00e0ff; }
@@ -73,7 +73,18 @@
 /* Phones: no blue flash or text selection when tapping the room or its buttons. */
 .hall, .hall * { -webkit-tap-highlight-color: transparent; }
 .hall-stage { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
-.hall-page-top .hall-vol { width: 110px; accent-color: #fff; }
+.hall-page-top .hall-vol { width: 110px; min-width: 0; flex: 0 1 110px; accent-color: #fff; }
+/* Phones: icons only in the top bar, tighter, and a shorter volume slider. */
+@media (max-width: 560px) {
+    .hall-page-top { gap: 5px; padding: 5px 6px; }
+    .hall-page-top .hn { display: none; }
+    .hall-page-top button { padding: 3px 7px; }
+    .hall-page-top .hall-vol { flex-basis: 70px; width: 70px; }
+    .hall-bar { gap: 3px; padding: 4px; }
+    .hall-bar .btn { padding: 2px 5px; }
+}
+/* The chat under the room, when the room is wide and the screen tall (a phone held upright). */
+.hall-log.below { left: 0; right: 0; bottom: 0; border-width: 1px 0 0; background: rgba(0, 0, 0, 0.35); }
 .hall-page-top button[hidden] { display: none; }
 /* Board games: the tables, and the board of the one you're at or watching. */
 .hall-games { position: absolute; z-index: 6; top: 6px; right: 6px; width: min(400px, calc(100% - 12px)); max-height: calc(100% - 60px); overflow-y: auto;

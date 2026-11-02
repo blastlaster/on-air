@@ -18,6 +18,11 @@
     const body = $('.body');
     const on = (ev, fn) => core.on(ev, fn, window);
     on('toast', (m) => { if (document.hasFocus()) UI.toast(m); });
+    // The station's picture emotes, into this window's LT before any chat draws (core redraws the chat when they change).
+    let emotesKey = '';
+    const syncEmotes = () => { if (core.emotesKey !== emotesKey && window.LT && LT.setEmotes) { emotesKey = core.emotesKey; LT.setEmotes(core.emotes, core.engine); } };
+    syncEmotes();
+    on('chat', syncEmotes);
     VIEWS[id](body);
 
     /* =========================================================

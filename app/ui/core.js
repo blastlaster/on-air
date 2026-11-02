@@ -106,6 +106,18 @@
     }
     function send(o) { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(o)); return true; } return false; }
 
+    /* The station's picture emotes (:name: → '/emotes/<file>' on the station's PC). When the
+       list (or the PC's address) changes, every chat draws itself again so earlier lines get them
+       too. Each window has its own copy of LT: core.emotes / emotesKey let it catch up (win.js). */
+    let emotes = {}, emotesKey = '';
+    function setEmotes(map) {
+        const key = ENGINE + JSON.stringify(map || {});
+        if (key === emotesKey) return;
+        emotes = map || {}; emotesKey = key;
+        if (window.LT && LT.setEmotes) LT.setEmotes(emotes, ENGINE);
+        emit('chat', { reset: chat });
+    }
+
     function onMessage(m) {
         switch (m.t) {
             case 'welcome':
@@ -116,6 +128,7 @@
                 break;
             case 'status':
                 status = m; engineUp = true;
+                setEmotes(m.emotes);
                 if (m.ping && window.onairApp) window.onairApp.ping(m.ping);      // the host's 📣 Ping (the app shows each once)
                 if (m.station) { setStation(m.station); setPref('station', JSON.stringify(station)); }
                 render();
@@ -594,6 +607,8 @@
         get panelApi() { return panelApi(); },
         get panelServer() { return (panel() || {}).server || 1; },
         loadLibrary,
+        get emotes() { return emotes; },
+        get emotesKey() { return emotesKey; },
         on, toast, now: serverNow, skipVote,
         play, stop, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,

@@ -278,7 +278,7 @@
     };
     /** Chat text as HTML: links clickable, and a line starting with > in green (4chan's greentext; >>quotes stay as they are). */
     LT.chatHtml = function (raw) {
-        var html = LT.linkText(raw);
+        var html = LT.emoteHtml(LT.linkText(raw));
         return /^\s*>(?!>)/.test(String(raw || '')) ? '<span style="color:#8cc63f">' + html + '</span>' : html;
     };
 
@@ -301,7 +301,34 @@
         check: '✅', x: '❌', salt: '🧂', cap: '🧢', ok: '🆗', dice: '🎲', checkered_flag: '🏁', headphones: '🎧', dancer: '💃', bonk: '🔨'
     };
     LT.emojiCodes = function (text) {
-        return String(text || '').replace(/:([a-z0-9_+\-]{1,30}):/gi, function (m, k) { return LT.EMOJI[k.toLowerCase()] || m; });
+        return String(text || '').replace(/:([a-z0-9_+\-]{1,30}):/gi, function (m, k) {
+            k = k.toLowerCase();
+            return LT.EMOTES[k] ? m : LT.EMOJI[k] || m;          // the station's own emotes stay codes; pages draw them
+        });
+    };
+
+    /* The station's own picture emotes (:nicedance:). The engine sends
+       name → '/emotes/<file>' with its status; pages pass that here with
+       the engine's address. Messages keep the plain :code:, so Chattable
+       (which has the same ones) and old pages still read fine. */
+    LT.EMOTES = {};
+    LT.setEmotes = function (map, base) {
+        var out = {}, b = String(base || '').replace(/\/+$/, '');
+        for (var k in (map || {})) if (/^[a-z0-9_]{2,30}$/.test(k)) out[k] = /^https?:/.test(map[k]) ? map[k] : b + map[k];
+        LT.EMOTES = out;
+    };
+    LT.emoteImg = function (k, size) {
+        return '<img class="lt-emote" src="' + String(LT.EMOTES[k]).replace(/"/g, '&quot;') + '" alt=":' + k + ':" title=":' + k + ':"' +
+            ' style="height:' + (size || 28) + 'px;max-width:' + ((size || 28) * 3) + 'px;vertical-align:middle;object-fit:contain">';
+    };
+    /** In already-safe chat HTML: :name: outside tags becomes the picture. */
+    LT.emoteHtml = function (html) {
+        if (!Object.keys(LT.EMOTES).length) return html;
+        return String(html).replace(/(<[^>]*>)|:([a-z0-9_]{2,30}):/gi, function (m, tag, k) {
+            if (tag) return tag;
+            k = k.toLowerCase();
+            return LT.EMOTES[k] ? LT.emoteImg(k) : m;
+        });
     };
 
     /**
@@ -323,9 +350,10 @@
         function show() {
             var q = query();
             if (!q) return close();
-            var keys = Object.keys(LT.EMOJI), seen = {}, list = [];
+            // The station's emotes first, then the ordinary emoji.
+            var keys = Object.keys(LT.EMOTES).concat(Object.keys(LT.EMOJI).filter(function (k) { return !LT.EMOTES[k]; })), seen = {}, list = [];
             keys.filter(function (k) { return k.indexOf(q.q) === 0; }).concat(keys.filter(function (k) { return k.indexOf(q.q) > 0; }))
-                .forEach(function (k) { if (list.length < 7 && !seen[LT.EMOJI[k]]) { seen[LT.EMOJI[k]] = 1; list.push(k); } });
+                .forEach(function (k) { var v = LT.EMOTES[k] ? ':' + k : LT.EMOJI[k]; if (list.length < 7 && !seen[v]) { seen[v] = 1; list.push(k); } });
             if (!list.length) return close();
             picks = list; sel = 0;
             if (!box) {
@@ -348,13 +376,13 @@
             if (!box) return;
             box.innerHTML = picks.map(function (k, i) {
                 return '<div data-k="' + k + '" style="padding:3px 8px;border-radius:4px;cursor:pointer;' + (i === sel ? 'background:rgba(255,255,255,.15)' : '') +
-                    '"><span style="font-size:17px">' + LT.EMOJI[k] + '</span> :' + k + ':</div>';
+                    '">' + (LT.EMOTES[k] ? LT.emoteImg(k, 22) : '<span style="font-size:17px">' + LT.EMOJI[k] + '</span>') + ' :' + k + ':</div>';
             }).join('');
         }
         function pick(k) {
             var q = query();
-            if (!q || !LT.EMOJI[k]) return close();
-            var e = LT.EMOJI[k] + ' ';
+            if (!q || !(LT.EMOTES[k] || LT.EMOJI[k])) return close();
+            var e = (LT.EMOTES[k] ? ':' + k + ':' : LT.EMOJI[k]) + ' ';
             input.value = input.value.slice(0, q.from) + e + input.value.slice(q.to);
             var c = q.from + e.length;
             input.setSelectionRange(c, c);
