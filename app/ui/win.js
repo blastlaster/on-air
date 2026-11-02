@@ -32,10 +32,23 @@
     function chat(box) {
         let mode = '';
         box.innerHTML = '<div class="chat"><div class="pinned" hidden></div><ol class="log"></ol>' +
-            '<form class="say"><input maxlength="400" placeholder="Say something…" autocomplete="off"><button class="btn go">Send</button></form></div>' +
+            '<form class="say"><input maxlength="400" placeholder="Say something…" autocomplete="off"><button type="button" class="btn times" title="Show the time on messages">🕒</button><button class="btn go">Send</button></form></div>' +
             '<div class="chattable" hidden></div><div class="empty" hidden>Chat opens when the station is on.</div>';
         const log = $('.log', box), say = $('.say', box), room = $('.chattable', box);
         if (window.LT && LT.stickToBottom) LT.stickToBottom(log);           // opens at the newest line, and stays there
+        // The time on each message: off unless you switch it on (shared with blug.dj/jej's chat).
+        const timesBtn = $('.times', say);
+        const paintTimes = () => {
+            let on = false;
+            try { on = localStorage.getItem('ltl.chatTimes') === '1'; } catch { /* default */ }
+            log.classList.toggle('times', on); timesBtn.classList.toggle('on', on);
+        };
+        paintTimes();
+        timesBtn.onclick = () => {
+            try { localStorage.setItem('ltl.chatTimes', log.classList.contains('times') ? '0' : '1'); } catch { /* full */ }
+            paintTimes();
+        };
+        window.addEventListener('storage', (e) => { if (e.key === 'ltl.chatTimes') paintTimes(); });
 
         function line(m) {
             const li = document.createElement('li');
@@ -45,7 +58,7 @@
             else li.innerHTML = '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b>' +
                 (m.role === 'host' || m.role === 'cohost' ? '<span class="tag">' + (m.role === 'host' ? 'DJ' : 'co-host') + '</span>' : '') +
                 (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text)) +
-                (m.at ? '<span class="when">' + clock(m.at) + '</span>' : '');
+                (m.ts || m.at ? '<span class="when">' + clock(m.ts || m.at) + '</span>' : '');
             return li;
         }
         function add(m) {

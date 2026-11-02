@@ -62,7 +62,7 @@
         const listen = (type, fn) => { window.addEventListener(type, fn); offs.push(() => window.removeEventListener(type, fn)); };
         box.classList.add('flush');
         box.innerHTML = '<div class="hall">' +
-            '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label>' +
+            '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
             '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-msg" hidden></div></div>' +
@@ -243,6 +243,17 @@
             try { localStorage.setItem('ltl.hallGames', gamesBox.checked ? '1' : '0'); } catch { /* full */ }
             logEl.scrollTop = logEl.scrollHeight;
         });
+        // The time on each line: off unless you switch it on (shared with the Chat window).
+        const timesBox = $('[data-times]', logBox);
+        const timesOn = () => { try { return localStorage.getItem('ltl.chatTimes') === '1'; } catch { return false; } };
+        const paintTimes = () => { timesBox.checked = timesOn(); logBox.classList.toggle('times', timesBox.checked); };
+        paintTimes();
+        timesBox.addEventListener('change', () => {
+            try { localStorage.setItem('ltl.chatTimes', timesBox.checked ? '1' : '0'); } catch { /* full */ }
+            paintTimes();
+        });
+        listen('storage', (e) => { if (e.key === 'ltl.chatTimes') paintTimes(); });
+        const lineTime = (ts) => { const d = new Date(ts), h = d.getHours(), mi = d.getMinutes(); return (h % 12 || 12) + ':' + (mi < 10 ? '0' : '') + mi + (h < 12 ? ' am' : ' pm'); };
         function logLine(m, cls) {
             if ((m.role === 'system' && !cls) || !m.text) return;
             const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 30;
@@ -251,7 +262,7 @@
             if (cls) li.className = cls;
             // Links you can click (they open in a new tab, or the browser in the app); the game lines are plain.
             const text = !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text);
-            li.innerHTML = (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
+            li.innerHTML = (m.ts ? '<span class="hl-when">' + lineTime(m.ts) + '</span>' : '') + (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
             logEl.appendChild(li);
             while (logEl.children.length > 150) logEl.removeChild(logEl.firstChild);
             if (atBottom) logEl.scrollTop = logEl.scrollHeight;

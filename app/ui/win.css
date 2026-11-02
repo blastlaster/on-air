@@ -17,7 +17,10 @@ label { display: block; margin: 4px 0; }
 .log { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0; }
 .msg { padding: 4px 7px; margin: 3px 0; border-radius: 6px; background: var(--sk-msg-bg); border-left: 3px solid var(--sk-accent); overflow-wrap: anywhere; }
 .msg--system { background: none; border: 0; color: var(--sk-dim); font-style: italic; font-size: 0.88em; }
-.msg .when { float: right; font-size: 0.72em; color: var(--sk-dim); margin-left: 6px; }
+.msg .when { display: none; float: right; font-size: 0.72em; color: var(--sk-dim); margin-left: 6px; }
+.log.times .msg .when { display: inline; }
+.say .times { flex: none; opacity: 0.55; }
+.say .times.on { opacity: 1; }
 .say { display: flex; gap: 6px; flex: none; }
 .chattable { flex: 1; min-height: 0; display: flex; }
 .chattable iframe { flex: 1; border: 0; width: 100%; height: 100%; }
