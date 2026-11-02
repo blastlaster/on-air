@@ -17,8 +17,18 @@
     const SPEED = 52;                                         // room pixels a second
     const FPS = 30;
 
-    window.HallView = function (box, { core }) {
-        const A = window.HallArt, { $, esc } = UI, F = A.FLOOR;
+    /**
+     * Draws the Hall into `box`. `core` is the station connection (the app's
+     * radio, or the FunpostFM page's listen.js); `ui` gives $, esc, askName
+     * and toast (the app's UI by default). Returns { close } to leave.
+     */
+    window.HallView = function (box, { core, ui }) {
+        const U = ui || window.UI, A = window.HallArt, { $, esc } = U, F = A.FLOOR;
+        // Everything to undo on close (the app just closes the window; a page keeps going).
+        const offs = [];
+        let stopped = false;
+        const sub = (ev, fn) => { const off = core.on(ev, fn, window); if (typeof off === 'function') offs.push(off); };
+        const listen = (type, fn) => { window.addEventListener(type, fn); offs.push(() => window.removeEventListener(type, fn)); };
         box.classList.add('flush');
         box.innerHTML = '<div class="hall">' +
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><ol class="hall-log"></ol><div class="hall-msg" hidden></div></div>' +
@@ -58,21 +68,21 @@
         function join() {
             if (refused || pending) return;
             if (!core.state.engineUp) return notice('The Hall opens when the station’s PC is on.');
-            if (!core.name) { notice('Pick a name to walk in.'); return UI.askName(core, join); }
+            if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             if (!core.send({ t: 'hall-join', look })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
         // Turned away (full, or closed): a click on the notice tries again.
         msgEl.addEventListener('click', (e) => { e.stopPropagation(); if (refused) { refused = false; join(); } });
-        core.on('connected', () => { joined = false; pending = false; join(); }, window);
-        core.on('state', (s) => {
+        sub('connected', () => { joined = false; pending = false; join(); }, window);
+        sub('state', (s) => {
             if (!s.engineUp) { joined = false; pending = false; people.clear(); me = ''; notice('The Hall opens when the station’s PC is on.'); }
             else if (!joined) join();
         }, window);
-        window.addEventListener('beforeunload', () => { if (joined) core.send({ t: 'hall-leave' }); });
+        listen('beforeunload', () => { if (joined) core.send({ t: 'hall-leave' }); });
 
-        core.on('hall', (m) => {
+        sub('hall', (m) => {
             switch (m.t) {
                 case 'hall-welcome':
                     people.clear();
@@ -94,7 +104,7 @@
                 case 'hall-emote': { const p = people.get(m.h); if (p && m.h !== me) { p.e = m.e; p.et = now(); } break; }
                 case 'hall-look': { const p = people.get(m.h); if (p) p.l = m.l; break; }
                 case 'hall-name': { const p = people.get(m.h); if (p) p.n = m.n; break; }
-                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music }; break;
+                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen }; break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
                     notice((m.reason || 'The Hall is closed right now.') + ' Click to try again.');
@@ -112,7 +122,7 @@
             setTimeout(() => li.classList.add('old'), 15000);
         }
         const sayFor = (text) => Math.min(9, 3 + text.length * 0.06);
-        core.on('chat', (c) => {
+        sub('chat', (c) => {
             if (c.reset) { logEl.innerHTML = ''; c.reset.slice(-3).forEach(logLine); return; }
             if (c.hide) { for (const p of people.values()) if (p.sayId === c.hide) p.sayUntil = 0; if (hostSay && hostSay.id === c.hide) hostSay = null; return; }
             const m = c.add;
@@ -127,8 +137,8 @@
             e.preventDefault();
             const text = input.value;
             if (!text.trim()) { input.blur(); return; }
-            const go = () => { if (core.chatSend(text)) input.value = ''; else UI.toast('Chat is reconnecting…'); };
-            if (!core.name) UI.askName(core, go); else go();
+            const go = () => { if (core.chatSend(text)) input.value = ''; else U.toast('Chat is reconnecting…'); };
+            if (!core.name) U.askName(core, go); else go();
         };
 
         /* ---------- moving ---------- */
@@ -157,7 +167,7 @@
             sendGo(x, y);
         });
         const typing = () => document.activeElement && /input|textarea/i.test(document.activeElement.tagName);
-        window.addEventListener('keydown', (e) => {
+        listen('keydown', (e) => {
             if (e.ctrlKey || e.altKey || e.metaKey) return;
             if (typing()) { if (e.key === 'Escape') input.blur(); return; }
             if (!lookEl.hidden && e.key === 'Escape') { lookEl.hidden = true; return; }
@@ -166,8 +176,8 @@
             if (/^[1-5]$/.test(k)) { emote(EMOTES[+k - 1][0]); return; }
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
         });
-        window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-        window.addEventListener('blur', () => keys.clear());
+        listen('keyup', (e) => keys.delete(e.key.toLowerCase()));
+        listen('blur', () => keys.clear());
         bar.addEventListener('click', (e) => {
             const b = e.target.closest('[data-e]');
             if (b) { emote(b.dataset.e); return; }
@@ -236,7 +246,9 @@
             cv.width = Math.round(A.W * scale * dpr);
             cv.height = Math.round(A.H * scale * dpr);
         }
-        new ResizeObserver(fit).observe(stage);
+        const ro = new ResizeObserver(fit);
+        ro.observe(stage);
+        offs.push(() => ro.disconnect());
 
         function wrap(text, maxW, lines) {
             const words = String(text).replace(/\s+/g, ' ').trim().split(' '), out = [];
@@ -286,6 +298,7 @@
 
         let last = 0;
         function frame(ms) {
+            if (stopped) return;
             requestAnimationFrame(frame);
             if (document.hidden || ms - last < 1000 / FPS - 2) return;
             const dt = Math.min(0.1, (ms - (last || ms)) / 1000);
@@ -353,10 +366,22 @@
             const p = mine(); if (p) p.l = { ...look };
             sendLook();
         });
-        setInterval(() => { if (!lookEl.hidden) paintLook(); }, 160);
+        const lookT = setInterval(() => { if (!lookEl.hidden) paintLook(); }, 160);
+        offs.push(() => clearInterval(lookT));
 
         fit();
         join();
         requestAnimationFrame(frame);
+
+        return {
+            close() {
+                if (stopped) return;
+                stopped = true;
+                if (joined) core.send({ t: 'hall-leave' });
+                joined = false;
+                for (const off of offs) { try { off(); } catch { /* gone */ } }
+                tvEl.innerHTML = '';
+            }
+        };
     };
 })();
