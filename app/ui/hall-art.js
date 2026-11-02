@@ -144,6 +144,25 @@
         R(RX - 10, RY + 13 + nod, 3, 5, '#2a2a2a'); R(RX - 9, RY + 14 + nod, 1, 3, '#6a6a6a');
     }
 
+    /**
+     * Radioman off stage (not live, but typing in chat): his head in a little
+     * frame in the bottom-left corner, mouth going. `k` 0–1 slides it in.
+     * Returns the frame's top centre, for the speech bubble.
+     */
+    function cameo(t, talking, k) {
+        const fw = 26, fh = 32, x = Math.round(3 - (1 - k) * (fw + 6)), y = H - fh - 3;
+        R(x - 1, y - 1, fw + 2, fh + 2, '#ffffff'); R(x, y, fw, fh, '#1d1830');
+        for (let i = 0; i < fw; i += 4) R(x + i, y, 2, fh, '#211b37');           // the studio wall behind him
+        const small = talking && Math.floor(t * 7) % 2 === 1, bob = talking ? Math.floor(t * 4) % 2 : 0;
+        RM_HEAD.forEach((row, r) => {
+            if (small && RM_MOUTH_SMALL[r]) row = RM_MOUTH_SMALL[r].padEnd(20, '.').slice(0, 20);
+            for (let c = 0; c < row.length; c++) if (row[c] !== '.') R(x + 3 + c, y + 3 + r + bob, 1, 1, RM_PAL[row[c]]);
+        });
+        if (talking && Math.floor(t * 6) % 2) { R(x + fw - 2, y + 15, 1, 1, '#ffffff'); R(x + fw - 3, y + 19, 2, 1, '#ffffff'); }
+        R(x, y + fh - 7, fw, 7, '#d0302a'); text(l, 'DJ', x + Math.round((fw - textWidth('DJ')) / 2), y + fh - 6, '#ffffff');   // a little red name strip
+        return { x: x + fw / 2, y: y - 1 };
+    }
+
     /* =========================================================
        THE ROOM
        ========================================================= */
@@ -565,5 +584,6 @@
     const screenFor = (live) => (live ? SCREEN : CENTRE_TV);
     window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
-        centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); } };
+        centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
+        cameo: (ctx, t, talking, k) => { l = ctx; return cameo(t, talking, k); } };
 })();

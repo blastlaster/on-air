@@ -255,7 +255,7 @@
             logLine(m);
             const p = m.hid && people.get(m.hid);
             if (p) { p.say = m.text; p.sayId = m.id; p.sayUntil = now() + sayFor(m.text); }
-            else if (m.role === 'host') hostSay = { text: m.text, id: m.id, until: now() + sayFor(m.text) };
+            else if (m.role === 'host') hostSay = { text: m.text, id: m.id, at: now(), until: now() + sayFor(m.text) };
         }, window);
 
         const sayBox = window.LT && LT.chatInput ? LT.chatInput(input) : null;      // :emoji: suggestions, Shift+↑ history
@@ -1041,7 +1041,9 @@
             const sign = s.banner && s.banner.on ? { items: s.banner.items || [], color: s.banner.color } : null;
             const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign };
             A.room(lc, t, onAir, info);
-            A.centre(lc, t, onAir, info);            // Radioman at his desk while live; a big radio (or FunpostTV) off air
+            // Radioman at his desk while live (his mouth going while his chat line is up); a big radio (or FunpostTV) off air.
+            const hostTalking = !!(hostSay && hostSay.until > t);
+            A.centre(lc, t, hostTalking ? { ...onAir, talking: true } : onAir, info);
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
@@ -1053,6 +1055,9 @@
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t }));
             }
             A.lights(lc, t, onAir, fx);
+            // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
+            let cameoAt = null;
+            if (hostTalking && !onAir.live) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25));
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(low, 0, 0, cv.width, cv.height);
             // Names under feet, bubbles over heads, at screen resolution.
@@ -1072,7 +1077,8 @@
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
             tableBadges(u, heads, t);
-            if (hostSay && hostSay.until > t) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
+            if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
+            if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
         }
 
         /* ---------- your look ---------- */
