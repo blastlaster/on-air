@@ -61,13 +61,7 @@
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
             '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
-            '<button class="btn go">Say</button>' +
-            '<span class="hall-emotes">' + EMOTES.map(([id, icon, name], i) => '<button type="button" class="btn" data-e="' + id + '" title="' + name + ' (' + (i + 1) + ')">' + icon + '</button>').join('') + '</span>' +
-            '<button type="button" class="btn" data-emoji title="Emoji: put one in what you say, carry one around, or wave a glowstick">😀</button>' +
-            '<span class="hall-bursts" hidden>' + BURSTS.map(([k, icon, name]) => '<button type="button" class="btn" data-burst="' + k + '" title="' + name + '">' + icon + '</button>').join('') + '</span>' +
-            '<button type="button" class="btn" data-boards title="Board games: tic-tac-toe, checkers, Chinese checkers">🎲</button>' +
-            '<button type="button" class="btn" data-chat title="Show or hide the chat">💬</button>' +
-            '<button type="button" class="btn" data-look title="Change how you look">🎨 Look</button></form>' +
+            '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div></div>';
         const stage = $('.hall-stage', box), cv = $('canvas', box), ctx = cv.getContext('2d');
         const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), emojiEl = $('.hall-emoji', box);
@@ -164,6 +158,7 @@
                 case 'hall-hit': onHit(m); break;
                 case 'hall-fx':
                     bursts.push({ k: m.k, at: now() });
+                    startCool(m.h === me);
                     while (bursts.length > 12) bursts.shift();
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
                     break;
@@ -202,13 +197,22 @@
             logBox.classList.toggle('below', below);
             stage.style.paddingBottom = below ? (sh - roomH) + 'px' : '';
             logBox.style.height = below ? (sh - roomH - 4) + 'px' : '';
+            // The actions: beside the room on the chat's side (between them) when it's wide enough; along the bottom otherwise.
+            const canSide = !below && sw - (docked ? w + 6 : 0) >= 640, sideActs = actsMode === 'side' && canSide;
+            actsEl.classList.toggle('no-side', !canSide);           // (then there's no point offering to move them)
+            if (sideActs && actsEl.parentNode !== stage) stage.appendChild(actsEl);
+            if (!sideActs && actsEl.parentNode !== bar) bar.appendChild(actsEl);
+            actsEl.classList.toggle('side', sideActs);
+            const aw = sideActs ? actsEl.offsetWidth + 6 : 0, chatW = docked ? w + 6 : 0;
+            actsEl.style.left = sideActs && side === 'left' ? chatW + 'px' : '';
+            actsEl.style.right = sideActs && side === 'right' ? chatW + 'px' : '';
             if (below) { logBox.style.width = ''; logBox.style.maxHeight = ''; stage.style.paddingLeft = stage.style.paddingRight = ''; return; }
             logBox.classList.toggle('at-left', side === 'left');
             logBox.classList.toggle('at-right', side === 'right');
             logBox.style.width = (docked ? w : Math.min(w + 80, Math.round(sw * 0.6))) + 'px';
             logBox.style.maxHeight = docked ? '' : h + '%';
-            stage.style.paddingLeft = docked && side === 'left' ? (w + 6) + 'px' : '';
-            stage.style.paddingRight = docked && side === 'right' ? (w + 6) + 'px' : '';
+            stage.style.paddingLeft = side === 'left' && (chatW || aw) ? (chatW + aw) + 'px' : '';
+            stage.style.paddingRight = side === 'right' && (chatW || aw) ? (chatW + aw) + 'px' : '';
         }
         $('.hall-log-top', logBox).addEventListener('click', (e) => {
             const mv = e.target.closest('[data-chatmove]'), sz = e.target.closest('[data-chatsize]');
@@ -288,7 +292,7 @@
         /** Your pose's button stays lit while it's on. */
         function paintPoses() {
             const e = (mine() || {}).e || '';
-            for (const b of bar.querySelectorAll('[data-e]')) b.classList.toggle('on', b.dataset.e === e);
+            for (const b of actsEl.querySelectorAll('[data-act^="e:"]')) b.classList.toggle('on', b.dataset.act === 'e:' + e);
         }
         /** Space: jump. Shift: dash (a burst of speed the way you're going). */
         let jumpReady = 0, dashReady = 0;
@@ -305,7 +309,8 @@
             for (const q of people.values()) if (q.h !== me && Math.abs(q.x - x) <= 5 && y <= q.y + 2 && y >= q.y - 20 && (!hit || q.y > hit.y)) hit = q;
             return hit;
         }
-        stage.addEventListener('click', (e) => {
+        stage.addEventListener('click', (e) => floorClick(e));
+        function floorClick(e) {
             const p = mine();
             if (!p) return;
             const r = cv.getBoundingClientRect();
@@ -317,7 +322,11 @@
             const x = clampX(rx), y = clampY(ry);
             p.tx = x; p.ty = y;
             sendGo(x, y);
-        });
+        }
+        // The Look panel closes by itself when you click the room or start walking (unless you switch that off in it).
+        let lookAuto = true;
+        try { lookAuto = localStorage.getItem('ltl.hallLookAuto') !== '0'; } catch { /* default */ }
+        const lookAway = () => { if (lookAuto && !lookEl.hidden) lookEl.hidden = true; };
 
         /* ---------- emoji: in what you say, or in your hand ---------- */
         let emojiTab = 'say';
@@ -329,12 +338,15 @@
             emojiEl.innerHTML = '<div class="he-tabs"><button type="button" class="btn' + (emojiTab === 'say' ? ' on' : '') + '" data-tab="say">💬 Say</button>' +
                 '<button type="button" class="btn' + (emojiTab === 'hold' ? ' on' : '') + '" data-tab="hold">✋ Hold</button>' +
                 '<button type="button" class="btn' + (emojiTab === 'feel' ? ' on' : '') + '" data-tab="feel">😊 Feel</button>' +
-                '<button type="button" class="btn' + (emojiTab === 'glow' ? ' on' : '') + '" data-tab="glow">🪄 Glow</button>' +
+                '<button type="button" class="btn' + (emojiTab === 'glow' ? ' on' : '') + '" data-tab="glow">✨ Glow</button>' +
+                (stationEmotes().length ? '<button type="button" class="btn' + (emojiTab === 'station' ? ' on' : '') + '" data-tab="station">🖼 Station</button>' : '') +
                 (held ? '<button type="button" class="btn" data-drop>Drop ' + held + '</button>' : '') +
                 '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)'
-                    : emojiTab === 'glow' ? 'A glowstick to wave (dance for big trails)' : 'Adds it to what you’re typing') + '</span>' +
+                    : emojiTab === 'glow' ? 'A glowstick to wave (dance for big trails)' : emojiTab === 'station' ? 'The station’s own — adds it to what you’re typing' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
-                '<div class="he-grid">' + (emojiTab === 'glow'
+                '<div class="he-grid">' + (emojiTab === 'station'
+                    ? stationEmotes().map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('')
+                    : emojiTab === 'glow'
                     ? GLOWS.map(([id, c]) => '<button type="button" class="he-e he-glow' + (id === glow ? ' on' : '') + '" data-glow="' + id + '" title="' + id + '" style="background:' +
                         (c || 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)') + '"></button>').join('') +
                         (glow ? '<button type="button" class="btn" data-glow="">Put it away</button>' : '')
@@ -342,6 +354,7 @@
                     ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
                     : list.map(e => '<button type="button" class="he-e' + (e === held ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>').join('')) + '</div>';
         }
+        const stationEmotes = () => Object.keys((window.LT && LT.EMOTES) || {});
         function hold(o) {
             const p = mine();
             if (!p) return;
@@ -579,17 +592,41 @@
         }
 
         /* ---------- stage effects anyone can set off (when the host allows) ---------- */
-        const burstsEl = $('.hall-bursts', bar);
         function paintBursts() {
-            const fx = air.fx || {};
-            burstsEl.hidden = !(joined && fx.crowd && fx.level);
-            const fire = $('[data-burst="fire"]', burstsEl);
-            if (fire) fire.hidden = !(fx.on && fx.on.fire);
+            const fx = air.fx || {}, ok = joined && fx.crowd && fx.level;
+            for (const [k] of BURSTS) {
+                const b = actsEl.querySelector('[data-act="burst:' + k + '"]');
+                if (b) b.hidden = !ok || (k === 'fire' && !(fx.on && fx.on.fire));
+            }
         }
-        burstsEl.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-burst]');
-            if (b) core.send({ t: 'hall-fx', k: b.dataset.burst });
-        });
+        // Waits (engine/hall.js FUN): yours after you set one off, and the room's after anyone does.
+        const BURST_WAIT = { mine: 30, room: 6 };
+        const cool = { mine: 0, room: 0, total: 0 };
+        function burst(k) {
+            if (Math.max(cool.mine, cool.room) > now()) return;
+            core.send({ t: 'hall-fx', k });
+        }
+        function startCool(byMe) {
+            const t = now();
+            cool.room = t + BURST_WAIT.room;
+            if (byMe) cool.mine = t + BURST_WAIT.mine;
+            cool.total = Math.max(cool.mine, cool.room) - t;
+            paintCool();
+        }
+        /** 🔥 and 🎊 greyed while they're waiting, with a sweep and the seconds left. */
+        function paintCool() {
+            const t = now(), until = Math.max(cool.mine, cool.room), left = until - t;
+            for (const [k] of BURSTS) {
+                const b = actsEl.querySelector('[data-act="burst:' + k + '"]');
+                if (!b) continue;
+                b.classList.toggle('cool', left > 0);
+                b.disabled = left > 0 && !editingKeys;
+                if (left > 0) { b.dataset.left = String(Math.ceil(left)); b.style.setProperty('--cool', String(Math.min(1, left / (cool.total || 1)))); }
+                else { delete b.dataset.left; b.style.removeProperty('--cool'); }
+            }
+        }
+        const coolT = setInterval(() => { if (cool.mine > now() - 1 || cool.room > now() - 1) paintCool(); }, 250);
+        offs.push(() => clearInterval(coolT));
         function onGame(g, quiet) {
             const t = now(), old = games.get(g.id);
             const keep = { asked: 21, picking: 16, done: 7, declined: 3.5, expired: 3.5, gone: 0 }[g.state] || 0;
@@ -859,32 +896,101 @@
             if (!lookEl.hidden && e.key === 'Escape') { lookEl.hidden = true; return; }
             if (!emojiEl.hidden && e.key === 'Escape') { emojiEl.hidden = true; return; }
             if (!gamesEl.hidden && e.key === 'Escape') { gamesEl.hidden = true; return; }
+            if (editingKeys && waitKey) { actionKey(e); return; }
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
-            if (/^[0-9]$/.test(k)) { emote(EMOTES[(+k + 9) % 10][0]); return; }      // 1–9, then 0 for the tenth
-            if (e.key === ' ') { act('jump'); e.preventDefault(); return; }
-            if (e.key === 'Shift') { act('dash'); return; }
+            if (actionKey(e)) return;
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
         });
         listen('keyup', (e) => keys.delete(e.key.toLowerCase()));
         listen('blur', () => keys.clear());
-        bar.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-e]');
-            if (b) { emote(b.dataset.e); return; }
-            if (e.target.closest('[data-emoji]')) { emojiEl.hidden = !emojiEl.hidden; if (!emojiEl.hidden) paintEmoji(); return; }
-            if (e.target.closest('[data-boards]')) {
-                gamesEl.hidden = !gamesEl.hidden;
-                if (!gamesEl.hidden) { const t = [...tables.values()].find(tb => tb.state !== 'done' && seatOf(tb) >= 0); view = t ? t.id : ''; paintGames(); }
-                return;
+
+        /* ---------- actions: in a panel beside the room (between it and the chat) or along the bottom,
+           with keys you choose (⌨, then click one and press a key) ---------- */
+        const ACTIONS = [
+            ...EMOTES.map(([id, icon, name]) => ({ id: 'e:' + id, icon, name, run: () => emote(id) })),
+            { id: 'jump', icon: '⏫', name: 'Jump', run: () => act('jump') },
+            { id: 'dash', icon: '💨', name: 'Dash', run: () => act('dash') },
+            ...BURSTS.map(([k, icon, name]) => ({ id: 'burst:' + k, icon, name, run: () => burst(k) })),
+            { id: 'emoji', icon: '😀', name: 'Emoji, things to hold, feelings and glowsticks', run: () => toggleEmoji() },
+            { id: 'boards', icon: '🎲', name: 'Board games', run: () => toggleGames() },
+            { id: 'chat', icon: '💬', name: 'Show or hide the chat', run: () => toggleChat() },
+            { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() }
+        ];
+        const KEYS0 = Object.fromEntries([...EMOTES.map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift']]);
+        const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
+        let keymap = null;
+        try { keymap = JSON.parse(localStorage.getItem('ltl.hallKeys') || 'null'); } catch { /* the usual */ }
+        if (!keymap || typeof keymap !== 'object') keymap = { ...KEYS0 };
+        const keyNorm = (k) => (k.length === 1 ? k.toLowerCase() : k);
+        const keyName = (k) => (k === ' ' ? 'Space' : k.length === 1 ? k.toUpperCase() : k);
+        const keyShort = (k) => (k === ' ' ? '␣' : k === 'Shift' ? '⇧' : k.length === 1 ? k.toUpperCase() : k.replace(/^Arrow/, '').slice(0, 3));
+        const saveKeys = () => { try { localStorage.setItem('ltl.hallKeys', JSON.stringify(keymap)); } catch { /* full */ } };
+        let editingKeys = false, waitKey = '';
+        // Where the actions go: 'side' (beside the room, when there's room for it) or 'bottom'. Remembered.
+        let actsMode = 'side';
+        try { actsMode = localStorage.getItem('ltl.hallActs') || 'side'; } catch { /* default */ }
+        const actsEl = $('.hall-acts', box);
+        function paintActs() {
+            actsEl.innerHTML = ACTIONS.map(a => {
+                const k = keymap[a.id];
+                return '<button type="button" class="btn" data-act="' + a.id + '" title="' + esc(a.name) + (k ? ' (' + esc(keyName(k)) + ')' : '') + '">' + a.icon +
+                    (k || editingKeys ? '<kbd>' + (waitKey === a.id ? '…' : k ? esc(keyShort(k)) : '+') + '</kbd>' : '') + '</button>';
+            }).join('') +
+                '<button type="button" class="btn ha-tool' + (editingKeys ? ' on' : '') + '" data-keys title="Choose your keys: press this, click an action, then press a key">⌨</button>' +
+                '<button type="button" class="btn ha-tool" data-place title="' + (actsMode === 'side' ? 'Put these along the bottom' : 'Put these beside the room') + '">' + (actsMode === 'side' ? '⬇' : '⇥') + '</button>' +
+                (editingKeys ? '<div class="ha-help">' + (waitKey ? 'Press a key for it (Esc: none)' : 'Click an action, then press a key.') +
+                    ' <button type="button" class="btn" data-keyreset>Usual keys</button></div>' : '');
+            actsEl.classList.toggle('editing', editingKeys);
+            paintPoses(); paintBursts(); paintCool();
+        }
+        actsEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const b = e.target.closest('button');
+            if (!b) return;
+            if ('keys' in b.dataset) { editingKeys = !editingKeys; waitKey = ''; return paintActs(); }
+            if ('keyreset' in b.dataset) { keymap = { ...KEYS0 }; saveKeys(); waitKey = ''; return paintActs(); }
+            if ('place' in b.dataset) {
+                actsMode = actsMode === 'side' ? 'bottom' : 'side';
+                try { localStorage.setItem('ltl.hallActs', actsMode); } catch { /* full */ }
+                layoutChat(); return paintActs();
             }
-            if (e.target.closest('[data-chat]')) {
-                chatOn = !chatOn; logBox.hidden = !chatOn; layoutChat();
-                if (chatOn) logEl.scrollTop = logEl.scrollHeight;
-                try { localStorage.setItem('ltl.hallChat', chatOn ? '1' : '0'); } catch { /* full */ }
-                return;
-            }
-            if (e.target.closest('[data-look]')) openLook();
+            const a = ACTIONS.find(x => x.id === b.dataset.act);
+            if (!a) return;
+            if (editingKeys) { waitKey = waitKey === a.id ? '' : a.id; return paintActs(); }
+            a.run();
         });
+        /** A key for the action waiting for one (editing), or the action a key is for. True if it was used. */
+        function actionKey(e) {
+            const k = keyNorm(e.key);
+            if (editingKeys && waitKey) {
+                e.preventDefault();
+                if (k === 'Escape') delete keymap[waitKey];
+                else if (!RESERVED.includes(k.toLowerCase())) {
+                    for (const id of Object.keys(keymap)) if (keymap[id] === k) delete keymap[id];     // one action a key
+                    keymap[waitKey] = k;
+                } else { U.toast('That key walks or talks — pick another.'); return true; }
+                saveKeys(); waitKey = ''; paintActs();
+                return true;
+            }
+            const id = Object.keys(keymap).find(x => keymap[x] === k);
+            const a = id && ACTIONS.find(x => x.id === id);
+            if (!a) return false;
+            if (k === ' ') e.preventDefault();
+            a.run();
+            return true;
+        }
+        function toggleEmoji() { emojiEl.hidden = !emojiEl.hidden; if (!emojiEl.hidden) paintEmoji(); }
+        function toggleGames() {
+            gamesEl.hidden = !gamesEl.hidden;
+            if (!gamesEl.hidden) { const t = [...tables.values()].find(tb => tb.state !== 'done' && seatOf(tb) >= 0); view = t ? t.id : ''; paintGames(); }
+        }
+        function toggleChat() {
+            chatOn = !chatOn; logBox.hidden = !chatOn; layoutChat();
+            if (chatOn) logEl.scrollTop = logEl.scrollHeight;
+            try { localStorage.setItem('ltl.hallChat', chatOn ? '1' : '0'); } catch { /* full */ }
+        }
+        paintActs();
 
         /** Keys or a controller: which way you're pushing, or null. */
         function pushing() {
@@ -916,6 +1022,7 @@
                 const push = pushing();
                 if (push) {
                     pendingHit = null;
+                    lookAway();
                     const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1);
                     p.x = clampX(p.x + push[0] * sp * dt);
                     p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
@@ -1102,6 +1209,7 @@
                     '</div></div>').join('') +
                 '<div class="hl-row"><span>Name</span><form class="hl-name"><input name="n" maxlength="32" value="' + esc(core.name || '') + '" placeholder="Your name">' +
                     '<button class="btn">Save</button></form></div>' +
+                '<div class="hl-row"><span>This panel</span><label class="hl-auto"><input type="checkbox" data-lookauto' + (lookAuto ? ' checked' : '') + '> Close it when I click the room or walk</label></div>' +
                 '<div class="hl-row"><span>Fun</span><label class="hl-safe"><input type="checkbox" data-safe' + (safe ? '' : ' checked') + '> Bonks, fish slaps and snowballs ' +
                     '<small>(off: nobody can hit you, and you can’t hit anyone)</small></label></div>' +
                 '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
@@ -1119,6 +1227,7 @@
             A.person(g, look, { x: 12, y: 24, face: 1, t: now(), emote: 'wave', et: 0 });
         }
         lookEl.addEventListener('change', (e) => {
+            if (e.target.matches('[data-lookauto]')) { lookAuto = e.target.checked; try { localStorage.setItem('ltl.hallLookAuto', lookAuto ? '1' : '0'); } catch { /* full */ } return; }
             if (!e.target.matches('[data-safe]')) return;
             safe = !e.target.checked;
             try { localStorage.setItem('ltl.hallSafe', safe ? '1' : '0'); } catch { /* full */ }
@@ -1126,7 +1235,7 @@
             core.send({ t: 'hall-safe', on: safe });
         });
         lookEl.addEventListener('click', (e) => {
-            if (e.target.closest('.hl-safe')) return;
+            if (e.target.closest('.hl-safe, .hl-auto')) return;
             const b = e.target.closest('[data-k]'), nc = e.target.closest('[data-nc]');
             if (nc) {
                 // Your name colour, for chat and your tag here: it goes with your name, so the station knows it.
@@ -1136,7 +1245,12 @@
             }
             if (b) { look[b.dataset.k] = +b.dataset.v; }
             else if (e.target.closest('[data-rand]')) look = A.randomLook();
-            else if (e.target.closest('[data-done]') || e.target === lookEl) { lookEl.hidden = true; return; }
+            else if (e.target.closest('[data-done]')) { lookEl.hidden = true; return; }
+            else if (e.target === lookEl) {
+                // Around the card: the room behind it. Closing on that (and walking there) is the option above.
+                if (lookAuto) { lookEl.hidden = true; floorClick(e); }
+                return;
+            }
             else return;
             saveLook(); paintLook();
             const p = mine(); if (p) p.l = { ...look };
