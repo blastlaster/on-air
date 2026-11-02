@@ -75,6 +75,8 @@
 .hall-stage { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .hall-page-top .hall-vol { width: 110px; accent-color: #fff; }
 .hall-page-top button[hidden] { display: none; }
+.hall-page-top button.on { background: rgba(255, 255, 255, 0.85); color: #2a0b4d; }
+.hall-page-top button:disabled { opacity: 0.6; cursor: default; }
 /* The request picker, in a panel inside the room on the website: the page's own
    request styles (and look) inside, on the look's panel colours. */
 .hall-req { position: absolute; z-index: 8; top: 48px; right: 10px; width: min(440px, calc(100% - 20px)); max-height: calc(100% - 110px); overflow: auto;
