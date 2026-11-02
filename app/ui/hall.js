@@ -66,6 +66,7 @@
         const stage = $('.hall-stage', box), cv = $('canvas', box), ctx = cv.getContext('2d');
         const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), emojiEl = $('.hall-emoji', box);
         const tvEl = $('.hall-tv', box), msgEl = $('.hall-msg', box), logBox = $('.hall-log', box), logEl = $('.hall-lines', box), bar = $('.hall-bar', box), input = $('input', bar), lookEl = $('.hall-look', box);
+        if (window.LT && LT.stickToBottom) LT.stickToBottom(logEl);       // the chat opens at its newest line
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
         const lc = low.getContext('2d');
 

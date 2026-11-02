@@ -35,6 +35,7 @@
             '<form class="say"><input maxlength="400" placeholder="Say something…" autocomplete="off"><button class="btn go">Send</button></form></div>' +
             '<div class="chattable" hidden></div><div class="empty" hidden>Chat opens when the station is on.</div>';
         const log = $('.log', box), say = $('.say', box), room = $('.chattable', box);
+        if (window.LT && LT.stickToBottom) LT.stickToBottom(log);           // opens at the newest line, and stays there
 
         function line(m) {
             const li = document.createElement('li');

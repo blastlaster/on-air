@@ -338,6 +338,25 @@
      */
     var sentKept = [];
     try { sentKept = JSON.parse(localStorage.getItem('ltl.sent') || '[]') || []; } catch (e) { sentKept = []; }
+    /**
+     * A chat log that stays at its newest line: when it first shows (a panel opening, a page
+     * laid out late), as lines and pictures come in, and when it changes size — unless
+     * you've scrolled up to read, until you're back at the bottom. Safe to call twice.
+     */
+    LT.stickToBottom = function (el) {
+        if (!el || el._stick) return el && el._stick;
+        var stick = true;
+        var go = function () { if (stick && el.clientHeight) el.scrollTop = el.scrollHeight; };
+        // Hidden (no height): nothing to read, so it doesn't count as scrolling away.
+        el.addEventListener('scroll', function () { if (el.clientHeight) stick = el.scrollHeight - el.scrollTop - el.clientHeight < 40; });
+        if (window.ResizeObserver) new ResizeObserver(go).observe(el);
+        if (window.MutationObserver) new MutationObserver(go).observe(el, { childList: true });
+        el.addEventListener('load', go, true);                  // an emote picture arriving makes a line taller
+        setTimeout(go, 0);
+        el._stick = { bottom: function () { stick = true; go(); } };
+        return el._stick;
+    };
+
     LT.chatInput = function (input) {
         if (!input || input._chatInput) return input && input._chatInput;
         var pos = -1, draft = '', box = null, picks = [], sel = 0;
