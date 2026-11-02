@@ -228,11 +228,12 @@
     UI.onLook(() => requestAnimationFrame(fit));
 
     paint(core.state);
-    // The windows that were open last time, back where they were.
+    // The windows that were open last time, back where they were. Not Settings: it was open
+    // for a moment's change (or to restart for an update), and nobody needs it back.
     setTimeout(() => {
         for (const [id, w] of Object.entries(info.windows || {})) {
             const el = ELEMENTS.find(x => x.id === id);
-            if (w.open && el && (el.always || !info.ui.off.includes(id)) && id !== 'tv') open(id);
+            if (w.open && el && (el.always || !info.ui.off.includes(id)) && id !== 'tv' && id !== 'settings') open(id);
         }
     }, 400);
 })();
