@@ -201,7 +201,7 @@ JSON messages, one per frame. Field `t` is the type.
 | `t` | Fields | |
 |---|---|---|
 | `app` | — | Sent on connect: "I'm the desktop app" (count it for Ping). |
-| `hello` | `name`, `pass?` | Set the listener's name; with `pass` (a guest code) → co-host. |
+| `hello` | `name`, `color?`, `pass?` | Set the listener's name (and name colour, one of `engine/hall.js` NAME_COLORS, `''` for none); with `pass` (a guest code) → co-host. |
 | `chat` | `text` | Say something (≤ 400 chars; rate-limit). |
 | `request` | `id` *or* `song`, `note` | Request a library track by id, or ask for a song by text. |
 | `call` | `name`, `topic` | Join the call queue (mic already granted). |

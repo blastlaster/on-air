@@ -19,6 +19,8 @@
     const HANDS = { rock: '✊', paper: '✋', scissors: '✌️' };
     // The emoji picker: anything to say, and things to carry (the same list as engine/hall.js HOLDS).
     const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️'.split(' ');
+    // Name colours (the same list as engine/hall.js NAME_COLORS); Settings → You uses it too.
+    const NAME_COLORS = window.HallNameColors = ['#ff6b6b', '#ff9f43', '#ffd34a', '#7ee36b', '#4fe0c0', '#00e0ff', '#5aa0ff', '#9f80ff', '#ff7ccc', '#ff4fd8', '#ffffff', '#c0c0c0'];
     const SAY = '😂 🤣 😭 😎 🤔 😳 😡 🥺 😈 🤡 😱 🥴 🤠 😴 🙄 😏 😤 🤝 👀 🙏 👍 👎 👋 👏 🙌 💪 🤘 ✌️ 👉 🤙 💯 ❤️ 💔 ✨ 🎉 🎶 💤 💢 ❓ ❗ 🆗 🔞 💩 🗿 🦀 🐸 🍆 🍑 🍀 7️⃣'.split(' ');
     const HAND_NAMES = { rock: 'rock', paper: 'paper', scissors: 'scissors' };
     const SPEED = 52;                                         // room pixels a second
@@ -73,7 +75,7 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, l: p.l, o: p.o || '', x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
 
@@ -118,7 +120,7 @@
                     break;
                 case 'hall-emote': { const p = people.get(m.h); if (p && m.h !== me) { p.e = m.e; p.et = now(); } break; }
                 case 'hall-look': { const p = people.get(m.h); if (p) p.l = m.l; break; }
-                case 'hall-name': { const p = people.get(m.h); if (p) p.n = m.n; break; }
+                case 'hall-name': { const p = people.get(m.h); if (p) { p.n = m.n; p.c = m.c || ''; } break; }
                 case 'hall-hold': { const p = people.get(m.h); if (p) p.o = m.o; if (m.h === me) paintEmoji(); break; }
                 case 'hall-rps': onGame(m); break;
                 case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen }; break;
@@ -182,7 +184,9 @@
             const li = document.createElement('li');
             if (m.id) li.dataset.mid = m.id;
             if (cls) li.className = cls;
-            li.innerHTML = (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + esc(m.text);
+            // Links you can click (they open in a new tab, or the browser in the app); the game lines are plain.
+            const text = !cls && window.LT && LT.linkText ? LT.linkText(m.text) : esc(m.text);
+            li.innerHTML = (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
             logEl.appendChild(li);
             while (logEl.children.length > 150) logEl.removeChild(logEl.firstChild);
             if (atBottom) logEl.scrollTop = logEl.scrollHeight;
@@ -562,7 +566,8 @@
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
                 const nx = p.x * u, ny = (p.y + 1.5) * u;
                 ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(p.n, nx + dpr, ny + dpr);
-                ctx.fillStyle = p.h === me ? '#ffd34a' : '#e6e0f2'; ctx.fillText(p.n, nx, ny);
+                ctx.fillStyle = p.c || (p.h === me ? '#ffd34a' : '#e6e0f2'); ctx.fillText(p.n, nx, ny);
+                if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
             drawHeld(sorted, heads, u);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
@@ -584,11 +589,14 @@
                     (p.colors ? p.colors.map((c, i) => '<button type="button" class="hl-sw" data-k="' + p.key + '" data-v="' + i + '" style="background:' + c + '" title="' + p.label + ' ' + (i + 1) + '"></button>').join('')
                         : p.names.map((n, i) => '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + n + '</button>').join('')) +
                     '</div></div>').join('') +
+                '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
+                    '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
             paintLook();
         }
         function paintLook() {
             for (const b of lookEl.querySelectorAll('[data-k]')) b.classList.toggle('on', look[b.dataset.k] === +b.dataset.v);
+            for (const b of lookEl.querySelectorAll('[data-nc]')) b.classList.toggle('on', (core.color || '') === b.dataset.nc);
             const pc = $('.hl-prev', lookEl);
             if (!pc) return;
             const g = pc.getContext('2d');
@@ -596,7 +604,13 @@
             A.person(g, look, { x: 12, y: 24, face: 1, t: now(), emote: 'wave', et: 0 });
         }
         lookEl.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-k]');
+            const b = e.target.closest('[data-k]'), nc = e.target.closest('[data-nc]');
+            if (nc) {
+                // Your name colour, for chat and your tag here: it goes with your name, so the station knows it.
+                if (core.setColor) core.setColor(nc.dataset.nc);
+                const p = mine(); if (p) p.c = nc.dataset.nc;
+                return paintLook();
+            }
             if (b) { look[b.dataset.k] = +b.dataset.v; }
             else if (e.target.closest('[data-rand]')) look = A.randomLook();
             else if (e.target.closest('[data-done]') || e.target === lookEl) { lookEl.hidden = true; return; }

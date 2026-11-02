@@ -53,6 +53,7 @@
     let clockSkew = 0;
     const serverNow = () => Date.now() + clockSkew;
     let myName = pref('name', '');
+    let myColor = pref('color', '');          // your name colour in chat and blug.dj/jej ('' = the usual)
     let chat = [], pinList = [], gotPins = false, pendingPassCall = false;
     let call = null, callState = null, wasPlayingBeforeCall = false;
 
@@ -66,7 +67,7 @@
         ws.onopen = () => {
             wsWait = 1000;
             if (window.onairApp) send({ t: 'app' });           // the desktop app: the studio counts us for 📣 Ping
-            if (myName) send({ t: 'hello', name: myName });
+            if (myName) send({ t: 'hello', name: myName, color: myColor });
             if (call && call.token) send({ t: 'resume', token: call.token });
             emit('connected');                                   // the Hall walks back in
         };
@@ -501,7 +502,7 @@
         n = trim(n).slice(0, 32);
         if (!n) return false;
         myName = n; setPref('name', n);
-        send({ t: 'hello', name: n });
+        send({ t: 'hello', name: n, color: myColor });
         if (!quiet) render();
         return true;
     }
@@ -566,6 +567,8 @@
         get chat() { return chat; },
         get pins() { return pinList; },
         get name() { return myName; },
+        get color() { return myColor; },
+        setColor(c) { myColor = String(c || ''); setPref('color', myColor); if (myName) send({ t: 'hello', name: myName, color: myColor }); render(); },
         get engineUrl() { return ENGINE; },
         get connected() { return !!(ws && ws.readyState === 1); },
         get green() { return !!(status && status.green); },

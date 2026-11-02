@@ -25,6 +25,7 @@
 .hall-lines { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; scrollbar-width: thin; }
 .hall-lines li { padding: 1px 7px; overflow-wrap: anywhere; }
 .hall-lines li.game { color: #ffd34a; }
+.hall-lines a { color: #7fd8ff; text-decoration: underline; overflow-wrap: anywhere; cursor: pointer; }
 .hall-log.no-games li.game { display: none; }
 .hall-pop { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; cursor: auto;
     background: rgba(10, 8, 18, 0.92); border: 2px solid #fff; color: #fff; font: 12px "Courier New", monospace; }
@@ -47,6 +48,7 @@
 .hl-row > div { display: flex; flex-wrap: wrap; gap: 3px; }
 .hl-sw { width: 20px; height: 20px; padding: 0; border: 2px solid rgba(0, 0, 0, 0.6); cursor: pointer; }
 .hl-sw.on { outline: 2px solid #fff; outline-offset: 1px; }
+.hl-nc { font-size: 11px; line-height: 1; color: #fff; }
 .hl-nm { padding: 1px 7px; font-size: 0.85em; }
 .hall-look .hl-nm.on { background: var(--sk-btn-active, #ff2f6e); color: var(--sk-btn-active-text, #fff); }
 .hl-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; }

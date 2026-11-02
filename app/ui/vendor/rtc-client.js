@@ -260,4 +260,20 @@
             .replace(/\n/g, '<br>');
         return s.replace(/\u0000(\d+)\u0000/g, function (m, i) { return links[+i]; });
     };
+    /**
+     * Chat text with its web addresses clickable (https://… and www.…), and
+     * nothing else: everything is escaped first, so only http(s) links are
+     * ever made, and they open in a new tab (in the app: the browser).
+     */
+    LT.linkText = function (raw) {
+        var s = String(raw == null ? '' : raw).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+        return s.replace(/(^|[^\w\/.@-])((?:https?:\/\/|www\.)[^\s<]{2,300})/gi, function (m, pre, url) {
+            var trail = (url.match(/[.,!?;:)\]]+$/) || [''])[0];
+            url = url.slice(0, url.length - trail.length);
+            var href = /^www\./i.test(url) ? 'https://' + url : url;
+            return pre + '<a href="' + href + '" target="_blank" rel="noopener nofollow ugc">' + url + '</a>' + trail;
+        });
+    };
 })();

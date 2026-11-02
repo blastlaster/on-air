@@ -38,7 +38,7 @@
             if (m.role === 'system') li.innerHTML = '<span class="sys">' + esc(m.text) + '</span>';
             else li.innerHTML = '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b>' +
                 (m.role === 'host' || m.role === 'cohost' ? '<span class="tag">' + (m.role === 'host' ? 'DJ' : 'co-host') + '</span>' : '') +
-                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + esc(m.text) +
+                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.linkText ? LT.linkText(m.text) : esc(m.text)) +
                 (m.at ? '<span class="when">' + clock(m.at) + '</span>' : '');
             return li;
         }
@@ -829,7 +829,8 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             '<section><h3>Album downloads</h3><p class="dl-dir"></p><div class="row"><button type="button" class="btn" data-dl="pick">Change folder…</button><button type="button" class="btn" data-dl="open">Open folder</button></div>' +
                 '<label><input type="checkbox" data-ui="askWhere"> Ask where to save each time</label>' +
                 '<label><input type="checkbox" data-ui="lossless"> Lossless (FLAC or WAV) when the album has it — much bigger</label></section>' +
-            '<section><h3>You</h3><form class="row me"><input name="n" maxlength="32" placeholder="Your name in chat and on calls" class="grow" style="width:auto"><button class="btn">Save</button></form></section>' +
+            '<section><h3>You</h3><form class="row me"><input name="n" maxlength="32" placeholder="Your name in chat and on calls" class="grow" style="width:auto"><button class="btn">Save</button></form>' +
+            '<div class="row name-colors" title="Your name colour in chat and blug.dj/jej"></div></section>' +
             '<section><h3>Station</h3><p class="st dim"></p><div class="row"><button type="button" class="btn" data-st="stations">Stations…</button></div></section>';
 
         function paint(i) {
@@ -848,6 +849,14 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         }
         paint(UI.info); UI.onUi(paint);
         $('.me', box).n.value = core.name;
+        // Your name colour, from the station's palette (the same one blug.dj/jej's Look offers).
+        const nc = $('.name-colors', box);
+        const paintColors = () => {
+            nc.innerHTML = '<span class="hint">Name colour</span>' + ['', ...(window.HallNameColors || [])].map(c =>
+                '<button type="button" class="nc' + (core.color === c ? ' on' : '') + '" data-c="' + c + '" title="' + (c || 'The usual') + '" style="' + (c ? 'background:' + c : '') + '">' + (c ? '' : '✕') + '</button>').join('');
+        };
+        paintColors();
+        nc.onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; core.setColor(b.dataset.c); paintColors(); };
         $('.me', box).onsubmit = (e) => { e.preventDefault(); if (core.setName(e.target.n.value)) UI.toast('Saved.'); };
         box.onclick = async (e) => {
             const b = e.target.closest('button');
