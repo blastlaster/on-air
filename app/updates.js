@@ -19,7 +19,7 @@ const { spawn } = require('child_process');
 const RELEASES = 'https://github.com/blastlaster/on-air/releases/latest';
 const EVERY = 6 * 3600e3;
 
-function setup({ icon, onChange, enabled, onInstall }) {
+function setup({ icon, onChange, enabled, onInstall, busy }) {
     const state = { status: 'idle', version: '', error: '' };       // idle | checking | downloading | ready | none | error | manual
     const tell = () => onChange && onChange({ ...state });
     const page = () => shell.openExternal(RELEASES);
@@ -64,6 +64,9 @@ function setup({ icon, onChange, enabled, onInstall }) {
     /** Install the downloaded version and open On Air again on it. how: 'restart' (asked for) or 'quit' (it asks first, then). */
     function install(how) {
         if (state.status !== 'ready') return false;
+        // Not while something must not stop (the Studio): say why. Quitting closes it first, then installs.
+        const why = how !== 'quit' && busy && busy();
+        if (why) { notify(`On Air ${state.version} is ready`, why, () => {}); return false; }
         if (onInstall) onInstall(state.version, how || 'restart');
         state.status = 'installing'; tell();
         if (process.platform === 'win32') reopenAfter();

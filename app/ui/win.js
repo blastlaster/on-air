@@ -716,7 +716,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
 
             const tint = () => app.board('tint', $('.tint', box).checked ? (TINT[UI.skin] || '') : '');
             tint(); UI.onLook(tint);
-            $('.tint', box).onchange = tint;
+            $('.tint', box).onchange = () => { tint(); app.setUi({ boardTint: $('.tint', box).checked }); };
             box.onclick = (e) => {
                 const k = e.target.dataset && e.target.dataset.b;
                 if (k === 'out') app.board('out');

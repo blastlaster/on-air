@@ -62,6 +62,7 @@ const UI_DEFAULTS = {
     bannerInRadio: true,
     downloads: '', askWhere: false, lossless: false,
     boardOk: false,             // said yes to the board's 18+ warning
+    boardTint: true,            // the board takes the look's tint
     holidays: true,             // holiday looks on their day (Spooky, Crimbus…)
     holidaySkip: '', holidayTold: '',   // the day you picked your own look instead; the day the radio said so
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)
@@ -686,7 +687,11 @@ function guard(wc, isRadio) {
         e.preventDefault();
         outside(url);
     });
-    // Right-click text: copy it, or cut and paste in a field (pictures have their own menu, from the page).
+    textMenu(wc);
+}
+
+/** Right-click text: copy it, or cut and paste in a field (pictures have their own menu, from the page). */
+function textMenu(wc) {
     wc.on('context-menu', (e, p) => {
         const f = p.editFlags || {}, items = [];
         if (p.isEditable) {
@@ -762,6 +767,93 @@ function permissions() {
         perm === 'media' ? isOurs(origin + '/') : perm === 'clipboard-sanitized-write');
 }
 
+/* ---------- the Studio, when the station engine runs on this PC ----------
+   The engine's Studio answers only here (127.0.0.1, by its own name), so being at
+   this PC is the key: elsewhere there is no Studio to find, and nothing shows.
+   The engine starts On Air with --studio=<its address>; otherwise On Air looks
+   for one at the usual address now and then. Test runs look for none unless
+   ONAIR_STUDIO names a scratch engine. */
+const STUDIO_PART = 'persist:studio';
+const localUrl = (u) => { try { const x = new URL(u); return x.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(x.hostname) ? x.origin : ''; } catch { return ''; } };
+const studioArg = (argv) => { const a = (argv || []).find(x => String(x).startsWith('--studio=')); return a ? localUrl(a.slice(9)) : ''; };
+let studioUrl = process.env.ONAIR_SMOKE ? localUrl(process.env.ONAIR_STUDIO || '') : (localUrl(cfg.studioUrl) || 'http://127.0.0.1:7700');
+let studioHere = false, studioWin = null, quitAfterStudio = false;
+const studioOpen = () => !!(studioWin && !studioWin.isDestroyed());
+
+async function studioGet(p) {
+    const r = await net.fetch(studioUrl + p, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+}
+async function studioCheck() {
+    let ok = false;
+    if (studioUrl) try { ok = (await studioGet('/api/me')).role === 'studio'; } catch { /* no engine here */ }
+    if (ok !== studioHere) { studioHere = ok; refreshTray(); }
+    return ok;
+}
+/** At start, or when the engine asks: open the Studio, unless a show is on in another Studio window. */
+async function studioStart(argv) {
+    const u = studioArg(argv);
+    if (u && !process.env.ONAIR_SMOKE) { studioUrl = u; if (cfg.studioUrl !== u) { cfg.studioUrl = u; save(); } }
+    if (studioOpen()) return toFront(studioWin);
+    if (!(await studioCheck())) return;
+    const live = await studioGet('/api/status').then(s => !!s.live).catch(() => false);
+    if (live) return tip('The Studio is on air in another window', 'Open it here from the tray (Studio) when the show is over, or now if you mean to move it.');
+    openStudio();
+}
+
+function studioSession() {
+    const s = session.fromPartition(STUDIO_PART);
+    const mine = (u) => !!studioUrl && originOf(u) === studioUrl;
+    const ALLOW = ['media', 'speaker-selection', 'screen-wake-lock', 'wake-lock', 'clipboard-sanitized-write', 'clipboard-read', 'fullscreen'];
+    // The mixer: microphones and lines in, outputs to choose, the screen kept awake. Audio only.
+    s.setPermissionRequestHandler((wc, perm, cb, d) => cb(mine(d.requestingUrl || wc.getURL()) && ALLOW.includes(perm) && (perm !== 'media' || (d.mediaTypes || ['audio']).every(t => t === 'audio'))));
+    s.setPermissionCheckHandler((wc, perm, origin) => mine(origin) && ALLOW.includes(perm));
+}
+
+function openStudio() {
+    if (studioOpen()) return toFront(studioWin);
+    if (!studioUrl) return;
+    const b = cfg.studioBounds || {};
+    const w = studioWin = new BrowserWindow({
+        width: b.width || 1400, height: b.height || 900, x: b.x, y: b.y, minWidth: 720, minHeight: 480,
+        title: 'Studio', icon: iconPath(), backgroundColor: '#14141a', show: false,
+        // Never slowed down behind other windows or minimised: the show runs in here.
+        webPreferences: { partition: STUDIO_PART, contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false }
+    });
+    w.removeMenu();
+    if (b.max) w.maximize();
+    w.once('ready-to-show', () => toFront(w));
+    const wc = w.webContents;
+    const outside = (url) => { if (/^(https?|mailto):/i.test(url)) shell.openExternal(url); };
+    wc.setWindowOpenHandler(({ url }) => { outside(url); return { action: 'deny' }; });
+    wc.on('will-navigate', (e, url) => { if (originOf(url) !== studioUrl) { e.preventDefault(); outside(url); } });
+    wc.on('will-attach-webview', (e) => e.preventDefault());
+    wc.on('before-input-event', (e, input) => {
+        if (input.type === 'keyDown' && (input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r'))) { e.preventDefault(); wc.reload(); }
+    });
+    textMenu(wc);
+    // The Studio holds a show on air: closing it (or quitting On Air) asks first.
+    wc.on('will-prevent-unload', (e) => {
+        const r = dialog.showMessageBoxSync(w, {
+            type: 'warning', title: 'Studio', message: 'You are on air',
+            detail: 'Closing the Studio ends the show and hands the station back to AutoDJ.',
+            buttons: ['Keep the Studio open', 'Close it anyway'], defaultId: 0, cancelId: 0, noLink: true
+        });
+        if (r === 1) e.preventDefault(); else if (quitAfterStudio) { quitAfterStudio = false; quitting = false; }
+    });
+    const keep = () => { if (!w.isDestroyed()) { cfg.studioBounds = { ...w.getNormalBounds(), max: w.isMaximized() }; saveSoon(); } };
+    w.on('resize', keep); w.on('move', keep); w.on('maximize', keep); w.on('unmaximize', keep);
+    w.on('closed', () => {
+        studioWin = null; refreshTray();
+        if (quitAfterStudio) { quitAfterStudio = false; app.quit(); }
+    });
+    // No "Open the studio" click needed here: the app has already said yes to the microphone.
+    wc.on('did-finish-load', () => wc.executeJavaScript("{ const b = document.getElementById('startBtn'); if (b && !b.disabled) b.click(); }").catch(() => {}));
+    wc.loadURL(studioUrl + '/');
+    refreshTray();
+}
+
 /* ---------- the tray ---------- */
 function liveNow() { return !!((pageState && pageState.live) || (watchState && watchState.live)); }
 
@@ -785,6 +877,7 @@ function refreshTray() {
         { label: 'Open', click: () => createWindow(true) },
         { label: pageState && pageState.playing ? 'Pause' : 'Play', enabled: !!st, click: () => toPage('toggle-play') },
         { label: 'Reload', enabled: !!st, click: reloadPage },
+        ...(studioHere || studioOpen() ? [{ label: 'Studio', click: openStudio }] : []),
         { type: 'separator' },
         { label: 'Live alerts', type: 'checkbox', checked: !!cfg.alerts, click: (i) => { cfg.alerts = i.checked; save(); broadcastUi(); } },
         { label: 'Start with the computer', type: 'checkbox', checked: !!cfg.openAtLogin, click: (i) => { cfg.openAtLogin = i.checked; save(); startWithComputer(); broadcastUi(); } },
@@ -800,6 +893,7 @@ function refreshTray() {
 let updates = null;
 function updateItems() {
     const s = updates ? updates.state : { status: 'idle' };
+    if (s.status === 'ready' && studioOpen()) return [{ label: `Update ${s.version} waits for the Studio to close`, enabled: false }];
     if (s.status === 'ready') return [{ label: `Restart to update (${s.version})`, click: () => updates.install() }];
     if (s.status === 'downloading') return [{ label: `Downloading ${s.version}…`, enabled: false }];
     if (s.status === 'manual') return [{ label: `Download On Air ${s.version}…`, click: () => updates.page() }];
@@ -1233,9 +1327,11 @@ on('back', (e) => { if (stationsWin && !stationsWin.isDestroyed() && e.sender ==
 handle('stations-window', () => { showStations(); });
 
 /* ---------- go ---------- */
-app.on('second-instance', () => createWindow(true));
+app.on('second-instance', (e, argv) => { createWindow(true); if (studioArg(argv)) studioStart(argv); });
 let updating = false;
 app.on('before-quit', (e) => {
+    // The Studio closes first (asking, if you're on air); then On Air quits, and installs an update if there is one.
+    if (studioOpen()) { e.preventDefault(); quitAfterStudio = true; studioWin.close(); return; }
     // A new version is ready: quitting installs it, and the new version opens and asks "Open On Air / Close".
     if (!updating && updates && updates.state.status === 'ready') { e.preventDefault(); updating = true; setImmediate(() => { if (!updates.install('quit')) app.quit(); }); return; }
     quitting = true; if (saveT) save();
@@ -1245,6 +1341,7 @@ app.on('window-all-closed', () => { /* stay in the tray */ });
 app.whenReady().then(async () => {
     serveApp();
     permissions();
+    studioSession();
     webRules();
     // Start from the station's current page, not one kept from last time.
     await session.defaultSession.clearCache().catch(() => {});
@@ -1260,6 +1357,7 @@ app.whenReady().then(async () => {
     ensureIcons().catch(() => {});
     updates = require('./updates').setup({
         icon: () => iconPath(), enabled: () => cfg.updates !== false, onChange: () => { refreshTray(); broadcastUi(); },
+        busy: () => studioOpen() && 'Close the Studio first: the update installs when it is closed.',
         onInstall: (version, how) => { updating = true; quitting = true; cfg.updated = { to: version, ask: how === 'quit' }; save(); }
     });
     // Just updated: say so, and after an update that happened on quitting, ask before opening.
@@ -1283,6 +1381,9 @@ app.whenReady().then(async () => {
     if (justUpdated && win) win.once('ready-to-show', () => toFront(win));
     else if (process.env.ONAIR_SMOKE) createWindow(false);
     if (process.env.ONAIR_SMOKE) smoke();
+    // The Studio, if this PC runs the station: opened now, and looked for now and then (for the tray).
+    studioStart(process.argv);
+    setInterval(() => { if (!studioOpen()) studioCheck(); }, 30e3).unref?.();
 });
 
 /* ---------- test runs (ONAIR_SMOKE=ms): no sound, then quit ---------- */
@@ -1296,7 +1397,7 @@ function smoke() {
     if (E.ONAIR_SMOKE_PLAY) setTimeout(() => toPage('toggle-play'), 9000);
     if (E.ONAIR_SMOKE_OPEN) setTimeout(() => { console.log('[open]', E.ONAIR_SMOKE_OPEN, 'radio ready:', radioReady); for (const id of E.ONAIR_SMOKE_OPEN.split(',')) toPage('open-element', id); }, Number(E.ONAIR_SMOKE_OPEN_AT) || 6000);
     if (E.ONAIR_SMOKE_CHECK) setTimeout(async () => {
-        for (const [id, w] of [['radio', win], ...elWins]) {
+        for (const [id, w] of [['radio', win], ...elWins, ['desk', studioWin]]) {
             if (!w || w.isDestroyed()) continue;
             const r = await w.webContents.executeJavaScript(E.ONAIR_SMOKE_CHECK).catch(e => 'error: ' + e.message);
             console.log('[check]', id, 'pid', w.webContents.getOSProcessId(), JSON.stringify(r));
@@ -1342,7 +1443,7 @@ function smoke() {
     // ONAIR_SMOKE_SHOT=dir: a picture of every open window.
     if (E.ONAIR_SMOKE_SHOT) setTimeout(async () => {
         fs.mkdirSync(E.ONAIR_SMOKE_SHOT, { recursive: true });
-        for (const [id, w] of [['radio', win], ...elWins, ['stations', stationsWin]]) {
+        for (const [id, w] of [['radio', win], ...elWins, ['stations', stationsWin], ['desk', studioWin]]) {
             if (!w || w.isDestroyed()) continue;
             if (!w.isVisible()) { console.log('[shot]', id, 'tucked'); continue; }
             const img = await w.webContents.capturePage().catch((e) => { console.log('[shot-error]', id, e.message, 'visible:', w.isVisible()); return null; });
