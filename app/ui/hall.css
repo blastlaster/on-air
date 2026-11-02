@@ -49,6 +49,10 @@
 .hl-sw { width: 20px; height: 20px; padding: 0; border: 2px solid rgba(0, 0, 0, 0.6); cursor: pointer; }
 .hl-sw.on { outline: 2px solid #fff; outline-offset: 1px; }
 .hl-nc { font-size: 11px; line-height: 1; color: #fff; }
+.hl-name { display: flex; gap: 4px; }
+.hl-name input { flex: 1; min-width: 0; max-width: 220px; padding: 3px 6px; font: inherit; background: rgba(0, 0, 0, 0.35); color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; }
+.hl-name .btn { padding: 2px 10px; }
 .hl-nm { padding: 1px 7px; font-size: 0.85em; }
 .hall-look .hl-nm.on { background: var(--sk-btn-active, #ff2f6e); color: var(--sk-btn-active-text, #fff); }
 .hl-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; }

@@ -584,11 +584,18 @@
         }
         function openLook() {
             lookEl.hidden = false;
+            lookEl.onsubmit = (e) => {
+                e.preventDefault();
+                const v = e.target.n.value;
+                if (core.setName && core.setName(v)) { U.toast('You’re ' + v.trim().slice(0, 32) + ' now.'); paintLook(); }
+            };
             lookEl.innerHTML = '<div class="hl-card"><canvas class="hl-prev" width="24" height="26"></canvas><div class="hl-parts">' +
                 A.PARTS.map(p => '<div class="hl-row"><span>' + p.label + '</span><div>' +
                     (p.colors ? p.colors.map((c, i) => '<button type="button" class="hl-sw" data-k="' + p.key + '" data-v="' + i + '" style="background:' + c + '" title="' + p.label + ' ' + (i + 1) + '"></button>').join('')
                         : p.names.map((n, i) => '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + n + '</button>').join('')) +
                     '</div></div>').join('') +
+                '<div class="hl-row"><span>Name</span><form class="hl-name"><input name="n" maxlength="32" value="' + esc(core.name || '') + '" placeholder="Your name">' +
+                    '<button class="btn">Save</button></form></div>' +
                 '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
                     '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
