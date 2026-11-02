@@ -227,16 +227,31 @@
 
     /* The middle of the stage: Radioman at his desk while the show is live; off air,
        FunpostTV big in the middle if it's on, or else a big radio playing the AutoDJ. */
-    const CENTRE_TV = { x: 80, y: 6, w: 80, h: 38 };
+    const CENTRE_TV = { x: 84, y: 3, w: 72, h: 34 };
     function centre(t, air, info) {
         if (air.live) return radioman(t, air);
         if (info.tv) {
             const S = CENTRE_TV;
+            screenStand(S);
             R(S.x - 3, S.y - 2, S.w + 6, S.h + 4, '#05050a'); R(S.x, S.y, S.w, S.h, '#000000');
             ticker(S.x - 3, S.y + S.h + 2, S.w + 6, t, info);
             return;
         }
         boombox(t, air);
+    }
+    /** A projector screen's tripod: a pole down the middle and two legs splayed out onto the stage. */
+    function screenStand(S) {
+        const top = S.y + S.h, foot = 57, cx = S.x + S.w / 2, metal = '#7c7890', shine = '#b4b0c8', splay = 0.4;
+        const legX = (side, y) => Math.round(cx + side * (S.w / 2 - 10) + side * (y - top) * splay);
+        R(cx - 1, top, 2, foot - top, metal); R(cx - 1, top, 1, foot - top, shine);
+        for (const side of [-1, 1]) {
+            for (let y = top; y < foot; y++) { const x = legX(side, y); R(x, y, 2, 1, metal); R(side < 0 ? x : x + 1, y, 1, 1, shine); }
+            const fx = legX(side, foot);
+            R(fx - 1, foot, 4, 1, '#1a1424');                                     // its foot on the stage
+        }
+        R(cx - 2, foot, 4, 1, '#1a1424');
+        const by = foot - 5;                                                      // the brace between the legs
+        R(legX(-1, by) + 1, by, legX(1, by) - legX(-1, by), 1, metal);
     }
     function boombox(t, air) {
         const cx = RX, top = 16, pump = air.music && Math.floor(t * 4) % 2 ? 1 : 0;
