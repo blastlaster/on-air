@@ -65,9 +65,10 @@
             '<span class="hall-emotes">' + EMOTES.map(([id, icon, name], i) => '<button type="button" class="btn" data-e="' + id + '" title="' + name + ' (' + (i + 1) + ')">' + icon + '</button>').join('') + '</span>' +
             '<button type="button" class="btn" data-emoji title="Emoji: put one in what you say, carry one around, or wave a glowstick">😀</button>' +
             '<span class="hall-bursts" hidden>' + BURSTS.map(([k, icon, name]) => '<button type="button" class="btn" data-burst="' + k + '" title="' + name + '">' + icon + '</button>').join('') + '</span>' +
+            '<button type="button" class="btn" data-boards title="Board games: tic-tac-toe, checkers, Chinese checkers">🎲</button>' +
             '<button type="button" class="btn" data-chat title="Show or hide the chat">💬</button>' +
             '<button type="button" class="btn" data-look title="Change how you look">🎨 Look</button></form>' +
-            '<div class="hall-emoji" hidden></div><div class="hall-look" hidden></div></div>';
+            '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div></div>';
         const stage = $('.hall-stage', box), cv = $('canvas', box), ctx = cv.getContext('2d');
         const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), emojiEl = $('.hall-emoji', box);
         const tvEl = $('.hall-tv', box), msgEl = $('.hall-msg', box), logBox = $('.hall-log', box), logEl = $('.hall-lines', box), bar = $('.hall-bar', box), input = $('input', bar), lookEl = $('.hall-look', box);
@@ -129,6 +130,8 @@
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
+                    tables.clear();
+                    for (const tb of m.tables || []) onTable(tb, true);
                     notice('');
                     break;
                 case 'hall-add': add(m.p); break;
@@ -154,6 +157,8 @@
                     break;
                 }
                 case 'hall-rps': onGame(m); break;
+                case 'hall-table': onTable(m.table); break;
+                case 'hall-table-del': onTableGone(m.id); break;
                 case 'hall-safe': { const p = people.get(m.h); if (p) p.s = m.s; break; }
                 case 'hall-glow': { const p = people.get(m.h); if (p) { p.g = m.g; p.trail = []; } if (m.h === me) paintEmoji(); break; }
                 case 'hall-hit': onHit(m); break;
@@ -403,7 +408,9 @@
         const nameOf = (h) => (people.get(h) || {}).n || 'someone';
         function openPop(q, e) {
             const sr = stage.getBoundingClientRect();
+            const their = tableOf(q.h);
             popEl.innerHTML = '<b>' + esc(q.n) + '</b><button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
+                (their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
                 (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
                     : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
                     : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
@@ -413,6 +420,8 @@
         }
         popEl.addEventListener('click', (e) => {
             e.stopPropagation();
+            const wb = e.target.closest('[data-watch]');
+            if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
             const b = e.target.closest('[data-rps]');
@@ -644,12 +653,191 @@
             ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             ctx.fillText(text, Math.round(x + fs * 0.3), Math.round(y - h / 2));
         }
+
+        /* ---------- board games at tables (engine/hall.js and hall-games.js check every move) ---------- */
+        const GAME_NAMES = { ttt: 'Tic-tac-toe', checkers: 'Checkers', chinese: 'Chinese checkers' };
+        const SEAT_COLORS = ['#ff4f6a', '#4fa3ff', '#ffd34a', '#4fe08a', '#c07bff', '#ff9f43'];
+        const seatColor = (tb, i) => tb.g === 'checkers' ? (i ? '#26222e' : '#e0303a') : SEAT_COLORS[i];
+        // The Chinese checkers star, as the engine has it (axial q, r), and which point each hole is in.
+        const STAR = [], DIRS6 = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+        const inStar = (q, r) => { const s = -q - r; return (q >= -4 && r >= -4 && s >= -4) || (q <= 4 && r <= 4 && s <= 4); };
+        const POINT = [(q) => q > 4, (q, r) => -q - r < -4, (q, r) => r > 4, (q) => q < -4, (q, r) => -q - r > 4, (q, r) => r < -4];
+        for (let r = -8; r <= 8; r++) for (let q = -8; q <= 8; q++) if (inStar(q, r)) STAR.push([q, r, POINT.findIndex(f => f(q, r))]);
+        const tables = new Map();          // id → a table (engine/hall.js tablePublic), plus `at`: when it came, for the clock
+        let view = '', sel = null, hops = [], leaving = '';      // the table open; a picked piece; a chain of hops; "sure?" to leave
+        const gamesEl = $('.hall-games', box);
+        const seatOf = (tb) => tb.seats.indexOf(me);
+        const myTurn = (tb) => tb.state === 'playing' && tb.seats[tb.turn] === me;
+        function resultText(tb) {
+            const game = GAME_NAMES[tb.g], n = (s) => nameOf(tb.seats[s]);
+            if (tb.win === -1) return game + ': ' + n(0) + ' and ' + n(1) + ' drew';
+            // Won because the other one left or ran out of time: say who (with more players, everyone else did).
+            const two = tb.seats.length === 2, loser = two ? n(1 - tb.win) : 'the others';
+            const why = tb.why === 'time' ? ' (' + (two ? loser + ' ran out of time' : 'the others ran out of time or left') + ')' : tb.why === 'left' ? ' (' + loser + ' left)' : '';
+            return n(tb.win) + ' won ' + game + (tb.seats.length === 2 ? ' against ' + n(1 - tb.win) : '') + why;
+        }
+        function onTable(tb, quiet) {
+            const old = tables.get(tb.id);
+            tb.at = now();
+            tables.set(tb.id, tb);
+            if (!quiet && !old && tb.state === 'waiting') {
+                logLine({ text: '🎲 ' + nameOf(tb.seats[0]) + ' opened a ' + GAME_NAMES[tb.g] + ' table' + (tb.seats.length > 2 ? ' for ' + tb.seats.length : '') + ' — press 🎲 to sit down' }, 'game');
+            }
+            if (!quiet && old && old.state !== 'done' && tb.state === 'done') logLine({ text: '🎲 ' + resultText(tb) }, 'game');
+            // Your own table opens by itself: when you sit down, and when the game starts.
+            if (seatOf(tb) >= 0 && (!old || old.state !== tb.state) && tb.state !== 'done') { view = tb.id; gamesEl.hidden = false; }
+            if (old && (old.turn !== tb.turn || old.state !== tb.state)) { sel = null; hops = []; leaving = ''; }
+            if (tb.g === 'checkers' && tb.board && tb.board.must && myTurn(tb)) sel = tb.board.must.slice();     // keep jumping with that one
+            paintGames();
+        }
+        function onTableGone(id) { tables.delete(id); if (view === id) view = ''; paintGames(); }
+        function clock(tb) {
+            const left = Math.max(0, Math.round((tb.until - (now() - tb.at) * 1000) / 1000));
+            return Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+        }
+        function paintGames() {
+            if (gamesEl.hidden) return;
+            const tb = view && tables.get(view);
+            gamesEl.innerHTML = tb ? tableHtml(tb) : listHtml();
+        }
+        function listHtml() {
+            const seated = [...tables.values()].some(tb => tb.state !== 'done' && seatOf(tb) >= 0);
+            const off = seated ? ' disabled title="You’re at a table already"' : '';
+            return '<div class="hg-head"><b>🎲 Board games</b><button type="button" class="btn" data-x title="Close">✕</button></div>' +
+                '<div class="hg-new"><span>Start a table:</span><button type="button" class="btn" data-new="ttt"' + off + '>⭕ Tic-tac-toe</button>' +
+                '<button type="button" class="btn" data-new="checkers"' + off + '>⛀ Checkers</button>' +
+                '<span>✡ Chinese checkers for ' + [2, 3, 4, 6].map(n => '<button type="button" class="btn" data-new="chinese" data-n="' + n + '"' + off + '>' + n + '</button>').join('') + '</span></div>' +
+                (tables.size ? '<ul class="hg-list">' + [...tables.values()].map(tb => {
+                    const free = tb.state === 'waiting' && tb.seats.includes('') && !seated;
+                    const state = tb.state === 'waiting' ? 'waiting for ' + tb.seats.filter(s => !s).length + ' more' : tb.state === 'playing' ? 'playing' : resultText(tb);
+                    return '<li><div><b>' + GAME_NAMES[tb.g] + '</b> <span class="hg-dim">' + esc(state) + '</span></div><div class="hg-seats">' +
+                        tb.seats.map((h, i) => '<span class="hg-p"><i style="background:' + seatColor(tb, i) + '"></i>' + (h ? esc(nameOf(h)) : '<em>empty seat</em>') + '</span>').join('') + '</div>' +
+                        '<div class="hg-btns">' + (free ? '<button type="button" class="btn go" data-sit="' + tb.id + '">Sit down</button>' : '') +
+                        '<button type="button" class="btn" data-open="' + tb.id + '">' + (seatOf(tb) >= 0 ? 'Open' : 'Watch') + '</button></div></li>';
+                }).join('') + '</ul>' : '<p class="hg-dim">No tables yet. Start one and others can sit down; everyone else can watch.</p>');
+        }
+        function tableHtml(tb) {
+            const seat = seatOf(tb), mine = myTurn(tb);
+            let status;
+            if (tb.state === 'waiting') status = 'Waiting for ' + tb.seats.filter(s => !s).length + ' more to sit down…';
+            else if (tb.state === 'playing') status = (mine ? '<b>Your turn</b>' : esc(nameOf(tb.seats[tb.turn])) + '’s turn') + ' · <span class="hg-clock">' + clock(tb) + '</span>' +
+                (mine && tb.g === 'checkers' && tb.board.must ? ' — keep jumping' : '');
+            else status = '<b>' + esc(resultText(tb)) + '</b>';
+            return '<div class="hg-head"><button type="button" class="btn" data-back>‹ Tables</button><b>' + GAME_NAMES[tb.g] + '</b>' +
+                '<button type="button" class="btn" data-x title="Close">✕</button></div>' +
+                '<div class="hg-seats">' + tb.seats.map((h, i) => '<span class="hg-p' + (tb.state === 'playing' && tb.turn === i ? ' turn' : '') + (tb.out.includes(i) ? ' out' : '') +
+                    (tb.state === 'done' && tb.win === i ? ' won' : '') + '"><i style="background:' + seatColor(tb, i) + '"></i>' + (h ? esc(nameOf(h)) : '<em>empty seat</em>') + '</span>').join('') + '</div>' +
+                '<p class="hg-status">' + status + '</p>' +
+                (tb.board ? boardHtml(tb, seat, mine) : '') +
+                '<div class="hg-btns">' +
+                (tb.state === 'waiting' && seat < 0 && tb.seats.includes('') ? '<button type="button" class="btn go" data-sit="' + tb.id + '">Sit down</button>' : '') +
+                (tb.g === 'chinese' && mine && hops.length > 1 ? '<button type="button" class="btn go" data-go>Move</button><button type="button" class="btn" data-undo>Undo</button>' : '') +
+                (seat >= 0 && tb.state !== 'done' && !tb.out.includes(seat) ? '<button type="button" class="btn" data-stand>' +
+                    (tb.state === 'playing' ? (leaving === tb.id ? 'Leave and lose?' : 'Leave the game') : 'Get up') + '</button>' : '') + '</div>';
+        }
+        function boardHtml(tb, seat, mine) {
+            const b = tb.board, last = tb.last && tb.last.m;
+            if (tb.g === 'ttt') {
+                return '<div class="hg-ttt">' + b.cells.map((c, i) => '<button type="button" data-i="' + i + '"' + (c >= 0 || !mine ? ' disabled' : '') +
+                    (last && last.i === i ? ' class="last"' : '') + ' style="color:' + (c >= 0 ? seatColor(tb, c) : '') + '">' + (c === 0 ? '✕' : c === 1 ? '◯' : '') + '</button>').join('') + '</div>';
+            }
+            if (tb.g === 'checkers') {
+                const flip = seat === 1, lastAt = (r, c) => last && ((last.from && last.from[0] === r && last.from[1] === c) || (last.to && last.to[0] === r && last.to[1] === c));
+                let h = '<div class="hg-ck">';
+                for (let vr = 0; vr < 8; vr++) for (let vc = 0; vc < 8; vc++) {
+                    const r = flip ? 7 - vr : vr, c = flip ? 7 - vc : vc, ch = b.rows[r][c];
+                    h += '<div class="' + ((r + c) % 2 ? 'd' : 'l') + (sel && sel[0] === r && sel[1] === c ? ' sel' : '') + (lastAt(r, c) ? ' last' : '') + '" data-rc="' + r + ',' + c + '">' +
+                        (ch !== '.' ? '<i class="' + (ch.toLowerCase() === 'r' ? 'rd' : 'bk') + (ch === ch.toUpperCase() ? ' k' : '') + '"></i>' : '') + '</div>';
+                }
+                return h + '</div>';
+            }
+            // Chinese checkers: turned so your own point is at the bottom.
+            const myPoint = seat >= 0 ? b.points[seat] : 2, rot = (2 - myPoint) * 60;
+            const startOf = {}; b.points.forEach((p, i) => { startOf[p] = i; });
+            let h = '<svg class="hg-cc" viewBox="-150 -150 300 300"><g transform="rotate(' + rot + ')">';
+            for (const [q, r, pt] of STAR) {
+                const k = q + ',' + r, s = b.cells[k], x = (q + r / 2) * 20, y = r * 17.32;
+                const home = pt >= 0 && startOf[pt] !== undefined ? seatColor(tb, startOf[pt]) : '';
+                h += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7.2" data-k="' + k + '" fill="' + (s !== undefined ? seatColor(tb, s) : '#1b1726') + '"' +
+                    ' stroke="' + (hops.includes(k) ? '#ffffff' : home || '#3d3552') + '" stroke-width="' + (hops.includes(k) ? 3 : home ? 1.6 : 1) + '"' +
+                    (last && last.path && last.path.some(p => p[0] === q && p[1] === r) ? ' class="last"' : '') + '/>';
+            }
+            return h + '</g></svg>';
+        }
+        const sendMove = (tb, m) => core.send({ t: 'hall-table-move', id: tb.id, m });
+        gamesEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tb = view && tables.get(view), t = e.target;
+            const btn = t.closest('button');
+            if (btn) {
+                const d = btn.dataset;
+                if ('x' in d) { gamesEl.hidden = true; return; }
+                if ('back' in d) { view = ''; sel = null; hops = []; return paintGames(); }
+                if (d.new) return core.send({ t: 'hall-table-new', g: d.new, n: Number(d.n) || 2 });
+                if (d.sit) return core.send({ t: 'hall-table-sit', id: d.sit });
+                if (d.open) { view = d.open; sel = null; hops = []; return paintGames(); }
+                if ('stand' in d && tb) {
+                    if (tb.state === 'playing' && leaving !== tb.id) { leaving = tb.id; return paintGames(); }
+                    leaving = ''; return core.send({ t: 'hall-table-stand', id: tb.id });
+                }
+                if ('go' in d && tb && hops.length > 1) { sendMove(tb, { path: hops.map(k => k.split(',').map(Number)) }); hops = []; return paintGames(); }
+                if ('undo' in d) { hops = hops.slice(0, 1); return paintGames(); }
+                if (d.i !== undefined && tb && myTurn(tb)) return sendMove(tb, { i: Number(d.i) });
+                return;
+            }
+            if (!tb || !myTurn(tb)) return;
+            const seat = seatOf(tb), b = tb.board;
+            const cell = t.closest('[data-rc]');
+            if (cell && tb.g === 'checkers') {
+                const [r, c] = cell.dataset.rc.split(',').map(Number), ch = b.rows[r][c];
+                const own = ch !== '.' && (ch.toLowerCase() === 'r') === (seat === 0);
+                if (own && !b.must) { sel = [r, c]; return paintGames(); }
+                if (sel && ch === '.') sendMove(tb, { from: sel, to: [r, c] });
+                return;
+            }
+            const hole = t.closest('[data-k]');
+            if (hole && tb.g === 'chinese') {
+                const k = hole.dataset.k, [q, r] = k.split(',').map(Number);
+                if (b.cells[k] === seat) { hops = [k]; return paintGames(); }
+                if (!hops.length || b.cells[k] !== undefined) return;
+                if (hops[hops.length - 1] === k) return;
+                const [pq, pr] = hops[hops.length - 1].split(',').map(Number), dq = q - pq, dr = r - pr;
+                if (hops.length === 1 && DIRS6.some(([a, c]) => a === dq && c === dr)) { sendMove(tb, { path: [[pq, pr], [q, r]] }); hops = []; return; }
+                const dir = DIRS6.find(([a, c]) => 2 * a === dq && 2 * c === dr), mid = dir && (pq + dir[0]) + ',' + (pr + dir[1]);
+                if (!dir || b.cells[mid] === undefined || mid === hops[0] || hops.includes(k)) return U.toast('Hop over one piece into a free hole (or step one hole).');
+                hops.push(k);
+                return paintGames();
+            }
+        });
+        // Double-click the last hole of a chain to move without pressing Move.
+        gamesEl.addEventListener('dblclick', (e) => {
+            const tb = view && tables.get(view), hole = e.target.closest('[data-k]');
+            if (tb && hole && hops.length > 1 && hops[hops.length - 1] === hole.dataset.k) { sendMove(tb, { path: hops.map(k => k.split(',').map(Number)) }); hops = []; }
+        });
+        const clockT = setInterval(() => {
+            const tb = !gamesEl.hidden && view && tables.get(view), el = tb && tb.state === 'playing' && gamesEl.querySelector('.hg-clock');
+            if (el) el.textContent = clock(tb);
+        }, 1000);
+        offs.push(() => clearInterval(clockT));
+        /** Who's at a table and what they're doing there, from the person menu. */
+        const tableOf = (h) => [...tables.values()].find(tb => tb.state !== 'done' && tb.seats.includes(h));
+        /** Over the heads of people playing: a little 🎲. */
+        function tableBadges(u, heads) {
+            for (const tb of tables.values()) {
+                if (tb.state !== 'playing') continue;
+                tb.seats.forEach((h, i) => {
+                    const p = people.get(h);
+                    if (p && heads.has(h) && !tb.out.includes(i) && ![...games.values()].some(g => g.a === h || g.b === h)) badge(tb.turn === i ? '🎲…' : '🎲', (p.x + 8) * u, (heads.get(h) - 2) * u, u, false);
+                });
+            }
+        }
         const typing = () => document.activeElement && /input|textarea/i.test(document.activeElement.tagName);
         listen('keydown', (e) => {
             if (e.ctrlKey || e.altKey || e.metaKey) return;
             if (typing()) { if (e.key === 'Escape') input.blur(); return; }
             if (!lookEl.hidden && e.key === 'Escape') { lookEl.hidden = true; return; }
             if (!emojiEl.hidden && e.key === 'Escape') { emojiEl.hidden = true; return; }
+            if (!gamesEl.hidden && e.key === 'Escape') { gamesEl.hidden = true; return; }
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
             if (/^[0-9]$/.test(k)) { emote(EMOTES[(+k + 9) % 10][0]); return; }      // 1–9, then 0 for the tenth
@@ -663,6 +851,11 @@
             const b = e.target.closest('[data-e]');
             if (b) { emote(b.dataset.e); return; }
             if (e.target.closest('[data-emoji]')) { emojiEl.hidden = !emojiEl.hidden; if (!emojiEl.hidden) paintEmoji(); return; }
+            if (e.target.closest('[data-boards]')) {
+                gamesEl.hidden = !gamesEl.hidden;
+                if (!gamesEl.hidden) { const t = [...tables.values()].find(tb => tb.state !== 'done' && seatOf(tb) >= 0); view = t ? t.id : ''; paintGames(); }
+                return;
+            }
             if (e.target.closest('[data-chat]')) {
                 chatOn = !chatOn; logBox.hidden = !chatOn; layoutChat();
                 if (chatOn) logEl.scrollTop = logEl.scrollHeight;
@@ -838,6 +1031,7 @@
             drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
+            tableBadges(u, heads);
             if (hostSay && hostSay.until > t) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
         }
 
