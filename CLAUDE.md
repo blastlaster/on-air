@@ -309,14 +309,22 @@ the rest. Chat is the station's own `chat` — tag a Hall member's message with
 
 | app → engine | engine → app |
 |---|---|
-| `hall-join {look}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
+| `hall-join {look}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer clap point spin headbang sleep` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
 
-`look` = `{ skin 0–5, hair 0–6, hairColor 0–8, shirt 0–9, pants 0–5, extra 0–5 }`;
+`look` = `{ skin 0–12, hair 0–6, hairColor 0–8, shirt 0–9, pants 0–5, extra 0–10, top 0–5, face 0–4 }`;
 a person is `{ h, n, l, x, y, e }`. `air.talking`: someone is talking on air
 (the studio's voice meter); `air.music`: music is playing. Guards: a cap on
 people (40), walking sent in one batch a few times a second and only when
 someone moved, per-person limits on moves, emotes and looks, and all of it
-held back while the event loop lags. Reference: `engine/hall.js`.
+held back while the event loop lags.
+
+Rock paper scissors, watched by the whole room: `hall-rps {to}` challenges,
+`hall-rps-answer {id, ok}`, `hall-rps-pick {id, pick}` (`rock paper scissors`);
+the engine sends everyone `hall-rps {id, a, b, state}` (`asked`, `picking`, then
+`done` with `picks` and `win` — the winner's id, `''` for a draw — or `declined`,
+`expired`, `gone`), and lists games in progress in `hall-welcome.games`. Keep picks
+secret until both are in. One game per person, 20 s to answer, 15 s to pick, a few
+seconds between challenges, a cap on games at once. Reference: `engine/hall.js`.
 
 ### 4.8 Voicemail: `POST /api/voicemail?name=…&note=…`
 

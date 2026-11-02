@@ -13,7 +13,9 @@
     const FLOOR = { x0: 8, x1: 232, y0: 66, y1: 146 };
 
     /* ---------- the parts a look is made of (counts match engine/hall.js LOOK) ---------- */
-    const SKIN = ['#f6d2b8', '#f1c19b', '#ddb08c', '#c98c5e', '#8d5a3b', '#5c3a24'];
+    // People colours, then fun ones: pink, red, purple, blue, green, yellow, Radioman grey.
+    const SKIN = ['#f6d2b8', '#f1c19b', '#ddb08c', '#c98c5e', '#8d5a3b', '#5c3a24',
+        '#ff9ad2', '#e8564a', '#a77cf0', '#6aa8ff', '#6fd46f', '#f5e04b', '#bdbdbd'];
     const HAIR_COLOR = ['#1b1b1b', '#3a2416', '#7a3b1e', '#c2402e', '#f2d24b', '#e8e4d8', '#5b5b66', '#3fae5a', '#d65ca8'];
     const SHIRT = [['#c8432f', '#ff6b4f'], ['#2f8f48', '#4fd36e'], ['#b84a8e', '#ff7ccc'], ['#2f66b8', '#5aa0ff'], ['#c9861f', '#ffc046'],
         ['#6448b0', '#9f80ff'], ['#24242c', '#44444f'], ['#c8c4d0', '#ffffff'], ['#1f9a9a', '#4fe0e0'], ['#b8a222', '#f5e04b']];
@@ -22,9 +24,11 @@
         { key: 'skin', label: 'Skin', colors: SKIN },
         { key: 'hair', label: 'Hair', names: ['None', 'Short', 'Spiky', 'Long', 'Bowl', 'Mohawk', 'Bun'] },
         { key: 'hairColor', label: 'Hair colour', colors: HAIR_COLOR },
-        { key: 'shirt', label: 'Shirt', colors: SHIRT.map(s => s[1]) },
+        { key: 'face', label: 'Face', names: ['Plain', 'Beard', 'Moustache', 'Blush', 'Freckles'] },
+        { key: 'top', label: 'Top', names: ['Tee', 'Hoodie', 'Jacket', 'Tank', 'Suit', 'Dress'] },
+        { key: 'shirt', label: 'Colour', colors: SHIRT.map(s => s[1]) },
         { key: 'pants', label: 'Pants', colors: PANTS },
-        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie'] }
+        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower'] }
     ];
     const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * (p.colors || p.names).length)]));
 
@@ -35,12 +39,13 @@
         U: '55557', V: '55552', W: '55775', X: '55255', Y: '55222', Z: '71247',
         0: '75557', 1: '26227', 2: '61247', 3: '61216', 4: '55711', 5: '74616', 6: '34656', 7: '71222', 8: '75757', 9: '75711',
         ' ': '00000', '-': '00700', '.': '00002', '!': '22202', "'": '22000', ':': '02020', '?': '61202', '&': '25253',
-        '/': '11244', '(': '12221', ')': '42224', ',': '00024', '#': '57575', '+': '02720', '[': '64446', ']': '31113'
+        '/': '11244', '(': '12221', ')': '42224', ',': '00024', '#': '57575', '+': '02720', '[': '64446', ']': '31113', '♪': '32266', '*': '05250', '%': '41214', '@': '25743', '=': '07070'
     };
     function text(l, str, x, y, color) {
         l.fillStyle = color;
         for (const ch of String(str).toUpperCase()) {
-            const g = FONT[ch] || FONT['?'];
+            const g = FONT[ch];
+            if (!g) { x += 4; continue; }                 // a letter the little font hasn't got: a gap
             for (let r = 0; r < 5; r++) {
                 const bits = +g[r];
                 if (bits & 4) l.fillRect(x, y + r, 1, 1);
@@ -142,6 +147,8 @@
     /* =========================================================
        THE ROOM
        ========================================================= */
+    /** The Sign's colours (as on the LED sign itself). */
+    const SIGN_COLORS = { red: '#ff3030', amber: '#ffb21c', green: '#33ff6e', cyan: '#2be6ff', pink: '#ff4fd8', white: '#f2f2ff', rainbow: '#ff4fd8' };
     const TILE = ['#2a1a40', '#1a2a40', '#40182c', '#183a30'];
     const LIT = ['#b04fd0', '#4f8cff', '#ff5a8a', '#3fd38f'];
 
@@ -182,7 +189,19 @@
         text(l, name, nx, 10, air.music && beat % 2 ? '#ff9ad2' : '#ff5ab0');
         // The screen on the right: what's on (or FunpostTV, laid over it by the window).
         R(150, 6, 60, 30, '#05050a'); R(152, 8, 56, 26, info.tv ? '#000000' : '#0b1424');
-        if (info.tv) return floor(t, air, beat);
+        if (info.tv) {
+            // FunpostTV covers the screen: the station's Sign scrolls along a strip under it
+            // (or what's playing, if the Sign is off).
+            R(150, 36, 60, 8, '#05050a'); R(151, 37, 58, 6, '#140a06');
+            const sign = info.sign && info.sign.items && info.sign.items.filter(Boolean);
+            const msg = (sign && sign.length ? sign.map(x => String(x).replace(/\s+/g, ' ').trim()).join('    *    ') : '♪ ' + (info.song || 'FunpostTV')).toUpperCase();
+            const col = SIGN_COLORS[info.sign && info.sign.color] || SIGN_COLORS.amber;
+            l.save(); l.beginPath(); l.rect(152, 37, 56, 6); l.clip();
+            const tw = textWidth(msg) + 24, off = (t * 16) % tw;
+            text(l, msg, 153 - off, 38, col); text(l, msg, 153 - off + tw, 38, col);
+            l.restore();
+            return floor(t, air, beat);
+        }
         const chip = air.live ? 'LIVE' : 'AUTODJ';
         R(153, 9, textWidth(chip) + 2, 7, air.live ? '#d0302a' : '#2f66b8');
         text(l, chip, 154, 10, '#ffffff');
@@ -236,7 +255,7 @@
        PEOPLE — feet at (x, y); about 9 wide and 17 tall
        ========================================================= */
     /**
-     * o = { x, y, face (1 right, -1 left), step (0/1 while walking), emote,
+     * o = { x, y, face (1 right, -1 left), step (0/1 while walking), emote (wave dance jump sit cheer clap point spin headbang sleep),
      *       et (seconds into the emote), t, talk }
      */
     function person(ctx, look, o) {
@@ -244,14 +263,16 @@
         const L = look || {};
         const skin = SKIN[L.skin] || SKIN[0], hc = HAIR_COLOR[L.hairColor] || HAIR_COLOR[0];
         const sh = SHIRT[L.shirt] || SHIRT[0], pa = PANTS[L.pants] || PANTS[0];
-        const t = o.t, e = o.emote || '', f = o.face < 0 ? -1 : 1;
+        const t = o.t, e = o.emote || '';
+        // Spinning turns them round and round; everyone else faces where they're going.
+        const f = e === 'spin' ? (Math.floor(t * 8) % 2 ? 1 : -1) : o.face < 0 ? -1 : 1;
         let x = Math.round(o.x), y = Math.round(o.y), lift = 0;
         if (e === 'jump') lift = Math.round(Math.abs(Math.sin(o.et * Math.PI / 0.6)) * 6);
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
-        else if (e === 'cheer') lift = Math.floor(t * 5) % 2;
+        else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
         R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,0.45)');                   // shadow stays on the floor
         y -= lift;
-        const sit = e === 'sit';
+        const sit = e === 'sit' || e === 'sleep';
         if (sit) {
             R(x - 3 + (f > 0 ? 1 : -1), y - 3, 7, 2, pa);
             R(f > 0 ? x + 4 : x - 4, y - 3, 1, 2, '#15151c');
@@ -263,19 +284,44 @@
             R(x - 2, y - 1 - la, 2, 1, '#15151c'); R(x + 1, y - 1 - ra, 2, 1, '#15151c');
         }
         const by = sit ? y - 8 : y - 9;                                 // top of the body
-        R(x - 3, by, 7, 5, sh[0]); R(x - 3, by, 7, 1, sh[1]);
+        // The top: tee, hoodie, jacket, tank, suit or dress (the shirt colour runs through all of them).
+        const top = L.top || 0, SUIT = '#26262e';
+        const body = top === 4 ? SUIT : sh[0], sleeve = top === 3 ? skin : body;
+        R(x - 3, by, 7, 5, body); R(x - 3, by, 7, 1, top === 4 ? '#3a3a46' : sh[1]);
+        if (top === 1) { R(x - 3, by - 1, 7, 1, sh[1]); R(x - 1, by + 1, 1, 2, '#eeeeee'); R(x + 1, by + 1, 1, 2, '#eeeeee'); R(x - 2, by + 3, 5, 1, sh[1]); }
+        else if (top === 2) { R(x - 1, by, 3, 5, '#e8e4f0'); R(x, by + 1, 1, 1, '#888'); R(x, by + 3, 1, 1, '#888'); }
+        else if (top === 3) { R(x - 3, by, 1, 1, skin); R(x + 3, by, 1, 1, skin); }
+        else if (top === 4) { R(x - 1, by, 3, 1, '#eeeeee'); R(x, by + 1, 1, 3, sh[1]); }
+        else if (top === 5 && !sit) { R(x - 4, by + 4, 9, 3, sh[0]); R(x - 4, by + 6, 9, 1, sh[1]); }
         // Arms.
         const armUp = (side, wobble) => R(side < 0 ? x - 4 : x + 4, by - 3 - wobble, 1, 4, skin);
-        const armDown = (side) => { R(side < 0 ? x - 4 : x + 4, by + 1, 1, 3, sh[0]); R(side < 0 ? x - 4 : x + 4, by + 4, 1, 1, skin); };
+        const armDown = (side) => { R(side < 0 ? x - 4 : x + 4, by + 1, 1, 3, sleeve); R(side < 0 ? x - 4 : x + 4, by + 4, 1, 1, skin); };
+        const armOut = (side) => { R(side < 0 ? x - 7 : x + 4, by + 1, 4, 1, sleeve); R(side < 0 ? x - 7 : x + 7, by + 1, 1, 1, skin); };
         if (e === 'wave') { armDown(-f); armUp(f, Math.floor(t * 6) % 2); }
         else if (e === 'cheer') { armUp(-1, 0); armUp(1, 0); }
         else if (e === 'dance') { const a = Math.floor(t * 2) % 2; if (a) { armUp(-1, 0); armDown(1); } else { armDown(-1); armUp(1, 0); } }
+        else if (e === 'point') { armDown(-f); armOut(f); }
+        else if (e === 'spin') { armOut(-1); armOut(1); }
+        else if (e === 'clap') {
+            R(x - 4, by + 1, 1, 2, sleeve); R(x + 4, by + 1, 1, 2, sleeve);
+            if (Math.floor(t * 6) % 2) R(x - 1, by + 2, 3, 1, skin);                // hands together
+            else { R(x - 3, by + 2, 1, 1, skin); R(x + 3, by + 2, 1, 1, skin); }
+        }
+        else if (e === 'headbang') { armUp(-1, 0); R(x + 4, by + 1, 1, 3, sleeve); R(x + 4, by + 4, 1, 1, skin); }
         else { armDown(-1); armDown(1); }
         // Head, face.
-        const hy = by - 6;
+        const hy = by - 6 + (e === 'headbang' && Math.floor(t * 8) % 2 ? 2 : 0);
         R(x - 3, hy, 7, 6, skin);
         const ex = f > 0 ? [x, x + 2] : [x - 2, x];
-        R(ex[0], hy + 2, 1, 2, '#111'); R(ex[1], hy + 2, 1, 2, '#111');
+        if (e === 'sleep') { R(ex[0] - 1, hy + 3, 2, 1, '#111'); R(ex[1], hy + 3, 2, 1, '#111'); }
+        else { R(ex[0], hy + 2, 1, 2, '#111'); R(ex[1], hy + 2, 1, 2, '#111'); }
+        // Face: beard, moustache, blush or freckles (drawn before the mouth so it shows through).
+        switch (L.face) {
+            case 1: R(x - 3, hy + 3, 7, 3, hc); R(x - 2, hy + 6, 5, 1, hc); break;
+            case 2: R(x - 2, hy + 3, 5, 1, hc); break;
+            case 3: R(ex[0] - 1, hy + 4, 1, 1, '#ff8a9a'); R(ex[1] + 1, hy + 4, 1, 1, '#ff8a9a'); break;
+            case 4: R(ex[0] - 1, hy + 4, 1, 1, '#a0603a'); R(ex[0] + 1, hy + 4, 1, 1, '#a0603a'); R(ex[1] + 1, hy + 4, 1, 1, '#a0603a'); break;
+        }
         if (o.talk && Math.floor(t * 8) % 2) R(f > 0 ? x : x - 1, hy + 4, 2, 1, '#6b2a2a');
         else R(f > 0 ? x : x - 1, hy + 4, 2, 1, 'rgba(90,40,40,0.55)');
         // Hair.
@@ -287,6 +333,7 @@
             case 5: R(x - 1, hy - 3, 2, 3, hc); break;
             case 6: R(x - 3, hy - 1, 7, 2, hc); R(x - 1, hy - 4, 3, 3, hc); break;
         }
+        if (top === 1 && e !== 'headbang') { R(x - 4, hy + 1, 1, 5, sh[1]); R(x + 4, hy + 1, 1, 5, sh[1]); }   // the hood around the face
         // Extras.
         switch (L.extra) {
             case 1: R(x - 3, hy - 2, 7, 2, sh[1]); R(f > 0 ? x + 1 : x - 5, hy, 5, 1, sh[1]); break;
@@ -294,6 +341,18 @@
             case 3: R(x - 3, hy + 2, 7, 1, '#111'); R(ex[0] - 1, hy + 2, 3, 2, '#111'); R(ex[1], hy + 2, 2, 2, '#111'); break;
             case 4: R(x - 2, hy - 3, 5, 2, '#f5c542'); R(x - 2, hy - 4, 1, 1, '#f5c542'); R(x, hy - 4, 1, 1, '#f5c542'); R(x + 2, hy - 4, 1, 1, '#f5c542'); break;
             case 5: R(x - 3, hy - 2, 7, 3, '#3b7dd8'); R(x - 3, hy, 7, 1, '#2a5aa0'); R(x, hy - 3, 1, 1, '#ffffff'); break;
+            case 6: R(x + 1, hy - 2, 2, 2, '#ff4f9a'); R(x + 4, hy - 2, 2, 2, '#ff4f9a'); R(x + 3, hy - 1, 1, 1, '#c02a6a'); break;          // bow
+            case 7: R(x - 2, hy - 4, 5, 1, '#ffe066'); R(x - 3, hy - 3, 1, 1, '#ffe066'); R(x + 3, hy - 3, 1, 1, '#ffe066'); break;          // halo
+            case 8: R(x - 3, hy - 2, 1, 2, '#c0392b'); R(x - 4, hy - 3, 1, 1, '#c0392b'); R(x + 3, hy - 2, 1, 2, '#c0392b'); R(x + 4, hy - 3, 1, 1, '#c0392b'); break;   // horns
+            case 9: R(x - 2, hy - 1, 5, 1, '#5aa0ff'); R(x - 1, hy - 3, 3, 2, '#ff6bd0'); R(x, hy - 4, 1, 1, '#ffd34a'); R(x, hy - 5, 1, 1, '#ffffff'); break;   // party hat
+            case 10: R(x - 4, hy - 1, 3, 3, '#ff7ccc'); R(x - 3, hy, 1, 1, '#ffd34a'); break;                                                // flower
+        }
+        // Asleep: Zs floating up.
+        if (e === 'sleep') {
+            const k = (t * 0.8) % 1;
+            l.globalAlpha = 1 - k;
+            R(x + 4, hy - 2 - Math.round(k * 6), 3, 1, '#ffffff'); R(x + 5, hy - 1 - Math.round(k * 6), 1, 1, '#ffffff'); R(x + 4, hy - Math.round(k * 6), 3, 1, '#ffffff');
+            l.globalAlpha = 1;
         }
         return hy - lift;                                              // where a bubble goes
     }

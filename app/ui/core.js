@@ -284,7 +284,8 @@
             onLine: live ? (status.onAir || []).filter(p => p.lane !== 'host').map(p => ({ name: p.name, color: p.color })) : [],
             listeners: typeof n === 'number' ? n : null,
             played, comingUp: live || !forecastOk ? [] : forecast,
-            chatMode: live || !room ? (engineUp ? 'station' : 'none') : 'chattable', room,
+            // The station's own chat whenever its PC is on (live or not); its Chattable room while it's off.
+            chatMode: engineUp ? 'station' : room ? 'chattable' : 'none', room,
             requestMode: requestMode(), requestKind: live || (engineUp && requestMode() === 'station') ? (status && status.requests) : 'autodj',
             callsOpen: !!(live && status.callsOpen && LT.callSupported && LT.callSupported()),
             voicemail: !!(engineUp && status && status.voicemail),
