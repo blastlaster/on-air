@@ -75,6 +75,13 @@
 .hall-stage { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .hall-page-top .hall-vol { width: 110px; accent-color: #fff; }
 .hall-page-top button[hidden] { display: none; }
+.hall-bursts { display: inline-flex; gap: 2px; }
+.hall-bursts[hidden], .hall-bursts [hidden] { display: none; }
+.hall-pop .hp-note { display: block; font-size: 0.85em; opacity: 0.75; margin-top: 4px; }
+.he-glow { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); box-shadow: 0 0 8px rgba(255, 255, 255, 0.35); }
+.he-glow.on { border-color: #fff; box-shadow: 0 0 12px #fff; }
+.hl-safe { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; cursor: pointer; }
+.hl-safe small { opacity: 0.7; }
 .hall-page-top button.on { background: rgba(255, 255, 255, 0.85); color: #2a0b4d; }
 .hall-page-top button:disabled { opacity: 0.6; cursor: default; }
 /* The request picker, in a panel inside the room on the website: the page's own

@@ -23,6 +23,16 @@
     const MOOD_BUBBLE = Object.fromEntries(MOODS.map(([id, , b]) => [id, b]));
     const JUMP_S = 0.6, DASH_S = 0.3, DASH_SPEED = 2.6;
     const HANDS = { rock: '✊', paper: '✋', scissors: '✌️' };
+    // Bonk and slap up close (you walk over first), a snowball from anywhere (engine/hall.js HITS).
+    const HITS = [['bonk', '🔨', 'Bonk'], ['slap', '🐟', 'Fish slap'], ['snowball', '⛄', 'Snowball']];
+    const MELEE = { bonk: 1, slap: 1 };
+    const HIT_LINE = { bonk: (a, b) => '🔨 ' + a + ' bonked ' + b, slap: (a, b) => '🐟 ' + a + ' slapped ' + b + ' with a fish', snowball: (a, b) => '⛄ ' + a + ' hit ' + b + ' with a snowball' };
+    // Glowsticks (engine/hall.js GLOWS); rainbow goes round the colours.
+    const GLOWS = [['green', '#39ff14'], ['pink', '#ff2fd0'], ['cyan', '#00e5ff'], ['yellow', '#ffe600'], ['orange', '#ff7a00'], ['purple', '#b04fff'], ['rainbow', '']];
+    const GLOW_COLOR = Object.fromEntries(GLOWS);
+    // Stage effects anyone can set off, when the host allows it (engine/hall.js CROWD_BURSTS).
+    const BURSTS = [['fire', '🔥', 'Fire on the stage'], ['confetti', '🎊', 'Confetti']];
+    const BURST_LINE = { fire: '🔥 {n} set the stage on fire', confetti: '🎊 {n} threw confetti' };
     // The emoji picker: anything to say, and things to carry (the same list as engine/hall.js HOLDS).
     const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️'.split(' ');
     // Name colours (the same list as engine/hall.js NAME_COLORS); Settings → You uses it too.
@@ -53,7 +63,8 @@
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button>' +
             '<span class="hall-emotes">' + EMOTES.map(([id, icon, name], i) => '<button type="button" class="btn" data-e="' + id + '" title="' + name + ' (' + (i + 1) + ')">' + icon + '</button>').join('') + '</span>' +
-            '<button type="button" class="btn" data-emoji title="Emoji: put one in what you say, or carry one around">😀</button>' +
+            '<button type="button" class="btn" data-emoji title="Emoji: put one in what you say, carry one around, or wave a glowstick">😀</button>' +
+            '<span class="hall-bursts" hidden>' + BURSTS.map(([k, icon, name]) => '<button type="button" class="btn" data-burst="' + k + '" title="' + name + '">' + icon + '</button>').join('') + '</span>' +
             '<button type="button" class="btn" data-chat title="Show or hide the chat">💬</button>' +
             '<button type="button" class="btn" data-look title="Change how you look">🎨 Look</button></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-look" hidden></div></div>';
@@ -68,10 +79,15 @@
         try { look = JSON.parse(localStorage.getItem('ltl.hallLook') || 'null'); } catch { look = null; }
         if (!look || typeof look !== 'object') { look = A.randomLook(); saveLook(); }
         function saveLook() { try { localStorage.setItem('ltl.hallLook', JSON.stringify(look)); } catch { /* full */ } }
+        // Out of bonks, slaps and snowballs (both ways), and your glowstick: remembered.
+        let safe = false, glow = '';
+        try { safe = localStorage.getItem('ltl.hallSafe') === '1'; glow = localStorage.getItem('ltl.hallGlow') || ''; } catch { /* defaults */ }
+        if (!GLOW_COLOR.hasOwnProperty(glow)) glow = '';
 
         /* ---------- the room's state ---------- */
         const people = new Map();         // h → { h, n, l, x, y, tx, ty, e, et, face, walking, say, sayUntil }
-        let me = '', joined = false, pending = false, refused = false, air = { live: false, talking: false, music: false };
+        let me = '', joined = false, pending = false, refused = false, air = { live: false, talking: false, music: false, fx: { level: 0, on: {}, crowd: false } };
+        const hits = [], bursts = [];      // { a, b, k, at } being drawn; { k, at } going off
         let hostSay = null;               // Radioman's bubble: { text, until }
         const now = () => performance.now() / 1000;
         const toPx = (u, v) => [F.x0 + u / 1000 * (F.x1 - F.x0), F.y0 + v / 1000 * (F.y1 - F.y0)];
@@ -81,7 +97,8 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', trail: [],
+                x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
 
@@ -90,7 +107,7 @@
             if (refused || pending) return;
             if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
-            if (!core.send({ t: 'hall-join', look })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -109,6 +126,7 @@
                     people.clear();
                     for (const p of m.people || []) add(p);
                     me = m.you; joined = true; pending = false; air = m.air || air;
+                    paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
                     notice('');
@@ -136,7 +154,15 @@
                     break;
                 }
                 case 'hall-rps': onGame(m); break;
-                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen }; break;
+                case 'hall-safe': { const p = people.get(m.h); if (p) p.s = m.s; break; }
+                case 'hall-glow': { const p = people.get(m.h); if (p) { p.g = m.g; p.trail = []; } if (m.h === me) paintEmoji(); break; }
+                case 'hall-hit': onHit(m); break;
+                case 'hall-fx':
+                    bursts.push({ k: m.k, at: now() });
+                    while (bursts.length > 12) bursts.shift();
+                    if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
+                    break;
+                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx }; paintBursts(); break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
                     notice((m.reason || 'blug.dj/jej is closed right now.') + ' Click to try again.');
@@ -275,6 +301,7 @@
             const q = personAt(rx, ry);
             if (q) return openPop(q, e);
             popEl.hidden = true;
+            pendingHit = null;
             const x = clampX(rx), y = clampY(ry);
             p.tx = x; p.ty = y;
             sendGo(x, y);
@@ -290,10 +317,16 @@
             emojiEl.innerHTML = '<div class="he-tabs"><button type="button" class="btn' + (emojiTab === 'say' ? ' on' : '') + '" data-tab="say">💬 Say</button>' +
                 '<button type="button" class="btn' + (emojiTab === 'hold' ? ' on' : '') + '" data-tab="hold">✋ Hold</button>' +
                 '<button type="button" class="btn' + (emojiTab === 'feel' ? ' on' : '') + '" data-tab="feel">😊 Feel</button>' +
+                '<button type="button" class="btn' + (emojiTab === 'glow' ? ' on' : '') + '" data-tab="glow">🪄 Glow</button>' +
                 (held ? '<button type="button" class="btn" data-drop>Drop ' + held + '</button>' : '') +
-                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)' : 'Adds it to what you’re typing') + '</span>' +
+                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)'
+                    : emojiTab === 'glow' ? 'A glowstick to wave (dance for big trails)' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
-                '<div class="he-grid">' + (emojiTab === 'feel'
+                '<div class="he-grid">' + (emojiTab === 'glow'
+                    ? GLOWS.map(([id, c]) => '<button type="button" class="he-e he-glow' + (id === glow ? ' on' : '') + '" data-glow="' + id + '" title="' + id + '" style="background:' +
+                        (c || 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)') + '"></button>').join('') +
+                        (glow ? '<button type="button" class="btn" data-glow="">Put it away</button>' : '')
+                    : emojiTab === 'feel'
                     ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
                     : list.map(e => '<button type="button" class="he-e' + (e === held ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>').join('')) + '</div>';
         }
@@ -310,6 +343,14 @@
             if (t) { emojiTab = t.dataset.tab; return paintEmoji(); }
             if (e.target.closest('[data-close]')) { emojiEl.hidden = true; return; }
             if (e.target.closest('[data-drop]')) return hold('');
+            const gl = e.target.closest('[data-glow]');
+            if (gl) {
+                glow = gl.dataset.glow === glow ? '' : gl.dataset.glow;
+                try { localStorage.setItem('ltl.hallGlow', glow); } catch { /* full */ }
+                const p = mine(); if (p) { p.g = glow; p.trail = []; }
+                core.send({ t: 'hall-glow', g: glow });
+                return paintEmoji();
+            }
             const md = e.target.closest('[data-mood]');
             if (md) {
                 const p = mine();
@@ -362,17 +403,172 @@
         const nameOf = (h) => (people.get(h) || {}).n || 'someone';
         function openPop(q, e) {
             const sr = stage.getBoundingClientRect();
-            popEl.innerHTML = '<b>' + esc(q.n) + '</b><button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>';
+            popEl.innerHTML = '<b>' + esc(q.n) + '</b><button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
+                (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
+                    : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
+                    : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
             popEl.style.left = Math.min(sr.width - 220, Math.max(4, e.clientX - sr.left + 8)) + 'px';
             popEl.style.top = Math.max(4, e.clientY - sr.top - 30) + 'px';
             popEl.hidden = false;
         }
         popEl.addEventListener('click', (e) => {
             e.stopPropagation();
+            const hb = e.target.closest('[data-hit]');
+            if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
             const b = e.target.closest('[data-rps]');
             if (!b) return;
             core.send({ t: 'hall-rps', to: b.dataset.rps });
             popEl.hidden = true;
+        });
+
+        /* ---------- bonk, fish slap, snowball ---------- */
+        let pendingHit = null;            // walking over to someone to bonk or slap them: { h, k, until }
+        const near = (p, q) => Math.abs(p.x - q.x) <= 14 && Math.abs(p.y - q.y) <= 9;
+        function doHit(h, k) {
+            const p = mine(), q = people.get(h);
+            if (!p || !q) return;
+            if (MELEE[k] && !near(p, q)) {
+                // Up close for these: walk over to their side first, then swing.
+                const side = p.x < q.x ? -1 : 1, x = clampX(q.x + side * 9), y = clampY(q.y);
+                p.tx = x; p.ty = y; sendGo(x, y);
+                pendingHit = { h, k, until: now() + 5 };
+                return;
+            }
+            pendingHit = null;
+            core.send({ t: 'hall-hit', to: h, k });
+        }
+        /** Got there: swing (called every frame while walking over). */
+        function hitWhenClose() {
+            if (!pendingHit) return;
+            const p = mine(), q = people.get(pendingHit.h);
+            if (!p || !q || now() > pendingHit.until) { pendingHit = null; return; }
+            if (!near(p, q)) return;
+            p.face = q.x < p.x ? -1 : 1;
+            core.send({ t: 'hall-hit', to: q.h, k: pendingHit.k });
+            pendingHit = null;
+        }
+        function onHit(m) {
+            const a = people.get(m.a), b = people.get(m.b);
+            if (!a || !b) return;
+            if (m.k !== 'snowball' || Math.abs(b.x - a.x) > 1) a.face = b.x < a.x ? -1 : 1;
+            hits.push({ a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1 });
+            while (hits.length > 30) hits.shift();
+            logLine({ text: HIT_LINE[m.k](a.n, b.n) }, 'game');
+        }
+        /** Knocked about: where someone is drawn, just after a hit. */
+        function hitOffset(p, t) {
+            let ox = 0, oy = 0;
+            for (const x of hits) {
+                if (x.b !== p.h) continue;
+                const s = t - x.at;
+                if (x.k === 'slap' && s > 0.15 && s < 0.6) ox += x.dir * 5 * (1 - (s - 0.15) / 0.45);
+                if (x.k === 'bonk' && s > 0.25 && s < 0.75) oy += 2;
+                if (x.k === 'snowball' && s > 0.45 && s < 0.7) ox += x.dir * 2;
+            }
+            return [ox, oy];
+        }
+        function emojiAt(ch, x, y, size, angle) {
+            ctx.save();
+            ctx.font = size + 'px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.translate(Math.round(x), Math.round(y));
+            if (angle) ctx.rotate(angle);
+            ctx.fillText(ch, 0, 0);
+            ctx.restore();
+        }
+        function popWord(text, x, y, u, color) {
+            const fs = Math.max(12, Math.round(4 * u / dpr)) * dpr;
+            ctx.font = 'bold ' + fs + 'px "Courier New", monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = Math.max(2, fs / 5); ctx.strokeStyle = '#000';
+            ctx.strokeText(text, Math.round(x), Math.round(y));
+            ctx.fillStyle = color; ctx.fillText(text, Math.round(x), Math.round(y));
+        }
+        /** The swings, the fish and the snowballs, and what they do. */
+        function drawHits(t, u, heads) {
+            const es = Math.max(14, Math.round(6 * u / dpr)) * dpr;
+            for (let i = hits.length - 1; i >= 0; i--) {
+                const x = hits[i], s = t - x.at;
+                if (s > 1.6) { hits.splice(i, 1); continue; }
+                const a = people.get(x.a), b = people.get(x.b);
+                if (!b || !heads.has(b.h)) continue;
+                const hx = b.x * u, hy = heads.get(b.h) * u, d = x.dir;
+                if (x.k === 'bonk') {
+                    // The hammer comes down on their head, then stars.
+                    if (s < 0.35) emojiAt('🔨', hx - d * 4 * u, hy - 5 * u, es, d * (-1.4 + Math.min(1, s / 0.25) * 1.7));
+                    if (s > 0.25) {
+                        for (let k = 0; k < 3; k++) {
+                            const a2 = s * 7 + k * 2.1;
+                            popWord('*', hx + Math.cos(a2) * 6 * u, hy - 2 * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a');
+                        }
+                        if (s < 1) popWord('BONK!', hx, hy - 9 * u - s * 3 * u, u, '#ffd34a');
+                    }
+                } else if (x.k === 'slap') {
+                    // A fish swung across their face.
+                    if (s < 0.4) emojiAt('🐟', hx - d * (8 - Math.min(1, s / 0.2) * 9) * u, hy + 3 * u, es, d * (-0.6 + s * 3));
+                    if (s > 0.15 && s < 1.1) popWord('SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u, '#7ee3ff');
+                } else {
+                    // A snowball in an arc from their hand, then a splat.
+                    if (a && heads.has(a.h) && s < 0.45) {
+                        const k = s / 0.45, ax = (a.x + (b.x < a.x ? -5 : 5)) * u, ay = (heads.get(a.h) + 8) * u;
+                        const bx = ax + (hx - ax) * k, by = ay + (hy + 3 * u - ay) * k - Math.sin(k * Math.PI) * 14 * u;
+                        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#9ab8d8'; ctx.lineWidth = Math.max(1, u / 3);
+                        ctx.beginPath(); ctx.arc(Math.round(bx), Math.round(by), 1.6 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                    } else if (s >= 0.45) {
+                        const k = s - 0.45;
+                        ctx.fillStyle = '#ffffff';
+                        for (let j = 0; j < 8; j++) {
+                            const a3 = j / 8 * Math.PI * 2;
+                            ctx.globalAlpha = Math.max(0, 1 - k / 0.6);
+                            ctx.fillRect(Math.round(hx + Math.cos(a3) * (2 + k * 14) * u), Math.round(hy + 3 * u + Math.sin(a3) * (1 + k * 8) * u), Math.ceil(u * 0.8), Math.ceil(u * 0.8));
+                        }
+                        ctx.globalAlpha = 1;
+                        if (k < 1.1) emojiAt('❄️', hx + d * 5 * u, hy - 3 * u, Math.round(es * 0.7), 0);
+                    }
+                }
+            }
+        }
+
+        /* ---------- glowsticks: waved about, with trails ---------- */
+        function drawGlows(sorted, heads, u, t) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.lineCap = 'round';
+            for (const p of sorted) {
+                if (!p.g || !heads.has(p.h)) { p.trail.length = 0; continue; }
+                const f = p.face < 0 ? -1 : 1, hx = p.x - f * 4, hy = heads.get(p.h) + 9;
+                // Dancing (any pose) or walking: big loops; standing about: a gentle sway.
+                const busy = p.e || p.walking, a = t * (busy ? 7 : 2.2) + p.x, r = busy ? 4.5 : 2;
+                const tip = [hx + Math.cos(a) * r, hy - 3 + Math.sin(a) * r * 0.8];
+                p.trail.push([tip[0], tip[1], t]);
+                while (p.trail.length && t - p.trail[0][2] > 0.4) p.trail.shift();
+                const colorAt = (k) => p.g === 'rainbow' ? 'hsl(' + Math.round((t * 220 + k * 40) % 360) + ',100%,60%)' : GLOW_COLOR[p.g];
+                for (let k = 1; k < p.trail.length; k++) {
+                    const [x0, y0] = p.trail[k - 1], [x1, y1, at] = p.trail[k];
+                    ctx.globalAlpha = Math.max(0, 1 - (t - at) / 0.4) * 0.8;
+                    ctx.strokeStyle = colorAt(k); ctx.lineWidth = Math.max(1, u * 0.9);
+                    ctx.beginPath(); ctx.moveTo(x0 * u, y0 * u); ctx.lineTo(x1 * u, y1 * u); ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+                ctx.shadowColor = colorAt(0); ctx.shadowBlur = 6 * u;
+                ctx.strokeStyle = colorAt(0); ctx.lineWidth = Math.max(1.5, u * 1.1);
+                ctx.beginPath(); ctx.moveTo(hx * u, hy * u); ctx.lineTo(tip[0] * u, tip[1] * u); ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            ctx.restore();
+        }
+
+        /* ---------- stage effects anyone can set off (when the host allows) ---------- */
+        const burstsEl = $('.hall-bursts', bar);
+        function paintBursts() {
+            const fx = air.fx || {};
+            burstsEl.hidden = !(joined && fx.crowd && fx.level);
+            const fire = $('[data-burst="fire"]', burstsEl);
+            if (fire) fire.hidden = !(fx.on && fx.on.fire);
+        }
+        burstsEl.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-burst]');
+            if (b) core.send({ t: 'hall-fx', k: b.dataset.burst });
         });
         function onGame(g, quiet) {
             const t = now(), old = games.get(g.id);
@@ -505,6 +701,7 @@
             if (p) {
                 const push = pushing();
                 if (push) {
+                    pendingHit = null;
                     const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1);
                     p.x = clampX(p.x + push[0] * sp * dt);
                     p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
@@ -526,6 +723,7 @@
                 }
                 if (ONE_SHOT[q.e] && t - q.et > ONE_SHOT[q.e]) q.e = '';
             }
+            hitWhenClose();
         }
 
         /* ---------- drawing ---------- */
@@ -611,13 +809,17 @@
             const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign };
             A.room(lc, t, onAir, info);
             A.centre(lc, t, onAir, info);            // Radioman at his desk while live; a big radio (or FunpostTV) off air
+            while (bursts.length && t - bursts[0].at > 8) bursts.shift();
+            const fx = joined && air.fx ? { ...air.fx, bursts } : null;
+            A.fxBack(lc, t, onAir, fx);
             const sorted = [...people.values()].sort((a, b) => a.y - b.y);
             const heads = new Map();
             for (const p of sorted) {
-                heads.set(p.h, A.person(lc, p.l, { x: p.x, y: p.y, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
+                heads.set(p.h, A.person(lc, p.l, { x: p.x + ox, y: p.y + oy, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t }));
             }
-            A.lights(lc, t, onAir);
+            A.lights(lc, t, onAir, fx);
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(low, 0, 0, cv.width, cv.height);
             // Names under feet, bubbles over heads, at screen resolution.
@@ -630,8 +832,10 @@
                 ctx.fillStyle = p.c || (p.h === me ? '#ffd34a' : '#e6e0f2'); ctx.fillText(p.n, nx, ny);
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
+            drawGlows(sorted, heads, u, t);
             drawHeld(sorted, heads, u);
             drawMoods(sorted, heads, u, t);
+            drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
             if (hostSay && hostSay.until > t) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
@@ -658,6 +862,8 @@
                     '</div></div>').join('') +
                 '<div class="hl-row"><span>Name</span><form class="hl-name"><input name="n" maxlength="32" value="' + esc(core.name || '') + '" placeholder="Your name">' +
                     '<button class="btn">Save</button></form></div>' +
+                '<div class="hl-row"><span>Fun</span><label class="hl-safe"><input type="checkbox" data-safe' + (safe ? '' : ' checked') + '> Bonks, fish slaps and snowballs ' +
+                    '<small>(off: nobody can hit you, and you can’t hit anyone)</small></label></div>' +
                 '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
                     '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
@@ -672,7 +878,15 @@
             g.clearRect(0, 0, 24, 26);
             A.person(g, look, { x: 12, y: 24, face: 1, t: now(), emote: 'wave', et: 0 });
         }
+        lookEl.addEventListener('change', (e) => {
+            if (!e.target.matches('[data-safe]')) return;
+            safe = !e.target.checked;
+            try { localStorage.setItem('ltl.hallSafe', safe ? '1' : '0'); } catch { /* full */ }
+            const p = mine(); if (p) p.s = safe;
+            core.send({ t: 'hall-safe', on: safe });
+        });
         lookEl.addEventListener('click', (e) => {
+            if (e.target.closest('.hl-safe')) return;
             const b = e.target.closest('[data-k]'), nc = e.target.closest('[data-nc]');
             if (nc) {
                 // Your name colour, for chat and your tag here: it goes with your name, so the station knows it.

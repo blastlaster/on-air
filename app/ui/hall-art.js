@@ -294,18 +294,139 @@
         }
     }
 
-    /** Light beams over everything, sweeping while music plays. */
-    function lights(ctx, t, air) {
+    /* =========================================================
+       STAGE EFFECTS — fx = { level 0–3, on: {lasers, disco, smoke,
+       spots, fire}, bursts: [{k, at}] } (engine/hall.js fxState).
+       fxBack goes behind the people, lights over them. The beat is
+       the room's own (two a second): the station doesn't know a
+       song's tempo.
+       ========================================================= */
+    const PARTY = ['#ff3b6b', '#ff9f1c', '#ffe600', '#39ff14', '#00e5ff', '#5a7bff', '#d14fff'];
+    const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+    const burstOf = (fx, k, secs, t) => (fx.bursts || []).filter(b => b.k === k && t - b.at >= 0 && t - b.at < secs);
+
+    function fxBack(ctx, t, air, fx) {
         l = ctx;
-        if (!air.music) return;
-        const sweep = Math.sin(t * 0.8) * 50, flash = Math.floor(t * 2) % 2 === 0 && (t * 2) % 1 < 0.25;
-        for (const [ox, col, dir] of [[61, '#ff7ccc', 1], [179, '#5aa0ff', -1]]) {
-            const tx = ox + sweep * dir;
-            l.globalAlpha = flash ? 0.22 : 0.13;
-            l.fillStyle = col;
-            l.beginPath(); l.moveTo(ox - 1, 3); l.lineTo(ox + 1, 3); l.lineTo(tx + 16, 140); l.lineTo(tx - 16, 140); l.closePath(); l.fill();
+        if (!fx) return;
+        const lv = fx.level || 0, on = fx.on || {}, beat = Math.floor(t * 2);
+        if (on.disco && lv >= 2) discoBall(t, lv);
+        // Fire jets either side of the stage: on every other bar at a rave, and whenever someone sets them off.
+        const burning = burstOf(fx, 'fire', 2.4, t).length > 0;
+        const onBeat = on.fire && lv >= 3 && beat % 4 === 0 && (t * 2) % 1 < 0.7;
+        if (burning || onBeat) { flame(37, t, burning ? 22 : 14); flame(203, t, burning ? 22 : 14); }
+    }
+
+    /** The disco ball over the dance floor, and its sparkles going round the room. */
+    function discoBall(t, lv) {
+        const cx = 120, cy = 7, r = 4, turn = Math.floor(t * 6);
+        R(cx, 0, 1, cy - r, '#8a8aa0');
+        for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+            if (x * x + y * y > r * r + 1) continue;
+            const k = (x + turn + y * 2 + 99) % 3;
+            R(cx + x, cy + y, 1, 1, k === 0 ? '#ffffff' : k === 1 ? '#c8c8dc' : '#7a7a92');
+        }
+        const n = lv >= 3 ? 26 : 16;
+        for (let i = 0; i < n; i++) {
+            const a = i / n * Math.PI * 2 + t * (lv >= 3 ? 1.1 : 0.6);
+            const x = cx + Math.cos(a) * (40 + hash(i) * 75), y = 44 + Math.sin(a) * (14 + hash(i + 9) * 50);
+            if (y < 1 || y > 148) continue;
+            l.globalAlpha = 0.45 + 0.4 * hash(i + Math.floor(t * 4));
+            R(x, y, 1 + (i % 2), 1, PARTY[i % PARTY.length]);
+        }
+        l.globalAlpha = 1;
+    }
+
+    /** A jet of fire standing on the stage. */
+    function flame(x, t, h) {
+        const top = 49;
+        R(x - 3, top, 6, 2, '#2a2438');                                       // the burner
+        const hh = Math.round(h * (0.75 + 0.25 * Math.sin(t * 23 + x)));
+        for (let i = 0; i < hh; i++) {
+            const k = i / hh, w = Math.max(1, Math.round((1 - k) * 6)), j = Math.round(Math.sin(t * 31 + i * 0.9 + x) * k * 2);
+            R(x - w / 2 + j, top - 1 - i, w, 1, k < 0.2 ? '#fff3a0' : k < 0.45 ? '#ffc046' : k < 0.75 ? '#ff6a1f' : '#c8102e');
+        }
+    }
+
+    /** Spotlights, lasers, smoke and confetti, over everything. */
+    function lights(ctx, t, air, fx) {
+        l = ctx;
+        fx = fx || { level: air.music ? 2 : 0, on: { spots: true } };
+        const lv = fx.level || 0, on = fx.on || {};
+        const flash = Math.floor(t * 2) % 2 === 0 && (t * 2) % 1 < 0.25;
+        if (on.spots && lv >= 1) {
+            const sweep = Math.sin(t * (lv >= 3 ? 1.6 : lv >= 2 ? 0.8 : 0.35)) * (lv >= 2 ? 50 : 30);
+            const beams = lv >= 3 ? [[61, '#ff7ccc', 1], [179, '#5aa0ff', -1], [100, '#ffe600', -1], [140, '#39ff14', 1]] : [[61, '#ff7ccc', 1], [179, '#5aa0ff', -1]];
+            for (const [ox, col, dir] of beams) {
+                const tx = ox + sweep * dir;
+                l.globalAlpha = lv === 1 ? 0.08 : flash ? 0.22 : 0.13;
+                l.fillStyle = col;
+                l.beginPath(); l.moveTo(ox - 1, 3); l.lineTo(ox + 1, 3); l.lineTo(tx + 16, 140); l.lineTo(tx - 16, 140); l.closePath(); l.fill();
+            }
             l.globalAlpha = 1;
         }
+        const zap = burstOf(fx, 'lasers', 3, t).length > 0;
+        if ((on.lasers && lv >= 2) || zap) lasers(t, zap ? 3 : lv);
+        const puffs = burstOf(fx, 'smoke', 7, t);
+        if ((on.smoke && lv >= 2) || puffs.length) smoke(t, lv, puffs);
+        for (const b of burstOf(fx, 'confetti', 4.5, t)) confetti(t - b.at, b.at);
+    }
+
+    /** Laser beams fanning out from both sides of the stage; a strobe at a rave. */
+    function lasers(t, lv) {
+        if (lv >= 3 && (t * 4) % 1 > 0.7) return;
+        const n = lv >= 3 ? 5 : 3;
+        l.save();
+        l.globalCompositeOperation = 'lighter';
+        l.lineWidth = 1;
+        for (const [ox, side] of [[34, 1], [206, -1]]) {
+            for (let i = 0; i < n; i++) {
+                const a = Math.sin(t * (lv >= 3 ? 2.2 : 1.2) + i * 0.9 + side) * 0.9;
+                const tx = ox + side * (60 + i * 25) + Math.sin(a) * 90, ty = 150;
+                l.strokeStyle = PARTY[(i * 2 + (side > 0 ? 0 : 3) + Math.floor(t * 2)) % PARTY.length];
+                l.globalAlpha = 0.55;
+                l.beginPath(); l.moveTo(ox + 0.5, 47.5); l.lineTo(tx + 0.5, ty); l.stroke();
+            }
+        }
+        l.restore();
+    }
+
+    /** Haze rolling along the front of the stage (thicker at a rave), and puffs when someone sets it off. */
+    function smoke(t, lv, puffs) {
+        const haze = lv >= 3 ? 0.16 : lv >= 2 ? 0.1 : 0;
+        l.fillStyle = '#d8d4f0';
+        if (haze) for (let i = 0; i < 9; i++) {
+            const x = ((i * 31 + t * (6 + i % 3 * 3)) % 300) - 30, y = 56 + (i % 3) * 6 + Math.sin(t * 0.7 + i) * 2;
+            puff(x, y, 22, 5, haze * (0.6 + 0.4 * Math.sin(t + i)));
+        }
+        for (const b of puffs) {
+            const s = t - b.at, fade = Math.max(0, 1 - s / 7);
+            for (let i = 0; i < 14; i++) {
+                const x = 20 + hash(i + b.at) * 200 + Math.sin(s * 0.8 + i) * 6, y = 62 + hash(i + 3) * 40 - s * 4;
+                puff(x, y, 14 + s * 4, 6 + s * 2, 0.3 * fade);
+            }
+        }
+        l.globalAlpha = 1;
+    }
+
+    /** A soft cloud: the same ellipse three times, smaller and thicker towards the middle. */
+    function puff(x, y, rx, ry, a) {
+        for (const k of [1, 0.7, 0.42]) {
+            l.globalAlpha = a / 2.2;
+            l.beginPath(); l.ellipse(x, y, rx * k, ry * k, 0, 0, Math.PI * 2); l.fill();
+        }
+    }
+
+    /** Confetti falling over the room for a few seconds. */
+    function confetti(s, seed) {
+        for (let i = 0; i < 90; i++) {
+            const h1 = hash(i + seed), h2 = hash(i * 3 + seed);
+            const y = -6 + (s - h2 * 0.8) * (30 + h1 * 30);
+            if (y < -4 || y > 150) continue;
+            const x = (h1 * 260 - 10) + Math.sin(s * 4 + i) * 4;
+            l.globalAlpha = Math.min(1, (4.5 - s) / 1.2);
+            R(x, y, 1 + (i % 2), 2 - (i % 2), PARTY[i % PARTY.length]);
+        }
+        l.globalAlpha = 1;
     }
 
     /* =========================================================
@@ -442,7 +563,7 @@
     const SCREEN = { x: 152, y: 8, w: 56, h: 26 };
     /** Where FunpostTV plays: the right-hand screen while live, the middle of the stage off air. */
     const screenFor = (live) => (live ? SCREEN : CENTRE_TV);
-    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); } };
 })();
