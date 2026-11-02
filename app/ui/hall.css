@@ -56,6 +56,19 @@
 .hall-acts .btn.cool::before { content: ''; position: absolute; inset: 0; background: conic-gradient(rgba(0, 0, 0, 0.72) calc(var(--cool, 0) * 360deg), transparent 0); pointer-events: none; }
 .hall-acts .btn.cool::after { content: attr(data-left); position: absolute; inset: 0; display: grid; place-items: center; font: bold 12px/1 system-ui, sans-serif; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; }
 .he-pic img { width: 26px; height: 26px; object-fit: contain; display: block; }
+.hall-emoji .he-sub { grid-column: 1 / -1; font-size: 11px; opacity: 0.75; margin: 4px 0 1px; }
+.hall-emoji .he-sub span { opacity: 0.7; }
+/* The Look card in sections, each with a line: Look, Glow, You, Options. */
+.hl-sec { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sk-dim, #a69cbc); }
+.hl-sec:first-child { margin-top: 0; }
+.hl-sec::after { content: ''; flex: 1; border-top: 1px solid rgba(255, 255, 255, 0.18); }
+.hl-none { font-size: 11px; line-height: 1; color: #fff; background: #2a2438; }
+.hl-auras { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 3px; }
+.hl-aura { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 2px; font-size: 16px; line-height: 1.1; }
+.hl-aura small { font-size: 9px; opacity: 0.85; white-space: nowrap; }
+.hall-look .hl-aura.on { background: var(--sk-btn-active, #ff2f6e); color: var(--sk-btn-active-text, #fff); }
+.hl-auras .hl-none { width: auto; height: auto; min-height: 36px; }
+.hl-note { flex-basis: 100%; font-size: 10px; opacity: 0.65; }
 .hl-auto { display: flex; gap: 6px; align-items: center; cursor: pointer; }
 .hall-look { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); z-index: 5; }
 .hl-card { display: grid; grid-template-columns: auto 1fr; gap: 12px 16px; padding: 14px; max-width: min(620px, 94%); max-height: 92%; overflow: auto;

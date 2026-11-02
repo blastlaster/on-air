@@ -457,6 +457,151 @@
         l.globalAlpha = 1;
     }
 
+
+    /* =========================================================
+       AURAS (the Glow tab) — behind you, and a little in front for
+       some: kind = glow super charge rings rainbow shadow ultra,
+       `c` a colour (for those that take one). Feet at (x, y).
+       ========================================================= */
+    const AURA_COLORS = { yellow: '#ffd34a', green: '#39ff14', pink: '#ff2fd0', cyan: '#00e5ff', orange: '#ff7a00', purple: '#b04fff' };
+    const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
+    function auraGlow(x, y, t, c, k) {
+        const cy = y - 10, p = 0.8 + 0.2 * Math.sin(t * 3);
+        const g = l.createRadialGradient(x, cy, 1, x, cy, 14 * k);
+        g.addColorStop(0, rgba(c, 0.55 * p)); g.addColorStop(0.55, rgba(c, 0.25 * p)); g.addColorStop(1, rgba(c, 0));
+        l.save(); l.globalCompositeOperation = 'lighter'; l.fillStyle = g;
+        l.beginPath(); l.ellipse(x, cy, 9 * k, 14 * k, 0, 0, Math.PI * 2); l.fill(); l.restore();
+    }
+    /** A spiky flame shape all round you, tallest over the head: white-hot near you, the colour at the edge. */
+    function auraFlames(x, y, t, c, tall) {
+        l.save(); l.globalCompositeOperation = 'lighter';
+        const tick = Math.floor(t * 12);
+        for (let dx = -10; dx <= 10; dx++) {
+            const e = Math.sqrt(Math.max(0, 1 - (dx / 11) ** 2)), spike = (dx + 30) % 3 === 0 ? 1 : 0.55;
+            const top = y - 4 - e * (22 + 10 * spike * hash(dx * 13 + tick)) * tall, bottom = y - 1;
+            for (let yy = Math.round(top); yy <= bottom; yy++) {
+                const k = (yy - top) / (bottom - top), hot = (1 - Math.abs(dx) / 11) * k;
+                l.fillStyle = hot > 0.55 ? rgba('#ffffff', 0.35) : rgba(c, 0.18 + 0.4 * (1 - k * 0.6));
+                l.fillRect(Math.round(x + dx), yy, 1, 1);
+            }
+        }
+        for (let i = 0; i < 8; i++) {                                         // sparks flying up
+            const s = (t * 1.2 + hash(i)) % 1;
+            l.fillStyle = rgba(i % 2 ? '#ffffff' : c, 1 - s);
+            l.fillRect(Math.round(x + (hash(i + 3) - 0.5) * 22), Math.round(y - 6 - s * 34), 1, 1);
+        }
+        l.restore();
+    }
+    function auraLightning(x, y, t) {
+        if (Math.floor(t * 8) % 3) return;                                    // now and then
+        l.save(); l.globalCompositeOperation = 'lighter'; l.strokeStyle = 'rgba(255,255,255,0.9)'; l.lineWidth = 1;
+        for (let b = 0; b < 2; b++) {
+            const seed = Math.floor(t * 8) * 7 + b, side = b ? 1 : -1;
+            let px = x + side * 6, py = y - 22;
+            l.beginPath(); l.moveTo(px + 0.5, py + 0.5);
+            for (let s = 0; s < 5; s++) { px += side * (hash(seed + s) * 3 - 1); py += 4; l.lineTo(Math.round(px) + 0.5, Math.round(py) + 0.5); }
+            l.stroke();
+        }
+        l.restore();
+    }
+    function auraRings(x, y, t, c) {
+        l.save(); l.globalCompositeOperation = 'lighter'; l.lineWidth = 1;
+        for (let i = 0; i < 3; i++) {
+            const s = (t * 0.7 + i / 3) % 1;
+            l.strokeStyle = rgba(c, 0.7 * (1 - s));
+            l.beginPath(); l.ellipse(x, y - 1, 5 + s * 12, 2 + s * 4, 0, 0, Math.PI * 2); l.stroke();
+        }
+        l.restore();
+        auraGlow(x, y, t, c, 0.8);
+    }
+    function auraRainbow(x, y, t) {
+        const hue = (t * 120) % 360;
+        auraGlow(x, y, t, hslHex(hue), 1.1);
+        l.save(); l.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 10; i++) {
+            const a = t * 2 + i / 10 * Math.PI * 2;
+            l.fillStyle = 'hsla(' + ((hue + i * 36) % 360) + ',100%,65%,0.9)';
+            l.fillRect(Math.round(x + Math.cos(a) * 9), Math.round(y - 10 + Math.sin(a) * 13), 1, 1);
+        }
+        l.restore();
+    }
+    function hslHex(h) {
+        const f = (n) => { const k = (n + h / 30) % 12, v = 0.6 - 0.4 * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0'); };
+        return '#' + f(0) + f(8) + f(4);
+    }
+    /** Dark smoke curling up off you, and a dark pool at your feet (some of the smoke goes in front). */
+    function auraShadow(x, y, t, front) {
+        if (!front) { l.fillStyle = 'rgba(20,0,35,0.45)'; l.beginPath(); l.ellipse(x, y, 10, 3, 0, 0, Math.PI * 2); l.fill(); }
+        const n = front ? 6 : 14;
+        for (let i = 0; i < n; i++) {
+            const s = (t * 0.5 + hash(i + (front ? 40 : 0))) % 1;
+            const sx = x + (hash(i + (front ? 9 : 5)) - 0.5) * (front ? 12 : 16) + Math.sin(t * 2 + i) * 3, sy = y - (front ? 4 : 2) - s * (front ? 22 : 30);
+            l.fillStyle = i % 3 || front ? 'rgba(30,5,50,' + (0.6 * (1 - s)) + ')' : 'rgba(140,50,200,' + (0.45 * (1 - s)) + ')';
+            l.beginPath(); l.ellipse(sx, sy, 2 + s * 3, 1.5 + s * 2, 0, 0, Math.PI * 2); l.fill();
+        }
+    }
+    /* Ultra: a thin bright edge hugging your outline exactly (your own shape, a pixel out), and
+       quick afterimages of you when you move. Drawn from your own sprite on a little canvas. */
+    let sil = null, tint = null;
+    function silhouette(look, o, color, grow) {
+        if (!sil) { sil = document.createElement('canvas'); sil.width = sil.height = 48; tint = document.createElement('canvas'); tint.width = tint.height = 48; }
+        const s = sil.getContext('2d'), g = tint.getContext('2d'), keep = l;
+        s.clearRect(0, 0, 48, 48);
+        person(s, look, { ...o, x: 24, y: 40, noShadow: true });
+        l = keep;
+        g.clearRect(0, 0, 48, 48);
+        g.globalCompositeOperation = 'source-over';
+        // Grown by `grow` pixels, rounded (no square corners): every offset within that many steps.
+        for (let dy = -grow; dy <= grow; dy++) for (let dx = -grow; dx <= grow; dx++) if ((dx || dy) && Math.abs(dx) + Math.abs(dy) <= grow) g.drawImage(sil, dx, dy);
+        if (!grow) g.drawImage(sil, 0, 0);
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = color; g.fillRect(0, 0, 48, 48);
+        g.globalCompositeOperation = 'source-over';
+        return tint;
+    }
+    function auraUltra(x, y, t, look, o, trail) {
+        // Afterimages first (oldest, faintest), then the edge right round you.
+        if (trail && trail.length) {
+            const ghost = silhouette(look, o, '#9cc8ff', 0);
+            l.save(); l.globalCompositeOperation = 'lighter';
+            for (const [gx, gy, at] of trail) {
+                const a = 1 - (t - at) / 0.35;
+                if (a <= 0 || (Math.abs(gx - x) < 1 && Math.abs(gy - y) < 1)) continue;
+                l.globalAlpha = 0.35 * a; l.drawImage(ghost, Math.round(gx - 24), Math.round(gy - 40));
+            }
+            l.restore();
+        }
+        const flick = 0.75 + 0.25 * Math.sin(t * 17) * Math.sin(t * 5.3);
+        l.save();
+        l.globalAlpha = 0.35 * flick; l.drawImage(silhouette(look, o, '#6aa8ff', 3), Math.round(x - 24), Math.round(y - 40));
+        l.globalAlpha = 0.95 * flick; l.drawImage(silhouette(look, o, '#e8f4ff', 1), Math.round(x - 24), Math.round(y - 40));
+        // A few silver flecks drifting up off you.
+        l.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 5; i++) {
+            const s = (t * 0.8 + hash(i + 70)) % 1;
+            l.globalAlpha = 0.9 * (1 - s);
+            R(x + (hash(i + 71) - 0.5) * 12, y - 6 - s * 20, 1, 1, i % 2 ? '#ffffff' : '#9cc8ff');
+        }
+        l.restore();
+    }
+    /** An aura, behind the person (front false) or the bits over them (front true). */
+    function aura(ctx, kind, color, x, y, t, front, look, o, trail) {
+        l = ctx;
+        const c = color === 'rainbow' ? hslHex((t * 120) % 360) : AURA_COLORS[color] || AURA_COLORS.yellow;
+        if (front) {
+            if (kind === 'shadow') auraShadow(x, y, t, true);
+            if (kind === 'charge') auraLightning(x, y, t);
+            return;
+        }
+        if (kind === 'glow') auraGlow(x, y, t, c, 1);
+        else if (kind === 'super') { auraGlow(x, y, t, c, 0.9); auraFlames(x, y, t, c, 1); }
+        else if (kind === 'charge') { auraGlow(x, y, t, c, 1); auraFlames(x, y, t, c, 1.3); }
+        else if (kind === 'rings') auraRings(x, y, t, c);
+        else if (kind === 'rainbow') auraRainbow(x, y, t);
+        else if (kind === 'shadow') auraShadow(x, y, t, false);
+        else if (kind === 'ultra') auraUltra(x, y, t, look, o, trail);
+    }
+
     /* =========================================================
        PEOPLE — feet at (x, y); about 9 wide and 17 tall
        ========================================================= */
@@ -478,7 +623,7 @@
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
         else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
         if (jumpT != null && jumpT >= 0 && jumpT < 0.6) lift = Math.max(lift, Math.round(Math.sin(jumpT / 0.6 * Math.PI) * 8));     // Space: a jump
-        R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,0.45)');                   // shadow stays on the floor
+        if (!o.noShadow) R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,0.45)');                   // shadow stays on the floor
         if (o.dash) {                                                   // Shift: a dash, with speed lines behind
             const back = f > 0 ? -1 : 1;
             l.globalAlpha = 0.6;
@@ -591,7 +736,7 @@
     const SCREEN = { x: 152, y: 8, w: 56, h: 26 };
     /** Where FunpostTV plays: the right-hand screen while live, the middle of the stage off air. */
     const screenFor = (live) => (live ? SCREEN : CENTRE_TV);
-    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
         cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); } };

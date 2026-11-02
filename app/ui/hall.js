@@ -30,6 +30,12 @@
     // Glowsticks (engine/hall.js GLOWS); rainbow goes round the colours.
     const GLOWS = [['green', '#39ff14'], ['pink', '#ff2fd0'], ['cyan', '#00e5ff'], ['yellow', '#ffe600'], ['orange', '#ff7a00'], ['purple', '#b04fff'], ['rainbow', '']];
     const GLOW_COLOR = Object.fromEntries(GLOWS);
+    // Auras (the same tab: one glow thing at a time). The first four take a colour.
+    const AURAS = [['glow', '✨', 'Glow'], ['super', '🔥', 'Super'], ['charge', '⚡', 'Charge'], ['rings', '⭕', 'Halo rings'],
+        ['rainbow', '🌈', 'Rainbow'], ['shadow', '🌑', 'Shadow'], ['ultra', '💠', 'Ultra']];
+    const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };
+    const RAINBOW_BG = 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)';
+    const auraOf = (a) => (a ? ['aura', ...a.split(':')] : null);                      // ['aura', kind, colour?]
     // Stage effects anyone can set off, when the host allows it (engine/hall.js CROWD_BURSTS).
     const BURSTS = [['fire', '🔥', 'Fire on the stage'], ['confetti', '🎊', 'Confetti']];
     const BURST_LINE = { fire: '🔥 {n} set the stage on fire', confetti: '🎊 {n} threw confetti' };
@@ -76,9 +82,11 @@
         if (!look || typeof look !== 'object') { look = A.randomLook(); saveLook(); }
         function saveLook() { try { localStorage.setItem('ltl.hallLook', JSON.stringify(look)); } catch { /* full */ } }
         // Out of bonks, slaps and snowballs (both ways), and your glowstick: remembered.
-        let safe = false, glow = '';
-        try { safe = localStorage.getItem('ltl.hallSafe') === '1'; glow = localStorage.getItem('ltl.hallGlow') || ''; } catch { /* defaults */ }
+        let safe = false, glow = '', aura = '';
+        try { safe = localStorage.getItem('ltl.hallSafe') === '1'; glow = localStorage.getItem('ltl.hallGlow') || ''; aura = localStorage.getItem('ltl.hallAura') || ''; } catch { /* defaults */ }
+        if (glow.startsWith('aura:')) { aura = glow.slice(5); glow = ''; }      // (from when it was one or the other)
         if (!GLOW_COLOR.hasOwnProperty(glow)) glow = '';
+        if (!/^[a-z]+(:[a-z]+)?$/.test(aura)) aura = '';
 
         /* ---------- the room's state ---------- */
         const people = new Map();         // h → { h, n, l, x, y, tx, ty, e, et, face, walking, say, sayUntil }
@@ -93,7 +101,7 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', trail: [],
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', trail: [], atrail: [],
                 x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
@@ -103,7 +111,7 @@
             if (refused || pending) return;
             if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
-            if (!core.send({ t: 'hall-join', look, safe, glow })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -155,7 +163,8 @@
                 case 'hall-table': onTable(m.table); break;
                 case 'hall-table-del': onTableGone(m.id); break;
                 case 'hall-safe': { const p = people.get(m.h); if (p) p.s = m.s; break; }
-                case 'hall-glow': { const p = people.get(m.h); if (p) { p.g = m.g; p.trail = []; } if (m.h === me) paintEmoji(); break; }
+                case 'hall-glow': { const p = people.get(m.h); if (p) { p.g = m.g; p.trail = []; } break; }
+                case 'hall-aura': { const p = people.get(m.h); if (p) { p.a = m.a; p.atrail = []; } break; }
                 case 'hall-hit': onHit(m); break;
                 case 'hall-fx':
                     bursts.push({ k: m.k, at: now() });
@@ -335,27 +344,37 @@
             if (emojiEl.hidden) return;
             const held = (mine() || {}).o || '';
             const feel = (mine() || {}).f || '';
-            const list = emojiTab === 'hold' ? HOLDS : emojiTab === 'feel' ? [] : SAY.concat(HOLDS);
-            emojiEl.innerHTML = '<div class="he-tabs"><button type="button" class="btn' + (emojiTab === 'say' ? ' on' : '') + '" data-tab="say">💬 Say</button>' +
-                '<button type="button" class="btn' + (emojiTab === 'hold' ? ' on' : '') + '" data-tab="hold">✋ Hold</button>' +
-                '<button type="button" class="btn' + (emojiTab === 'feel' ? ' on' : '') + '" data-tab="feel">😊 Feel</button>' +
-                '<button type="button" class="btn' + (emojiTab === 'glow' ? ' on' : '') + '" data-tab="glow">✨ Glow</button>' +
-                (stationEmotes().length ? '<button type="button" class="btn' + (emojiTab === 'station' ? ' on' : '') + '" data-tab="station">🖼 Station</button>' : '') +
+            const pics = stationEmotes();
+            const tab = (id, label) => '<button type="button" class="btn' + (emojiTab === id ? ' on' : '') + '" data-tab="' + id + '">' + label + '</button>';
+            const emo = (e, on) => '<button type="button" class="he-e' + (on ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>';
+            emojiEl.innerHTML = '<div class="he-tabs">' + tab('say', '😀 Emote') + tab('hold', '✋ Hold') + tab('feel', '😊 Feel') +
                 (held ? '<button type="button" class="btn" data-drop>Drop ' + held + '</button>' : '') +
-                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)'
-                    : emojiTab === 'glow' ? 'A glowstick to wave (dance for big trails)' : emojiTab === 'station' ? 'The station’s own — adds it to what you’re typing' : 'Adds it to what you’re typing') + '</span>' +
+                '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
-                '<div class="he-grid">' + (emojiTab === 'station'
-                    ? stationEmotes().map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('')
-                    : emojiTab === 'glow'
-                    ? GLOWS.map(([id, c]) => '<button type="button" class="he-e he-glow' + (id === glow ? ' on' : '') + '" data-glow="' + id + '" title="' + id + '" style="background:' +
-                        (c || 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)') + '"></button>').join('') +
-                        (glow ? '<button type="button" class="btn" data-glow="">Put it away</button>' : '')
-                    : emojiTab === 'feel'
+                '<div class="he-grid">' + (emojiTab === 'feel'
                     ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
-                    : list.map(e => '<button type="button" class="he-e' + (e === held ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>').join('')) + '</div>';
+                    : emojiTab === 'hold' ? HOLDS.map(e => emo(e, e === held)).join('')
+                    // Emote: the station's own pictures first, then the emoji.
+                    : (pics.length ? '<div class="he-sub">The station’s</div>' + pics.map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('') +
+                        '<div class="he-sub">Emoji</div>' : '') + SAY.concat(HOLDS).map(e => emo(e, false)).join('')) + '</div>';
         }
         const stationEmotes = () => Object.keys((window.LT && LT.EMOTES) || {});
+        let auraColor = 'yellow';
+        try { auraColor = localStorage.getItem('ltl.hallAuraColor') || 'yellow'; } catch { /* default */ }
+        if (!A.AURA_COLORS[auraColor] && auraColor !== 'rainbow') auraColor = 'yellow';
+        /** Your glowstick (a colour, or '' for none) and your aura ('super:pink', 'ultra', or ''): the room sees both. */
+        function setStick(g) {
+            glow = g;
+            try { localStorage.setItem('ltl.hallGlow', glow); } catch { /* full */ }
+            const p = mine(); if (p) { p.g = glow; p.trail = []; }
+            core.send({ t: 'hall-glow', g: glow });
+        }
+        function setAura(a) {
+            aura = a;
+            try { localStorage.setItem('ltl.hallAura', aura); } catch { /* full */ }
+            const p = mine(); if (p) { p.a = aura; p.atrail = []; }
+            core.send({ t: 'hall-aura', a: aura });
+        }
         function hold(o) {
             const p = mine();
             if (!p) return;
@@ -369,14 +388,6 @@
             if (t) { emojiTab = t.dataset.tab; return paintEmoji(); }
             if (e.target.closest('[data-close]')) { emojiEl.hidden = true; return; }
             if (e.target.closest('[data-drop]')) return hold('');
-            const gl = e.target.closest('[data-glow]');
-            if (gl) {
-                glow = gl.dataset.glow === glow ? '' : gl.dataset.glow;
-                try { localStorage.setItem('ltl.hallGlow', glow); } catch { /* full */ }
-                const p = mine(); if (p) { p.g = glow; p.trail = []; }
-                core.send({ t: 'hall-glow', g: glow });
-                return paintEmoji();
-            }
             const md = e.target.closest('[data-mood]');
             if (md) {
                 const p = mine();
@@ -1159,8 +1170,21 @@
             const heads = new Map();
             for (const p of sorted) {
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
-                heads.set(p.h, A.person(lc, p.l, { x: p.x + ox, y: p.y + oy, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
-                    mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t }));
+                const po = { x: p.x + ox, y: p.y + oy, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                    mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t };
+                const au = auraOf(p.a);
+                if (au) {
+                    // Ultra's afterimages: where you've just been, for a moment.
+                    if (au[1] === 'ultra') {
+                        p.atrail = p.atrail || [];
+                        const last = p.atrail[p.atrail.length - 1];
+                        if (!last || Math.hypot(last[0] - po.x, last[1] - po.y) > 2.5) p.atrail.push([po.x, po.y, t]);
+                        while (p.atrail.length && t - p.atrail[0][2] > 0.35) p.atrail.shift();
+                    }
+                    A.aura(lc, au[1], au[2], po.x, po.y, t, false, p.l, po, p.atrail);
+                }
+                heads.set(p.h, A.person(lc, p.l, po));
+                if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
             }
             A.lights(lc, t, onAir, fx);
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
@@ -1203,29 +1227,48 @@
                 const v = e.target.n.value;
                 if (core.setName && core.setName(v)) { U.toast('You’re ' + v.trim().slice(0, 32) + ' now.'); paintLook(); }
             };
-            lookEl.innerHTML = '<div class="hl-card"><canvas class="hl-prev" width="24" height="26"></canvas><div class="hl-parts">' +
+            const sec = (name) => '<div class="hl-sec"><span>' + name + '</span></div>';
+            const off = (attr, title) => '<button type="button" class="hl-sw hl-none" ' + attr + '="" title="' + title + '">✕</button>';
+            lookEl.innerHTML = '<div class="hl-card"><canvas class="hl-prev" width="40" height="44"></canvas><div class="hl-parts">' +
+                sec('Look') +
                 A.PARTS.map(p => '<div class="hl-row"><span>' + p.label + '</span><div>' +
                     (p.colors ? p.colors.map((c, i) => '<button type="button" class="hl-sw" data-k="' + p.key + '" data-v="' + i + '" style="background:' + c + '" title="' + p.label + ' ' + (i + 1) + '"></button>').join('')
                         : p.names.map((n, i) => '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + n + '</button>').join('')) +
                     '</div></div>').join('') +
+                sec('Glow') +
+                '<div class="hl-row"><span>Glowstick</span><div>' + off('data-stick', 'No glowstick') + GLOWS.map(([id, c]) =>
+                    '<button type="button" class="hl-sw" data-stick="' + id + '" title="' + id + '" style="background:' + (c || RAINBOW_BG) + '"></button>').join('') + '</div></div>' +
+                '<div class="hl-row"><span>Aura</span><div class="hl-auras">' + off('data-aura', 'No aura') + AURAS.map(([id, icon, name]) =>
+                    '<button type="button" class="btn hl-aura" data-aura="' + id + '" title="' + name + '">' + icon + '<small>' + name + '</small></button>').join('') + '</div></div>' +
+                '<div class="hl-row"><span>Aura colour</span><div>' + Object.entries(A.AURA_COLORS).concat([['rainbow', RAINBOW_BG]]).map(([id, c]) =>
+                    '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + id + '" style="background:' + c + '"></button>').join('') +
+                    '<small class="hl-note">for Glow, Super, Charge and Halo rings</small></div></div>' +
+                sec('You') +
                 '<div class="hl-row"><span>Name</span><form class="hl-name"><input name="n" maxlength="32" value="' + esc(core.name || '') + '" placeholder="Your name">' +
                     '<button class="btn">Save</button></form></div>' +
+                '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
+                    '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
+                sec('Options') +
                 '<div class="hl-row"><span>This panel</span><label class="hl-auto"><input type="checkbox" data-lookauto' + (lookAuto ? ' checked' : '') + '> Close it when I click the room or walk</label></div>' +
                 '<div class="hl-row"><span>Fun</span><label class="hl-safe"><input type="checkbox" data-safe' + (safe ? '' : ' checked') + '> Bonks, fish slaps and snowballs ' +
                     '<small>(off: nobody can hit you, and you can’t hit anyone)</small></label></div>' +
-                '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
-                    '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
             paintLook();
         }
         function paintLook() {
             for (const b of lookEl.querySelectorAll('[data-k]')) b.classList.toggle('on', look[b.dataset.k] === +b.dataset.v);
             for (const b of lookEl.querySelectorAll('[data-nc]')) b.classList.toggle('on', (core.color || '') === b.dataset.nc);
+            for (const b of lookEl.querySelectorAll('[data-stick]')) b.classList.toggle('on', glow === b.dataset.stick);
+            for (const b of lookEl.querySelectorAll('[data-aura]')) b.classList.toggle('on', aura.split(':')[0] === b.dataset.aura);
+            for (const b of lookEl.querySelectorAll('[data-auracolor]')) b.classList.toggle('on', auraColor === b.dataset.auracolor);
             const pc = $('.hl-prev', lookEl);
             if (!pc) return;
-            const g = pc.getContext('2d');
-            g.clearRect(0, 0, 24, 26);
-            A.person(g, look, { x: 12, y: 24, face: 1, t: now(), emote: 'wave', et: 0 });
+            // You, with your aura on (the glowstick shows in the room).
+            const g = pc.getContext('2d'), t = now(), o = { x: 20, y: 40, face: 1, t, emote: 'wave', et: 0 }, au = aura.split(':');
+            g.clearRect(0, 0, 40, 44);
+            if (aura) A.aura(g, au[0], au[1], 20, 40, t, false, look, o, []);
+            A.person(g, look, o);
+            if (aura) A.aura(g, au[0], au[1], 20, 40, t, true, look, o);
         }
         lookEl.addEventListener('change', (e) => {
             if (e.target.matches('[data-lookauto]')) { lookAuto = e.target.checked; try { localStorage.setItem('ltl.hallLookAuto', lookAuto ? '1' : '0'); } catch { /* full */ } return; }
@@ -1237,6 +1280,21 @@
         });
         lookEl.addEventListener('click', (e) => {
             if (e.target.closest('.hl-safe, .hl-auto')) return;
+            const st = e.target.closest('[data-stick]'), au = e.target.closest('[data-aura]'), ac = e.target.closest('[data-auracolor]');
+            if (st) { setStick(st.dataset.stick); return paintLook(); }
+            if (au) {
+                const id = au.dataset.aura;
+                setAura(!id || aura.split(':')[0] === id ? '' : id + (AURA_TINTED[id] ? ':' + auraColor : ''));
+                return paintLook();
+            }
+            if (ac) {
+                // The colour for the auras that take one (and the one you have on, if it does).
+                auraColor = ac.dataset.auracolor;
+                try { localStorage.setItem('ltl.hallAuraColor', auraColor); } catch { /* full */ }
+                const kind = aura.split(':')[0];
+                if (kind && AURA_TINTED[kind]) setAura(kind + ':' + auraColor);
+                return paintLook();
+            }
             const b = e.target.closest('[data-k]'), nc = e.target.closest('[data-nc]');
             if (nc) {
                 // Your name colour, for chat and your tag here: it goes with your name, so the station knows it.
