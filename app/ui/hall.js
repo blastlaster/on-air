@@ -417,7 +417,9 @@
             const sr = stage.getBoundingClientRect();
             const their = tableOf(q.h);
             popEl.innerHTML = '<b>' + esc(q.n) + '</b><button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
-                (their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
+                (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
+                    ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
+                    : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
                 (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
                     : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
                     : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
@@ -427,6 +429,8 @@
         }
         popEl.addEventListener('click', (e) => {
             e.stopPropagation();
+            const jb = e.target.closest('[data-join]');
+            if (jb) { popEl.hidden = true; return core.send({ t: 'hall-table-sit', id: jb.dataset.join }); }
             const wb = e.target.closest('[data-watch]');
             if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
@@ -829,8 +833,18 @@
         /** Who's at a table and what they're doing there, from the person menu. */
         const tableOf = (h) => [...tables.values()].find(tb => tb.state !== 'done' && tb.seats.includes(h));
         /** Over the heads of people playing: a little 🎲. */
-        function tableBadges(u, heads) {
+        const GAME_ICONS = { ttt: '⭕', checkers: '⛀', chinese: '✡' };
+        function tableBadges(u, heads, t) {
             for (const tb of tables.values()) {
+                // Waiting for players: a gold sign over whoever's sat down, bobbing, so the room knows to come and join.
+                if (tb.state === 'waiting') {
+                    const sat = tb.seats.filter(Boolean).length, lift = Math.round(Math.abs(Math.sin(t * 3)) * 2);
+                    tb.seats.forEach((h) => {
+                        const p = h && people.get(h);
+                        if (p && heads.has(h)) badge(GAME_ICONS[tb.g] + ' JOIN ' + sat + '/' + tb.seats.length, (p.x + 8) * u, (heads.get(h) - 2 - lift) * u, u, true);
+                    });
+                    continue;
+                }
                 if (tb.state !== 'playing') continue;
                 tb.seats.forEach((h, i) => {
                     const p = people.get(h);
@@ -1057,7 +1071,7 @@
             drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
-            tableBadges(u, heads);
+            tableBadges(u, heads, t);
             if (hostSay && hostSay.until > t) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
         }
 
