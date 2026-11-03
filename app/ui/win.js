@@ -429,7 +429,8 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 if (file.size > VM_BYTES) { UI.toast('That file is over 25 MB. Try an MP3 or M4A.'); return; }
                 if (f.n.value.trim()) core.setName(f.n.value);
                 const x = new XMLHttpRequest();
-                x.open('POST', core.engine + '/api/voicemail?name=' + encodeURIComponent(f.n.value.trim()) + '&note=' + encodeURIComponent(f.note.value.trim()));
+                const look = core.hallLook && core.hallLook();
+                x.open('POST', core.engine + '/api/voicemail?name=' + encodeURIComponent(f.n.value.trim()) + '&note=' + encodeURIComponent(f.note.value.trim()) + (look ? '&look=' + encodeURIComponent(JSON.stringify(look)) : ''));
                 const bar = q('.upbar'), btn = q('.vm-send');
                 bar.hidden = false; btn.disabled = true; btn.textContent = 'Sending…';
                 x.upload.onprogress = (e) => { if (e.lengthComputable) bar.firstChild.style.width = Math.round(e.loaded / e.total * 100) + '%'; };

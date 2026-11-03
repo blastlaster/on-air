@@ -93,6 +93,9 @@
         let me = '', joined = false, pending = false, refused = false, air = { live: false, talking: false, music: false, fx: { level: 0, on: {}, crowd: false } };
         const hits = [], bursts = [];      // { a, b, k, at } being drawn; { k, at } going off
         let hostSay = null;               // Radioman's bubble: { text, until }
+        // On a call (or a voicemail on air): who's in the speaker boxes, and how far each has slid in.
+        let booth = { host: false, calls: [], vm: null };
+        const boxes = new Map();          // key → { k, want, side, name, who, talk, strip }
         const now = () => performance.now() / 1000;
         const toPx = (u, v) => [F.x0 + u / 1000 * (F.x1 - F.x0), F.y0 + v / 1000 * (F.y1 - F.y0)];
         const toU = (x, y) => [Math.round((x - F.x0) / (F.x1 - F.x0) * 1000), Math.round((y - F.y0) / (F.y1 - F.y0) * 1000)];
@@ -129,7 +132,7 @@
                 case 'hall-welcome':
                     people.clear();
                     for (const p of m.people || []) add(p);
-                    me = m.you; joined = true; pending = false; air = m.air || air;
+                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth;
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
@@ -172,6 +175,7 @@
                     while (bursts.length > 12) bursts.shift();
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
                     break;
+                case 'hall-booth': booth = { host: !!m.host, calls: m.calls || [], vm: m.vm || null }; break;
                 case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx, tag: m.tag }; paintBursts(); break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
@@ -1200,7 +1204,8 @@
             A.lights(lc, t, onAir, fx);
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
             let cameoAt = null;
-            if (hostTalking && !onAir.live) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
+            const boothOn = speakerBoxes(dt, t, onAir);
+            if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(low, 0, 0, cv.width, cv.height);
             // Names under feet, bubbles over heads, at screen resolution.
@@ -1222,6 +1227,31 @@
             tableBadges(u, heads, t);
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
             if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
+        }
+
+        /**
+         * The speaker boxes: on a call, Radioman bottom-left and each caller bottom-right; during
+         * a voicemail on air, just the caller's. They slide in, and slide out when it's over.
+         * Returns whether any is showing.
+         */
+        function speakerBoxes(dt, t, onAir) {
+            const want = new Map();
+            if (joined && onAir.live) {
+                if (booth.calls.length) want.set('host', { side: -1, slot: 0, name: air.tag == null ? 'LRM' : air.tag, who: { rm: true }, talk: booth.host, strip: '#d0302a' });
+                booth.calls.forEach((c, i) => want.set('call:' + c.k, { side: 1, slot: i, name: c.n, who: c.l ? { look: c.l } : {}, talk: c.talk, strip: '#2f8f48' }));
+                if (booth.vm) want.set('vm', { side: 1, slot: booth.calls.length, name: booth.vm.n, who: booth.vm.l ? { look: booth.vm.l } : {}, talk: booth.vm.talk, strip: '#6448b0' });
+            }
+            for (const [key, w] of want) { const b = boxes.get(key); if (b) Object.assign(b, w, { want: 1 }); else boxes.set(key, { ...w, k: 0, want: 1 }); }
+            for (const [key, b] of boxes) if (!want.has(key)) b.want = 0;
+            let any = false;
+            for (const [key, b] of boxes) {
+                b.k += Math.sign(b.want - b.k) * Math.min(Math.abs(b.want - b.k), dt / 0.35);
+                if (b.k <= 0 && !b.want) { boxes.delete(key); continue; }
+                const e = b.k * b.k * (3 - 2 * b.k);                    // eased
+                A.speakerBox(lc, t, b.side, b.slot, e, !!b.talk && b.want > 0, b.name, b.who, b.strip);
+                any = true;
+            }
+            return any;
         }
 
         /* ---------- your look ---------- */

@@ -21,6 +21,8 @@
 
     const pref = (k, d) => { try { const v = localStorage.getItem('ltl.' + k); return v == null ? d : v; } catch { return d; } };
     const setPref = (k, v) => { try { localStorage.setItem('ltl.' + k, v); } catch { /* full */ } };
+    /** Your look in the Hall, if you've been there: it goes with a call or a voicemail, for the speaker box. */
+    const hallLook = () => { try { const l = JSON.parse(pref('hallLook', 'null')); return l && typeof l === 'object' ? l : null; } catch { return null; } };
     const trim = (s) => String(s || '').trim();
     const sameJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -475,7 +477,7 @@
         });
         setCall({ state: 'starting', text: asGuest ? 'Checking in…' : 'Asking for your microphone…', muted: false });
         call.getMic().then(() => {
-            send({ t: 'call', name: myName, topic: topic || '' });
+            send({ t: 'call', name: myName, topic: topic || '', look: hallLook() });
             call.keepAwake();
         }, (err) => {
             toast('Microphone: ' + (err && err.name === 'NotAllowedError' ? 'permission was refused.' : (err && err.message) || err));
@@ -609,7 +611,7 @@
         loadLibrary,
         get emotes() { return emotes; },
         get emotesKey() { return emotesKey; },
-        on, toast, now: serverNow, skipVote,
+        on, toast, now: serverNow, skipVote, hallLook,
         play, stop, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,
         send, setName,

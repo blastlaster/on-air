@@ -173,6 +173,84 @@
     }
 
     /* =========================================================
+       SPEAKER BOXES — on a call (or a voicemail on air): Radioman's
+       frame bottom-left, each caller's bottom-right, mouths going
+       while they talk. A caller with no look is Anonymous: the
+       green man, of 4chan fame.
+       ========================================================= */
+    // g green skin, G its shade, k eyes / mouth, w shirt, t tie, s suit
+    const ANON_HEAD = [
+        '......gggggggg......',
+        '....gggggggggggG....',
+        '...ggggggggggggggG..',
+        '..gggggggggggggggG..',
+        '..gggggggggggggggGG.',
+        '..gggggggggggggggGG.',
+        '..gggkkggggggkkggGG.',
+        '..gggkkggggggkkggGG.',
+        '..gggggggggggggggGG.',
+        '..gggggggggggggggGG.',
+        '..ggggkggggggkgggGG.',
+        '..gggggkkkkkkggggG..',
+        '...ggggggggggggggG..',
+        '....ggggggggggggG...',
+        '......ggggggggg.....',
+        '.....wwwwwttwwww....',
+        '...sssswwwttwwwsss..',
+        '..sssssswwttwwsssss.',
+        '.sssssssswttwsssssss',
+        'sssssssssttssssssss.'
+    ];
+    const ANON_PAL = { g: '#7fbf6a', G: '#66a352', k: '#1c2a18', w: '#f2f2f2', t: '#1e1e26', s: '#2b2b33' };
+    // Talking: the smile opens and closes.
+    const ANON_MOUTH_OPEN = { 10: '..gggggggggggggggGG.', 11: '..gggggkkkkkkggggG..', 12: '...ggggkkkkkkgggggG.' };
+
+    function sprite(rows, pal, x, y, swap) {
+        rows.forEach((row, r) => {
+            if (swap && swap[r]) row = swap[r].padEnd(20, '.').slice(0, 20);
+            for (let c = 0; c < row.length; c++) if (row[c] !== '.') R(x + c, y + r, 1, 1, pal[row[c]]);
+        });
+    }
+
+    /**
+     * One speaker box. side -1 = bottom-left (sliding in from the left), 1 = bottom-right;
+     * slot 0 is the corner, 1 and 2 sit further in. who = { rm: true } | { look } | {} (Anonymous).
+     * `k` 0–1 slides it in; returns the box's top centre (for a speech bubble).
+     */
+    function speakerBox(t, side, slot, k, talking, name, who, strip) {
+        const fw = 26, fh = 32, gap = 4, off = (1 - k) * (fw + 6 + slot * (fw + gap));
+        const x = side < 0 ? Math.round(3 + slot * (fw + gap) - off) : Math.round(W - 3 - fw - slot * (fw + gap) + off), y = H - fh - 3;
+        R(x - 1, y - 1, fw + 2, fh + 2, talking ? '#ffffff' : '#bdb6d0'); R(x, y, fw, fh, '#1d1830');
+        for (let i = 0; i < fw; i += 4) R(x + i, y, 2, fh, '#211b37');           // the wall behind them
+        const flap = talking && Math.floor(t * 7) % 2 === 1, bob = talking ? Math.floor(t * 4) % 2 : 0;
+        if (who.rm) sprite(RM_HEAD, RM_PAL, x + 3, y + 3 + bob, flap ? RM_MOUTH_SMALL : null);
+        else if (who.look) {
+            // Their own character, close up: twice the size, head and shoulders.
+            l.save();
+            l.beginPath(); l.rect(x, y, fw, fh - 7); l.clip();
+            l.translate(x + fw / 2 - 1, y + 3 + bob); l.scale(2, 2);
+            person(l, who.look, { x: 0, y: 15, face: side < 0 ? 1 : -1, t, talk: talking, noShadow: true });
+            l.restore();
+        } else sprite(ANON_HEAD, ANON_PAL, x + 3, y + 3 + bob, flap ? ANON_MOUTH_OPEN : null);
+        // Little sound marks on the side facing the room.
+        if (talking && Math.floor(t * 6) % 2) {
+            const sx = side < 0 ? x + fw - 2 : x + 1;
+            R(sx, y + 15, 1, 1, '#ffffff'); R(side < 0 ? sx - 1 : sx, y + 19, 2, 1, '#ffffff');
+        }
+        // A name strip: centred if it fits, scrolling if it doesn't.
+        const label = String(name || 'ANONYMOUS').toUpperCase(), nw = textWidth(label);
+        R(x, y + fh - 7, fw, 7, strip);
+        if (nw <= fw - 2) text(l, label, x + Math.round((fw - nw) / 2), y + fh - 6, '#ffffff');
+        else {
+            const loop = nw + 12, o = Math.floor((t * 14) % loop);
+            l.save(); l.beginPath(); l.rect(x + 1, y + fh - 7, fw - 2, 7); l.clip();
+            text(l, label, x + 1 - o, y + fh - 6, '#ffffff'); text(l, label, x + 1 - o + loop, y + fh - 6, '#ffffff');
+            l.restore();
+        }
+        return { x: x + fw / 2, y: y - 1 };
+    }
+
+    /* =========================================================
        THE ROOM
        ========================================================= */
     /** The Sign's colours (as on the LED sign itself). */
@@ -739,5 +817,6 @@
     window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
-        cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); } };
+        cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); },
+        speakerBox: (ctx, t, side, slot, k, talking, name, who, strip) => { l = ctx; const r = speakerBox(t, side, slot, k, talking, name, who, strip || '#d0302a'); l = ctx; return r; } };
 })();
