@@ -1,4 +1,4 @@
-## What's new in 0.5.13
+## What's new in 0.5.14
 
-- **Hide threads and posts on [s4s].** In the Interface, press ✕ on a thread or "hide" on a post; a hidden post shrinks to one line, with "show" to bring it back. Tick **Hidden** over the list to see the threads you hid and unhide them.
-- **One list for both.** What you hide in the Interface is hidden in the board window too, and what you hide in the board window (4chan's own [–] or ▶ → Hide) is hidden in the Interface.
+- **Le Radioman's entrance.** When the show goes live, blug.dj/jej counts down on the stage screen, smoke fills the stage, the desk appears out of nowhere and Radioman walks out and sits down just as the show starts.
+- **FunpostTV takes the stage.** When FunpostTV comes on during a show, its screen grows into the middle of the stage and Radioman's desk teleports aside, then back again when it ends.
