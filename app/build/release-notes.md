@@ -1,3 +1,4 @@
-## What's new in 0.5.12
+## What's new in 0.5.13
 
-- **The emoji picker fits on phones.** In blug.dj/jej it now sits just above the buttons, however many rows they wrap to, so nothing is hidden underneath. Its header is tidier on narrow screens too.
+- **Hide threads and posts on [s4s].** In the Interface, press ✕ on a thread or "hide" on a post; a hidden post shrinks to one line, with "show" to bring it back. Tick **Hidden** over the list to see the threads you hid and unhide them.
+- **One list for both.** What you hide in the Interface is hidden in the board window too, and what you hide in the board window (4chan's own [–] or ▶ → Hide) is hidden in the Interface.
