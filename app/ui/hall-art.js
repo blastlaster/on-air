@@ -130,18 +130,99 @@
             R(x + 1, y, 3 + f, 1, '#ffffff');
             R(x, y + 4 + f, 2 + f, 1, '#ffffff');
         }
-        // The desk and his hands on it.
+        desk(t, air.live, true, nod);
+    }
+    /** The desk, its ON AIR lamp and the mic (and his hands on it, when he's there). */
+    function desk(t, lit, hands, nod) {
         R(RX - 28, RY + 30, 56, 3, '#8a5a3a'); R(RX - 28, RY + 30, 56, 1, '#a8774f');
         R(RX - 26, RY + 33, 52, 11, '#5a3a22');
-        R(RX - 13, RY + 28, 5, 3, '#b0b0b0'); R(RX + 9, RY + 28, 5, 3, '#b0b0b0');
+        if (hands) { R(RX - 13, RY + 28, 5, 3, '#b0b0b0'); R(RX + 9, RY + 28, 5, 3, '#b0b0b0'); }
         // The ON AIR lamp on the desk's front.
         R(RX - 13, RY + 36, 26, 7, '#1a1020');
-        text(l, 'ON AIR', RX - 11, RY + 37, air.live ? (Math.floor(t * 2) % 2 ? '#ff4a4a' : '#ff2a2a') : '#4a2a2a');
+        text(l, 'ON AIR', RX - 11, RY + 37, lit ? (Math.floor(t * 2) % 2 ? '#ff4a4a' : '#ff2a2a') : '#4a2a2a');
         // The mic: base on the desk, a stand, its head by his mouth.
         R(RX - 15, RY + 29, 6, 1, '#2a2a2a');
         R(RX - 12, RY + 19, 1, 10, '#3c3c3c');
         R(RX - 12, RY + 18, 4, 1, '#3c3c3c');
-        R(RX - 10, RY + 13 + nod, 3, 5, '#2a2a2a'); R(RX - 9, RY + 14 + nod, 1, 3, '#6a6a6a');
+        R(RX - 10, RY + 13 + (nod || 0), 3, 5, '#2a2a2a'); R(RX - 9, RY + 14 + (nod || 0), 1, 3, '#6a6a6a');
+    }
+
+    /* =========================================================
+       THE ENTRANCE — the go-live countdown. The screen counts down;
+       near the end smoke fills the stage, the desk appears out of
+       nowhere as it clears, and Radioman walks out from the wings
+       to it, sitting down just as the show goes live.
+       `left` = seconds to live (0 or less: just gone live).
+       ========================================================= */
+    const ENTRANCE = 4.5;                   // seconds of smoke, desk and walk (fewer if the countdown's shorter)
+    function phases(secs) {
+        const E = Math.min(ENTRANCE, Math.max(1, secs)), k = E / ENTRANCE;
+        return { smoke: E, desk: E - 1.5 * k, clear: 1.5 * k, sit: 0.6 * k };
+    }
+    /** Radioman on his feet, his head's top at y: jacket, trousers, shoes, legs swapping as he walks. */
+    function rmStanding(x, y, step) {
+        RM_HEAD.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] !== '.') R(x - 10 + c, y + r, 1, 1, RM_PAL[row[c]]); });
+        for (let r = 0; r < 12; r++) { const w = 16 + Math.min(r, 3) * 2; R(x - w / 2, y + 19 + r, w, 1, '#6f7480'); }
+        R(x - 5, y + 19, 10, 2, '#8a909c');                                      // collar
+        R(x - 1, y + 23, 1, 1, '#4c515c'); R(x - 1, y + 27, 1, 1, '#4c515c');   // buttons
+        const a = step ? 1 : -1;                                                 // arms swinging, then legs
+        R(x - 12, y + 21 + a, 2, 8, '#646a76'); R(x + 10, y + 21 - a, 2, 8, '#646a76');
+        R(x - 12, y + 29 + a, 2, 2, '#b0b0b0'); R(x + 10, y + 29 - a, 2, 2, '#b0b0b0');
+        R(x - 5 + a, y + 31, 4, 5, '#3a3d48'); R(x + 1 - a, y + 31, 4, 5, '#3a3d48');
+        R(x - 6 + a, y + 36, 5, 1, '#151515'); R(x + 1 - a, y + 36, 5, 1, '#151515');
+    }
+    /** The middle of the stage during the countdown (in place of centre()). */
+    function entrance(t, left, secs, air, info) {
+        const P = phases(secs);
+        if (left > P.desk) return centre(t, { ...air, live: false }, { ...info, tv: left > P.smoke && info.tv });
+        if (left <= 0) return radioman(t, { ...air, live: true, talking: false });
+        // Out of the wings on the left to his chair, then down into it.
+        const walk = Math.min(1, (P.desk - left) / Math.max(0.1, P.desk - P.sit)), x = Math.round(34 + (RX - 34) * walk);
+        const step = walk < 1 ? Math.floor(t * 6) % 2 : 0, y = left > P.sit ? 12 : 12 + Math.round(1 - left / P.sit);
+        rmStanding(x, y + (walk < 1 ? step : 0), step);
+        l.globalAlpha = Math.min(1, (P.desk - left) / 0.3);
+        desk(t, false, false, 0);
+        l.globalAlpha = 1;
+    }
+    /** Over everything: the countdown on the screen, the smoke, the magic, and ON AIR at zero. */
+    function introOver(t, left, secs) {
+        const P = phases(secs);
+        // The right-hand screen counts down; at zero it says so.
+        const S = SCREEN;
+        R(S.x, S.y, S.w, S.h, '#0b0610');
+        if (left > 0) {
+            const n = String(Math.ceil(left)), frac = left - Math.floor(left), big = frac > 0.85 ? 4 : 3;
+            text(l, 'LIVE IN', S.x + Math.round((S.w - textWidth('LIVE IN')) / 2), S.y + 2, '#ff9ad2');
+            l.save(); l.translate(S.x + Math.round((S.w - textWidth(n) * big) / 2), S.y + 9 - (big - 3) * 2); l.scale(big, big);
+            text(l, n, 0, 0, left <= 3 ? '#ff4a4a' : '#ffc046');
+            l.restore();
+        } else if (Math.floor(-left * 4) % 2 === 0) {
+            l.save(); l.translate(S.x + Math.round((S.w - textWidth('ON AIR') * 2) / 2), S.y + 8); l.scale(2, 2);
+            text(l, 'ON AIR', 0, 0, '#ff2a2a');
+            l.restore();
+        }
+        // Smoke: thickening over the stage, then clearing to show the desk.
+        const d = left > P.smoke ? 0 : left > P.desk ? (P.smoke - left) / (P.smoke - P.desk) : Math.max(0, 1 - (P.desk - left) / P.clear);
+        if (d > 0) {
+            l.fillStyle = '#d8d4f0';
+            for (let i = 0; i < 26; i++) {
+                const x = 30 + (i * 37) % 180 + Math.sin(t * 0.6 + i) * 6, y = 10 + (i * 13) % 44 + Math.cos(t * 0.5 + i * 2) * 3;
+                puff(x, y, 24 + (i % 4) * 4, 11 + (i % 3) * 3, 0.95 * d);
+            }
+            l.globalAlpha = 1;
+        }
+        // The desk appearing: a flash, a ring and sparkles where it lands.
+        const m = P.desk - left;
+        if (m >= 0 && m < 0.9) {
+            const f = 1 - m / 0.9;
+            l.fillStyle = '#ffffff'; puff(RX, RY + 36, 34, 13, 1.4 * f); l.globalAlpha = f;
+            arc(RX, RY + 36, 6 + m * 40, 0, Math.PI * 2, '#fff6a8');
+            for (let i = 0; i < 18; i++) {
+                const a = hash(i) * Math.PI * 2, r = 4 + m * (20 + hash(i + 9) * 24);
+                R(RX + Math.cos(a) * r, RY + 36 + Math.sin(a) * r * 0.6, 1, 1, i % 3 ? '#fff6a8' : '#ffffff');
+            }
+            l.globalAlpha = 1;
+        }
     }
 
     /**
@@ -817,6 +898,9 @@
     window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
+        entrance: (ctx, t, left, secs, air, info) => { l = ctx; entrance(t, left, secs, air, info); },
+        introOver: (ctx, t, left, secs) => { l = ctx; introOver(t, left, secs); },
+        ENTRANCE,
         cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); },
         speakerBox: (ctx, t, side, slot, k, talking, name, who, strip) => { l = ctx; const r = speakerBox(t, side, slot, k, talking, name, who, strip || '#d0302a'); l = ctx; return r; } };
 })();

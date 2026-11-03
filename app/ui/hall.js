@@ -95,6 +95,12 @@
         let hostSay = null;               // Radioman's bubble: { text, until }
         // On a call (or a voicemail on air): who's in the speaker boxes, and how far each has slid in.
         let booth = { host: false, calls: [], vm: null };
+        // The go-live countdown: when it reaches zero, on this page's clock (0 = none), and how long it is.
+        let introEnd = 0, introSecs = 0;
+        function setIntro(i) {
+            if (i && i.left >= 0) { introEnd = now() + i.left / 1000; introSecs = Number(i.secs) || 0; }
+            else if (introEnd > now()) introEnd = 0;                // called off
+        }
         const boxes = new Map();          // key → { k, want, side, name, who, talk, strip }
         const now = () => performance.now() / 1000;
         const toPx = (u, v) => [F.x0 + u / 1000 * (F.x1 - F.x0), F.y0 + v / 1000 * (F.y1 - F.y0)];
@@ -132,7 +138,7 @@
                 case 'hall-welcome':
                     people.clear();
                     for (const p of m.people || []) add(p);
-                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth;
+                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; setIntro(air.intro);
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
@@ -176,7 +182,7 @@
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
                     break;
                 case 'hall-booth': booth = { host: !!m.host, calls: m.calls || [], vm: m.vm || null }; break;
-                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx, tag: m.tag }; paintBursts(); break;
+                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx, tag: m.tag }; setIntro(m.intro); paintBursts(); break;
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
                     notice((m.reason || 'blug.dj/jej is closed right now.') + ' Click to try again.');
@@ -1175,13 +1181,18 @@
             // In the room, the station says; outside it, the radio's own idea of what's on.
             const onAir = joined ? air : { live: s.live, talking: false, music: !!tr };
             screenLive = !!onAir.live;
-            const tv = screenTv(joined && air.screen === 'tv' && s.tv && s.tv.live, s.tv && s.tv.videoId);
+            // Counting down to live (and a moment after zero, until the station says it's live).
+            const left = introEnd ? introEnd - t : null;
+            const intro = joined && left != null && (left > -4 && !onAir.live || onAir.live && left > -1.5) ? left : null;
+            if (left != null && left < -10) introEnd = 0;
+            const tv = screenTv(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2), s.tv && s.tv.videoId);
             const sign = s.banner && s.banner.on ? { items: s.banner.items || [], color: s.banner.color } : null;
             const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign };
             A.room(lc, t, onAir, info);
             // Radioman at his desk while live (his mouth going while his chat line is up); a big radio (or FunpostTV) off air.
             const hostTalking = !!(hostSay && hostSay.until > t);
-            A.centre(lc, t, hostTalking ? { ...onAir, talking: true } : onAir, info);
+            if (intro != null && !onAir.live) A.entrance(lc, t, intro, introSecs, onAir, info);
+            else A.centre(lc, t, hostTalking ? { ...onAir, talking: true } : onAir, info);
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
@@ -1206,6 +1217,7 @@
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
             }
             A.lights(lc, t, onAir, fx);
+            if (intro != null) A.introOver(lc, t, intro, introSecs);
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
             let cameoAt = null;
             const boothOn = speakerBoxes(dt, t, onAir);
