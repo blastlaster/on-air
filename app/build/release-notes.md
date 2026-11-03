@@ -1,3 +1,3 @@
 ## What's new in 0.5.11
 
-- **Callers in blug.dj/jej.** When someone calls in, Radioman's box slides in bottom-left and the caller's bottom-right, each one's mouth going while they talk. Been in blug.dj/jej? You'll show up as your own character, otherwise as Anonymous. Voicemails played on air get a box too.
+- **The emoji picker fits on phones.** In blug.dj/jej it now sits just above the buttons, however many rows they wrap to, so nothing is hidden underneath. Its header is tidier on narrow screens too.
