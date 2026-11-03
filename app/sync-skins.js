@@ -9,8 +9,8 @@
 
      node sync-skins.js [page.html | https://…/index.html]
 
-   With no argument it reads the page next door (../../live tool/
-   esfores/index.html), else the live site. It also copies the
+   With no argument it reads the page next door (../esfores/
+   index.html), else the live site. It also copies the
    listener scripts the app shares with the web (led-banner.js,
    rtc-client.js) from ../web/js.
    ============================================================= */
@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const UI = path.join(__dirname, 'ui');
-const LOCAL = path.join(__dirname, '..', '..', 'live tool', 'esfores', 'index.html');
+const LOCAL = path.join(__dirname, '..', 'esfores', 'index.html');
 const SITE = 'https://esfores.neocities.org/index.html';
 
 async function readPage(src) {

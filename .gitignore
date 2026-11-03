@@ -21,3 +21,10 @@ app/tmp-userdata/
 /package-lock.json
 /start.bat
 /start.sh
+# Moved in from the old "live tool" folder (2026-11-03); never in this repository:
+/funpostfm-signing/
+/funpostfm-android/
+/_android-tools/
+/esfores/
+/status images/
+/funpostfm-extension/
