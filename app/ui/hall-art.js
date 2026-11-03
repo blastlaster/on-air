@@ -376,12 +376,17 @@
         text(l, name, nx, 10, air.music && beat % 2 ? '#ff9ad2' : '#ff5ab0');
         // The screen on the right: what's on. While live, FunpostTV plays here (the window lays
         // it over); off air it gets the centre of the stage instead (see centre()).
-        const tvHere = info.tv && air.live;
-        R(150, 6, 60, 30, '#05050a'); R(152, 8, 56, 26, tvHere ? '#000000' : '#0b1424');
-        if (tvHere) {
-            ticker(150, 36, 60, t, info);
-            return floor(t, air, beat);
+        const tvK = air.live ? info.tvK || 0 : 0;
+        if (tvK > 0) {
+            // Live with FunpostTV on: its screen moves off the wall to the middle of the stage, growing as it goes.
+            const S = screenAt(true, tvK);
+            floor(t, air, beat);
+            if (tvK >= 1) screenStand(CENTRE_TV);
+            R(S.x - 2, S.y - 2, S.w + 4, S.h + 4, '#05050a'); R(S.x, S.y, S.w, S.h, '#000000');
+            if (info.tv) ticker(S.x - 2, S.y + S.h + 2, S.w + 4, t, info);
+            return;
         }
+        R(150, 6, 60, 30, '#05050a'); R(152, 8, 56, 26, '#0b1424');
         const chip = air.live ? 'LIVE' : 'AUTODJ';
         R(153, 9, textWidth(chip) + 2, 7, air.live ? '#d0302a' : '#2f66b8');
         text(l, chip, 154, 10, '#ffffff');
@@ -416,7 +421,7 @@
        FunpostTV big in the middle if it's on, or else a big radio playing the AutoDJ. */
     const CENTRE_TV = { x: 84, y: 3, w: 72, h: 34 };
     function centre(t, air, info) {
-        if (air.live) return radioman(t, air);
+        if (air.live) return deskSide(t, air, info.tvK || 0);
         if (info.tv) {
             const S = CENTRE_TV;
             screenStand(S);
@@ -425,6 +430,30 @@
             return;
         }
         boombox(t, air);
+    }
+    /* The desk's teleport: FunpostTV coming on while live puts the desk (and Radioman) where the
+       wall screen was, in a puff of magic halfway through the screen's move; back again after. */
+    const DESK_ASIDE = 60;
+    const deskX = (k) => (k >= 0.5 ? DESK_ASIDE : 0);
+    function deskSide(t, air, k) {
+        const gone = k > 0.38 && k < 0.62;                                       // between the two places
+        if (!gone) {
+            l.save(); l.translate(deskX(k), 0);
+            radioman(t, air);
+            l.restore();
+        }
+        if (k <= 0.15 || k >= 0.85) return;
+        // Puffs and sparkles at both places: strongest at the moment he goes.
+        const f = Math.max(0, 1 - Math.abs(k - 0.5) / 0.35);
+        for (const x of [RX, RX + DESK_ASIDE]) {
+            l.fillStyle = '#e8e0ff'; puff(x, RY + 24, 26, 18, 0.9 * f);
+            l.globalAlpha = f;
+            for (let i = 0; i < 14; i++) {
+                const a = hash(i + x) * Math.PI * 2, r = 6 + (1 - f) * 22 + hash(i * 7 + x) * 10;
+                R(x + Math.cos(a) * r, RY + 24 + Math.sin(a) * r * 0.7, 1, 1, i % 3 ? '#fff6a8' : '#ffffff');
+            }
+            l.globalAlpha = 1;
+        }
     }
     /** A projector screen's tripod: a pole down the middle and two legs splayed out onto the stage. */
     function screenStand(S) {
@@ -895,7 +924,12 @@
     const SCREEN = { x: 152, y: 8, w: 56, h: 26 };
     /** Where FunpostTV plays: the right-hand screen while live, the middle of the stage off air. */
     const screenFor = (live) => (live ? SCREEN : CENTRE_TV);
-    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+    function screenAt(live, k) {
+        if (!live) return CENTRE_TV;
+        const e = Math.max(0, Math.min(1, k)), m = e * e * (3 - 2 * e), lerp = (a, b) => Math.round(a + (b - a) * m);
+        return { x: lerp(SCREEN.x, CENTRE_TV.x), y: lerp(SCREEN.y, CENTRE_TV.y), w: lerp(SCREEN.w, CENTRE_TV.w), h: lerp(SCREEN.h, CENTRE_TV.h) };
+    }
+    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
         entrance: (ctx, t, left, secs, air, info) => { l = ctx; entrance(t, left, secs, air, info); },

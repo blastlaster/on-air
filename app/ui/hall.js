@@ -97,6 +97,8 @@
         let booth = { host: false, calls: [], vm: null };
         // The go-live countdown: when it reaches zero, on this page's clock (0 = none), and how long it is.
         let introEnd = 0, introSecs = 0;
+        // FunpostTV taking the middle of the stage while live: 0 (on the wall) → 1 (big, desk aside).
+        let tvK = 0, wasLive = false, tvHold = 0;
         function setIntro(i) {
             if (i && i.left >= 0) { introEnd = now() + i.left / 1000; introSecs = Number(i.secs) || 0; }
             else if (introEnd > now()) introEnd = 0;                // called off
@@ -1163,7 +1165,7 @@
                 tvEl.hidden = !want;
             }
             if (!want) return false;
-            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, S = A.screenFor(screenLive);
+            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, S = A.screenAt(screenLive, tvK);
             const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * k) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * k) + 'px';
             if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
             return true;
@@ -1185,9 +1187,15 @@
             const left = introEnd ? introEnd - t : null;
             const intro = joined && left != null && (left > -4 && !onAir.live || onAir.live && left > -1.5) ? left : null;
             if (left != null && left < -10) introEnd = 0;
-            const tv = screenTv(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2), s.tv && s.tv.videoId);
+            const tvOn = !!(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2));
+            // Just gone live: Radioman sits for a moment before FunpostTV (if it's on) sends him aside.
+            if (onAir.live && !wasLive) { tvK = 0; tvHold = t + 1.5; }
+            wasLive = !!onAir.live;
+            if (!onAir.live) tvK = tvOn ? 1 : 0;
+            else if (t >= tvHold) tvK += Math.sign((tvOn ? 1 : 0) - tvK) * Math.min(Math.abs((tvOn ? 1 : 0) - tvK), dt / 1.4);
+            const tv = screenTv(tvOn, s.tv && s.tv.videoId);
             const sign = s.banner && s.banner.on ? { items: s.banner.items || [], color: s.banner.color } : null;
-            const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign };
+            const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign, tvK };
             A.room(lc, t, onAir, info);
             // Radioman at his desk while live (his mouth going while his chat line is up); a big radio (or FunpostTV) off air.
             const hostTalking = !!(hostSay && hostSay.until > t);
@@ -1241,7 +1249,7 @@
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             gameBadges(t, u, heads);
             tableBadges(u, heads, t);
-            if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
+            if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
             if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
         }
 
