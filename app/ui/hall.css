@@ -99,6 +99,7 @@
 .hall-page-top .hp-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hall-page-top button { flex: none; white-space: nowrap; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; }
 .hall-page-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.hall-page .hall-bar { padding-bottom: max(5px, env(safe-area-inset-bottom)); }      /* clear of a phone's home bar */
 .hall-page .btn { background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; font: inherit; cursor: pointer; }
 .hall-page .btn:hover { border-color: #00e0ff; }
 .hall-page .btn.go, .hall-page .btn-primary { background: #ff2f6e; border-color: #ff2f6e; }
@@ -176,13 +177,16 @@
     background: #1a1626; color: #eee8f6; border: 2px solid #fff; border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
 .hall-page, .hall-page * { -webkit-tap-highlight-color: transparent; }
 /* The emoji picker, over the bottom of the room. */
-.hall-emoji { position: absolute; left: 6px; right: 6px; bottom: 50px; z-index: 6; max-height: 55%; display: flex; flex-direction: column;
+.hall-emoji { position: absolute; left: 6px; right: 6px; bottom: calc(var(--bar-h, 44px) + 6px); z-index: 6; display: flex; flex-direction: column;
+    max-height: min(55%, calc(100% - var(--bar-h, 44px) - 12px));
     background: var(--sk-panel-bg, #1a1626); color: var(--sk-panel-text, #eee8f6); border: 2px solid #fff; }
 .hall-emoji[hidden] { display: none; }
 .he-tabs { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.15); }
 .he-tabs .btn { padding: 2px 8px; font-size: 12px; }
 .hall-emoji .he-tabs .btn.on { background: var(--sk-btn-active, #ff2f6e); color: #fff; }
 .he-hint { flex: 1; font-size: 11px; opacity: 0.7; }
+.he-tabs .he-x { margin-left: auto; }
+@media (max-width: 560px) { .he-hint { display: none; } }
 .he-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; padding: 6px; }
 .he-e { font-size: 22px; line-height: 1; padding: 6px 0; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .he-e:hover, .he-e.on { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); }

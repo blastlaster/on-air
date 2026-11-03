@@ -1092,7 +1092,11 @@
         layoutChat();
         // The stage changes size (the window, a phone turned round, the bar wrapping): place the chat again, then the room.
         let laying = false;
-        const ro = new ResizeObserver(() => { if (laying) return; laying = true; layoutChat(); fit(); laying = false; });
+        const hallEl = $('.hall', box);
+        const ro = new ResizeObserver(() => {
+            hallEl.style.setProperty('--bar-h', bar.offsetHeight + 'px');            // the emoji picker sits just above the bar, one row or two
+            if (laying) return; laying = true; layoutChat(); fit(); laying = false;
+        });
         ro.observe(stage);
         offs.push(() => ro.disconnect());
 
