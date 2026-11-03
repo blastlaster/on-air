@@ -21,6 +21,11 @@
 .if-th.lit { border-left: 4px solid var(--if-green); }
 .if-th.green { background: var(--if-green-bg); box-shadow: 0 0 0 1px var(--if-green) inset; }
 .if-th.gone { opacity: 0.5; }
+.if-th.hid, .if-th.hid.faded { opacity: 0.35; }
+.if-hide { flex: none; align-self: flex-start; background: none; border: 0; padding: 0 3px; font: inherit; color: var(--sk-dim); cursor: pointer; opacity: 0.6; }
+.if-hide:hover { opacity: 1; }
+.if-post.hid { opacity: 0.6; }
+.if-post.hid > :not(.if-ph) { display: none; }
 .if-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; flex: none; background: rgba(127, 127, 127, 0.15); display: grid; place-items: center; font-size: 26px; }
 .if-th-body { min-width: 0; flex: 1; }
 .if-th-head { font-size: 0.85em; }

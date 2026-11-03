@@ -1130,6 +1130,46 @@ handle('board-posts', (e) => {
     return fresh;
 });
 
+/* ---------- hidden threads and posts on the board ----------
+   One list for the Interface and the board window: hide a 4chan thread or
+   post in either and it's hidden in both. Per board, by number, with when
+   it was hidden (4chan's own hide lists in the board window are kept in
+   step by its preload). Green posts are the Interface's own business. */
+const HIDE_KEEP = 60 * 864e5, HIDE_MAX = 5000;
+function hiddenOf(board) {
+    const all = cfg.hidden = cfg.hidden || {};
+    const b = all[board] = all[board] || { t: {}, r: {} };
+    const now = Date.now();
+    for (const k of ['t', 'r']) for (const [id, at] of Object.entries(b[k])) if (now - at > HIDE_KEEP) delete b[k][id];
+    return b;
+}
+/** ops: [{ k: 't' | 'r', id, on }]. `from` is who asked, so it isn't told again. */
+function setHidden(board, ops, from) {
+    if (!/^\w{1,12}$/.test(String(board)) || !Array.isArray(ops)) return;
+    const b = hiddenOf(board), done = [];
+    for (const o of ops.slice(0, 500)) {
+        const id = String((o && o.id) || '');
+        if ((o.k !== 't' && o.k !== 'r') || !/^\d{1,12}$/.test(id)) continue;
+        if (o.on ? b[o.k][id] : !b[o.k][id]) continue;
+        if (o.on) b[o.k][id] = Date.now(); else delete b[o.k][id];
+        done.push({ k: o.k, id, on: !!o.on });
+    }
+    for (const k of ['t', 'r']) { const ids = Object.keys(b[k]); if (ids.length > HIDE_MAX) for (const id of ids.sort((x, y) => b[k][x] - b[k][y]).slice(0, ids.length - HIDE_MAX)) delete b[k][id]; }
+    if (!done.length) return;
+    saveSoon();
+    const iw = winOf('interface');
+    if (iw && !iw.isDestroyed() && from !== 'interface') iw.webContents.send('board-hidden', board, b);
+    if (boardView && !boardView.webContents.isDestroyed() && from !== 'board') boardView.webContents.send('board-hidden', board, done);
+}
+handle('board-hidden', (e, board, ops) => {
+    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    if (ops) setHidden(String(board), ops, 'interface');
+    return hiddenOf(String(board));
+});
+const fromBoardView = (e) => !!boardView && e.sender === boardView.webContents && e.senderFrame === boardView.webContents.mainFrame;
+ipcMain.on('board-hidden-get', (e, board) => { e.returnValue = fromBoardView(e) && /^\w{1,12}$/.test(String(board)) ? hiddenOf(String(board)) : null; });
+ipcMain.on('board-hidden-set', (e, board, ops) => { if (fromBoardView(e)) setHidden(String(board), ops, 'board'); });
+
 /* ---------- pictures from the Interface: save, copy the link, open ---------- */
 const imageUrlOf = (u) => { const x = new URL(String(u || '')); if (x.protocol !== 'https:') throw new Error('Not a picture on the web.'); return x; };
 async function saveImage(w, url, name, fetcher = net.fetch) {

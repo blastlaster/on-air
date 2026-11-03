@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('onairApp', {
     boardClip: (anyLink) => ipcRenderer.invoke('board-clip', !!anyLink),
     boardPosts: () => ipcRenderer.invoke('board-posts'),
     onBoardPosted: listen('board-posted'),
+    boardHidden: (board, ops) => ipcRenderer.invoke('board-hidden', board, ops),
+    onBoardHidden: listen('board-hidden'),
     saveImage: (url, name) => ipcRenderer.invoke('save-image', url, name),
     imageMenu: (url, name) => ipcRenderer.send('image-menu', url, name),
     onToast: listen('toast'),

@@ -54,6 +54,68 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     window.addEventListener('load', fix, { once: true });
 }
 
+// Hidden threads and posts: 4chan's own hide lists ([–], ▶ → Hide thread / Hide post) kept in step
+// with the app's, so what you hide here is hidden in the Interface too, and the other way round.
+(function hiding() {
+    const m = /^boards\.4chan(nel)?\.org$/i.test(location.hostname) && /^\/(\w{1,12})\//.exec(location.pathname);
+    if (!m) return;
+    const board = m[1];
+    const shared = ipcRenderer.sendSync('board-hidden-get', board);
+    if (!shared) return;
+    const inThread = /\/thread\//.test(location.pathname);
+    const key = { t: '4chan-hide-t-' + board, r: '4chan-hide-r-' + board };
+    const read = (k) => { try { return JSON.parse(localStorage.getItem(key[k]) || '{}') || {}; } catch { return {}; } };
+    const write = (k, o) => { try { if (Object.keys(o).length) localStorage.setItem(key[k], JSON.stringify(o)); else localStorage.removeItem(key[k]); } catch { /* storage off */ } };
+    // Before 4chan's scripts start: the app's list goes into 4chan's (as fresh, so 4chan doesn't
+    // tidy them away), and what 4chan had hidden before goes to the app.
+    const seen = {}, first = [];
+    for (const k of ['t', 'r']) {
+        const own = read(k);
+        for (const id of Object.keys(own)) if (!shared[k][id]) first.push({ k, id, on: true });
+        for (const id of Object.keys(shared[k])) own[id] = Date.now();
+        write(k, own);
+        seen[k] = own;
+    }
+    if (first.length) ipcRenderer.send('board-hidden-set', board, first);
+    // Unhidden here = gone from 4chan's list while it's on this page (4chan also drops dead
+    // threads and old posts from its list by itself; those aren't the listener unhiding them).
+    const onPage = (k, id) => k === 't' ? !inThread && !!document.getElementById('t' + id) : !!document.getElementById('pc' + id);
+    const check = () => {
+        const ops = [];
+        for (const k of ['t', 'r']) {
+            const now = read(k);
+            for (const id of Object.keys(now)) if (!seen[k][id]) ops.push({ k, id, on: true });
+            for (const id of Object.keys(seen[k])) if (!now[id] && onPage(k, id)) ops.push({ k, id, on: false });
+            seen[k] = now;
+        }
+        if (ops.length) ipcRenderer.send('board-hidden-set', board, ops);
+    };
+    setInterval(check, 1500);
+    window.addEventListener('pagehide', check);
+    // Hidden or shown in the Interface while this page is open: 4chan does it, the way its own button would.
+    ipcRenderer.on('board-hidden', (e, b, ops) => {
+        if (b !== board || !Array.isArray(ops)) return;
+        check();
+        const js = `(function (ops, inThread) {
+    var T = window.ThreadHiding, R = window.ReplyHiding;
+    ops.forEach(function (o) {
+        var H = o.k === 't' ? T : R, el = document.getElementById((o.k === 't' ? 't' : 'pc') + o.id);
+        if (!H || !H.hidden) return;
+        if (H.load) H.load();
+        if (el && !(o.k === 't' && inThread)) { if (H.isHidden(o.id) !== o.on) H.toggle(o.id); return; }
+        if (o.on) H.hidden[o.id] = Date.now(); else delete H.hidden[o.id];
+        H.save();
+    });
+})(${JSON.stringify(ops)}, ${inThread})`;
+        const after = () => {
+            // 4chan wasn't running (or didn't take it): its lists directly, for next time.
+            for (const o of ops) { const l = read(o.k); if (o.on && !l[o.id]) l[o.id] = Date.now(); if (!o.on) delete l[o.id]; write(o.k, l); }
+            seen.t = read('t'); seen.r = read('r');
+        };
+        webFrame.executeJavaScript(js).then(after, after);
+    });
+})();
+
 const scripts = ipcRenderer.sendSync('us-for', location.href) || [];
 if (scripts.length) {
     const values = {};

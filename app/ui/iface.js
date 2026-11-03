@@ -54,6 +54,24 @@
         const saveMine = () => store.set('mine', [...mine].slice(-1000));
         const savePrefs = () => store.set('prefs', prefs);
         const saveWatch = () => store.set('watch', watch);
+        // Hidden: 4chan threads and posts in the app's list (shared with the board window, both ways);
+        // green threads and green posts only here. Keys: t:no / r:no (4chan), gt:id / gp:id (green), fp:id (funposters).
+        let shared = { t: {}, r: {} }, showHidden = false;
+        const hid = store.get('hidden', {});
+        const saveHid = () => { const ks = Object.keys(hid); if (ks.length > 3000) for (const k of ks.sort((a, b) => hid[a] - hid[b]).slice(0, ks.length - 3000)) delete hid[k]; store.set('hidden', hid); };
+        const tk = (key) => (key[0] === 'c' ? 't:' : 'gt:') + key.slice(2);
+        const isHidden = (hk) => /^[tr]:/.test(hk) ? !!shared[hk[0]][hk.slice(2)] : !!hid[hk];
+        const threadHidden = (key) => isHidden(tk(key));
+        function setHide(hk, on) {
+            if (/^[tr]:/.test(hk)) {
+                const k = hk[0], id = hk.slice(2);
+                if (on) shared[k][id] = Date.now(); else delete shared[k][id];
+                if (app.boardHidden) app.boardHidden(boardName(), [{ k, id, on }]).then((b) => { if (b) shared = b; }).catch(() => {});
+            } else { if (on) hid[hk] = Date.now(); else delete hid[hk]; saveHid(); }
+        }
+        const loadHidden = () => app.boardHidden ? app.boardHidden(boardName()).then((b) => { if (b) shared = b; }, () => {}) : Promise.resolve();
+        // Hidden or shown in the board window.
+        if (app.onBoardHidden) app.onBoardHidden((b, list) => { if (b === boardName() && list) { shared = list; applyHidden(); } });
 
         let view = 'index', current = null;      // current = { key, kind: 'c'|'g', id }
         let catalog = [], greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
@@ -92,6 +110,7 @@
                   '<input type="search" class="if-search" placeholder="Search threads" title="Search the threads: subject, text or number">' +
                   '<select class="sort" title="Order"><option value="bump">Bump order</option><option value="green">Green on top</option></select>' +
                   '<label class="dim"><input type="checkbox" class="gonly"> Green only</label>' +
+                  '<label class="dim" title="Show the threads you hid (✕), to bring them back"><input type="checkbox" class="shid"> Hidden <span class="hn"></span></label>' +
                   '<label class="dim fadeset" title="How far threads with nothing green fade">Fade <input type="range" class="fade" min="0.08" max="1" step="0.02"></label>' +
                   '<span class="grow"></span>' +
                   '<button type="button" class="btn if-me" data-v="me" title="Your level" hidden></button>' +
@@ -105,6 +124,7 @@
             box.style.setProperty('--fade', prefs.fade);
             $('.sort', box).onchange = (e) => { prefs.sort = e.target.value; savePrefs(); render(); };
             $('.gonly', box).onchange = (e) => { prefs.greenOnly = e.target.checked; savePrefs(); render(); };
+            $('.shid', box).onchange = (e) => { showHidden = e.target.checked; render(); };
             $('.if-search', box).oninput = (e) => { query = e.target.value.trim().toLowerCase(); $('.if-main', box).scrollTop = 0; render(); };
             $('.if-search', box).onkeydown = (e) => { if (e.key === 'Escape' && e.target.value) { e.target.value = ''; e.target.oninput(e); } };
             $('.fade', box).oninput = (e) => { prefs.fade = Number(e.target.value); box.style.setProperty('--fade', prefs.fade); savePrefs(); };
@@ -212,6 +232,7 @@
         };
         async function loadIndex() {
             const b = boardName();
+            await loadHidden();
             const pages = await getJSON('https://a.4cdn.org/' + b + '/catalog.json');
             if (Array.isArray(pages)) { catalog = pages.flatMap(p => p.threads || []); for (const t of catalog) { seenPosts.set(t.no, t.no); for (const r of t.last_replies || []) seenPosts.set(r.no, t.no); } }
             if (catalog.length) {
@@ -248,7 +269,7 @@
             view = v;
             $('[data-v="back"]', box).hidden = v === 'index';
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.toggle('on', b.dataset.v === v);
-            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset, .if-search')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
+            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
             if (v === 'index' || v === 'watch') {
                 $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the board…</p>';
                 if (catalog.length) render();
@@ -279,7 +300,12 @@
             if (view === 'watch') {
                 list = list.filter(t => watch[t.key]);
                 for (const k of Object.keys(watch)) if (!list.some(t => t.key === k)) list.push({ key: k, kind: k[0], id: k.slice(2), sub: watch[k].title, text: '', gone: true, replies: 0, gcount: 0 });
-            } else if (prefs.greenOnly) list = list.filter(t => t.lit);
+            } else {
+                if (prefs.greenOnly) list = list.filter(t => t.lit);
+                const n = list.filter(t => threadHidden(t.key)).length;
+                $('.hn', box).textContent = n ? '(' + n + ')' : '';
+                if (!showHidden) list = list.filter(t => !threadHidden(t.key));
+            }
             if (query) list = list.filter(t => (String(t.sub) + ' ' + t.text + ' ' + t.id).toLowerCase().includes(query));
             if (!list.length) {
                 main.innerHTML = '<p class="dim if-load">' + (query ? 'No threads match “' + esc(query) + '”.' : view === 'watch' ? 'You aren’t watching any threads. Open one and press ★.' : catalog.length || green.length ? 'Nothing green right now. Start a green thread, or untick “Green only”.' : 'The board didn’t answer. ⟳ to try again.') + '</p>';
@@ -292,8 +318,8 @@
 
         function card(t) {
             const w = watch[t.key], fresh = w && !t.gone ? Math.max(0, (t.replies + t.gcount) - w.seen) : 0;
-            const you = t.kind === 'g' && (t.last || []).some(p => quotesMine(p.text));
-            return '<article class="if-th' + (t.green ? ' green' : '') + (t.lit ? ' lit' : ' faded') + (t.gone ? ' gone' : '') + '" data-k="' + esc(t.key) + '">' +
+            const you = t.kind === 'g' && (t.last || []).some(p => quotesMine(p.text)), hidden = threadHidden(t.key);
+            return '<article class="if-th' + (t.green ? ' green' : '') + (t.lit ? ' lit' : ' faded') + (t.gone ? ' gone' : '') + (hidden ? ' hid' : '') + '" data-k="' + esc(t.key) + '">' +
                 (t.thumb ? '<img class="if-thumb" loading="lazy" alt="" src="' + esc(t.thumb) + '">' : '<span class="if-thumb none">' + (t.green ? '🟩' : '') + '</span>') +
                 '<div class="if-th-body"><div class="if-th-head">' +
                     (t.sub ? '<b class="if-sub">' + esc(t.sub) + '</b> ' : '') +
@@ -303,7 +329,9 @@
                     (t.green ? ' <span class="if-g">green thread</span>' : '') +
                     (fresh ? ' <span class="if-new">' + fresh + ' new</span>' : '') +
                     (you ? ' <span class="if-you">(You)</span>' : '') +
-                '</div><div class="if-th-text">' + esc((t.text || '').slice(0, 300)) + '</div></div></article>';
+                '</div><div class="if-th-text">' + esc((t.text || '').slice(0, 300)) + '</div></div>' +
+                (t.gone ? '' : '<button type="button" class="if-hide" data-hidet="' + esc(t.key) + '" title="' + (hidden ? 'Show this thread again' : 'Hide this thread') + '">' + (hidden ? '↺' : '✕') + '</button>') +
+                '</article>';
         }
 
         /* ---------- a thread ---------- */
@@ -315,7 +343,7 @@
             view = 'thread';
             $('[data-v="back"]', box).hidden = false;
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.remove('on');
-            for (const el of box.querySelectorAll('.sort, .gonly, .fadeset, .if-search')) (el.closest('label') || el).hidden = true;
+            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search')) (el.closest('label') || el).hidden = true;
             $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the thread…</p>';
             await loadThread(current, false);
         }
@@ -358,6 +386,7 @@
                 readOnly = t.archived || t.closed;
                 markSeen(cur.key, t.replies + t.replies + 1, head.title);
             }
+            if (posts[0]) posts[0].op = true;                              // its opening post: hiding that is hiding the thread
             const watched = !!watch[cur.key], greenIn = posts.filter(p => p.kind === 'f').length;
             main.innerHTML =
                 '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '"><div class="if-thead row">' +
@@ -366,6 +395,7 @@
                     (head.archived ? '<span class="dim">archived</span>' : '') +
                     (cur.kind === 'c' ? '<button type="button" class="btn' + (prefs.threadGreen ? ' on' : '') + '" data-tgreen title="Show only the green posts (and the opening post)">🟩 Green only' + (greenIn ? ' (' + greenIn + ')' : '') + '</button>' : '') +
                     '<button type="button" class="btn" data-watch="' + esc(cur.key) + '" title="Watch this thread">' + (watched ? '★ Watching' : '☆ Watch') + '</button>' +
+                    '<button type="button" class="btn" data-hidet="' + esc(cur.key) + '" title="Hide this thread from the list (in the board window too)">' + (threadHidden(cur.key) ? '↺ Unhide' : '✕ Hide') + '</button>' +
                     (head.url ? '<button type="button" class="btn" data-open4="' + esc(head.url) + '" title="This thread on 4chan, in the board window">4chan ↗</button>' : '') +
                 '</div><div class="if-posts">' + posts.map(postHtml).join('') + (cur.kind === 'c' && !greenIn ? '<p class="dim if-load if-gempty">No green posts in this thread yet.</p>' : '') + '</div>' +
                 (readOnly ? '<p class="dim if-note">' + (head.archived ? 'This thread is archived — read only.' : 'This thread is closed.') + '</p>' : replyForm(cur)) +
@@ -525,7 +555,8 @@
 
         function postHtml(p) {
             const quotedMe = /class="ql[^"]*" data-q="[^"]*"[^>]*>[^<]*\(You\)/.test(p.html);
-            return '<div class="if-post ' + (p.kind === 'c' ? 'chan' : 'greenp') + (quotedMe ? ' to-you' : '') + '" data-id="' + esc(p.id) + '">' +
+            const hk = p.op ? '' : p.kind === 'c' ? 'r:' + p.id : p.kind === 'g' ? 'gp:' + p.id : p.report ? 'fp:' + p.report : '', hidden = !!hk && isHidden(hk);
+            return '<div class="if-post ' + (p.kind === 'c' ? 'chan' : 'greenp') + (quotedMe ? ' to-you' : '') + (hidden ? ' hid' : '') + '" data-id="' + esc(p.id) + '"' + (hk ? ' data-hk="' + esc(hk) + '"' : '') + '>' +
                 '<div class="if-ph">' +
                     '<b class="if-name">' + esc(p.name) + '</b>' + (p.trip ? ' <span class="if-trip">' + esc(p.trip) + '</span>' : '') +
                     (p.cap ? ' <span class="if-cap">## ' + esc(p.cap) + '</span>' : '') +
@@ -537,6 +568,7 @@
                     (p.kind === 'g' ? ' <a class="if-act" data-report="g:' + esc(p.id) + '">report</a>' + (isAdmin() ? ' <a class="if-act" data-del="' + esc(p.id) + '">delete</a> <a class="if-act" data-ban="' + esc(p.id) + '">ban</a>' : '') : '') +
                     (p.kind === 'f' && p.report ? ' <a class="if-act" data-report="f:' + esc(String(p.report)) + '">report</a>' : '') +
                     (p.file ? ' <a class="if-act" data-save="' + esc(p.file.full) + '" data-name="' + esc(p.file.name || '') + '" title="Save the picture to your computer (or right-click it)">↓ save</a>' : '') +
+                    (hk ? ' <a class="if-act" data-hidep="' + esc(hk) + '" title="' + (hidden ? 'Show this post again' : 'Hide this post') + '">' + (hidden ? 'show' : 'hide') + '</a>' : '') +
                 '</div>' +
                 (p.file ? '<a class="if-file" data-full="' + esc(p.file.full) + '" data-video="' + (p.file.video ? 1 : '') + '" title="' + esc(p.file.name || '') + '"><img loading="lazy" alt="" src="' + esc(p.file.thumb) + '"' + (p.file.tw ? ' width="' + p.file.tw + '" height="' + p.file.th + '"' : '') + '></a>' : '') +
                 '<div class="if-text">' + p.html + '</div></div>';
@@ -638,6 +670,14 @@
             // The end of a drag that selected text (to copy it) is not a click on what's under it.
             const sel = getSelection();
             if (sel && !sel.isCollapsed && String(sel).trim() && !t.closest('button')) return;
+            const hb = t.closest('[data-hidet], [data-hidep]');
+            if (hb) {
+                if (hb.dataset.hidep) { setHide(hb.dataset.hidep, !isHidden(hb.dataset.hidep)); return applyHidden(); }
+                const key = hb.dataset.hidet, on = !threadHidden(key);
+                setHide(tk(key), on);
+                if (view === 'thread' && on) { UI.toast('Hidden. Tick “Hidden” over the list to see it again.'); return go('index'); }
+                return applyHidden();
+            }
             const card = t.closest('.if-th');
             if (card) return card.classList.contains('gone') ? (delete watch[card.dataset.k], saveWatch(), render()) : openThread(card.dataset.k);
             const a = t.closest('a, button');
@@ -733,6 +773,18 @@
         }
 
         /* ---------- watching ---------- */
+        /** Hiding changed (here or in the board window): the list again, or the posts in this thread. */
+        function applyHidden() {
+            if (view === 'index' || view === 'watch') return render();
+            if (view !== 'thread') return;
+            for (const el of box.querySelectorAll('.if-post[data-hk]')) {
+                const on = isHidden(el.dataset.hk), a = el.querySelector('[data-hidep]');
+                el.classList.toggle('hid', on);
+                if (a) { a.textContent = on ? 'show' : 'hide'; a.title = on ? 'Show this post again' : 'Hide this post'; }
+            }
+            const b = $('.if-thead [data-hidet]', box);
+            if (b && current) b.textContent = threadHidden(current.key) ? '↺ Unhide' : '✕ Hide';
+        }
         function markSeen(key, count, title) { if (watch[key]) { watch[key].seen = count; if (title) watch[key].title = title; saveWatch(); updateWatchCount(); } }
         function checkWatch() {
             let fresh = 0, you = false;
