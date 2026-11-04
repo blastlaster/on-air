@@ -67,7 +67,7 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-db" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div></div>';
@@ -109,7 +109,24 @@
         const now = () => performance.now() / 1000;
         const toPx = (u, v) => [F.x0 + u / 1000 * (F.x1 - F.x0), F.y0 + v / 1000 * (F.y1 - F.y0)];
         const toU = (x, y) => [Math.round((x - F.x0) / (F.x1 - F.x0) * 1000), Math.round((y - F.y0) / (F.y1 - F.y0) * 1000)];
-        const clampX = (x) => Math.max(F.x0, Math.min(F.x1, x)), clampY = (y) => Math.max(F.y0, Math.min(F.y1, y));
+        // Dodgeball (engine/hall-dodge.js): the game as the station last said, and throws in the air (id → { a, b, at, res, resAt, tried }).
+        let db = { state: '' }, dbAt = 0;
+        const flights = new Map();
+        const DB_ZONE = { team: [[60, 470, 180, 1000], [530, 940, 180, 1000]], out: [[0, 45, 180, 1000], [955, 1000, 180, 1000]], side: [0, 1000, 0, 110] };
+        const DB_FLIGHT = 0.7, DB_CATCH = 0.45;              // a throw's time in the air; a dash or jump from here on catches it
+        const DB_TEAMS = [['Red', '#ff4f6a'], ['Blue', '#4fa3ff']];
+        const dbOn = () => !!db.state && db.state !== 'asking';
+        const dbTeam = (h) => !db.teams ? -1 : db.teams[0].includes(h) ? 0 : db.teams[1].includes(h) ? 1 : -1;
+        const dbOut = (h) => (db.out || []).includes(h);
+        /** Where you may walk while a game's on: your half, your end once you're out, or along the back. */
+        function zoneOf(h) {
+            if (!dbOn() || db.state === 'over') return F;
+            const t = dbTeam(h), z = t < 0 ? DB_ZONE.side : dbOut(h) ? DB_ZONE.out[t] : DB_ZONE.team[t];
+            const [x0, y0] = toPx(z[0], z[2]), [x1, y1] = toPx(z[1], z[3]);
+            return { x0, x1, y0, y1 };
+        }
+        const clampX = (x) => { const z = zoneOf(me); return Math.max(z.x0, Math.min(z.x1, x)); };
+        const clampY = (y) => { const z = zoneOf(me); return Math.max(z.y0, Math.min(z.y1, y)); };
 
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
@@ -142,7 +159,7 @@
                 case 'hall-welcome':
                     people.clear();
                     for (const p of m.people || []) add(p);
-                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; setIntro(air.intro);
+                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; setIntro(air.intro); onDodge(m.dodge || { state: '' }, true);
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
@@ -155,8 +172,9 @@
                 case 'hall-at':
                     for (const [h, xy] of Object.entries(m.at || {})) {
                         const p = people.get(h);
-                        if (!p || h === me) continue;
+                        if (!p || (h === me && !m.put)) continue;
                         [p.tx, p.ty] = toPx(xy[0], xy[1]);
+                        if (m.put) { p.x = p.tx; p.y = p.ty; p.pushed = false; if (h === me) lastSent = ''; continue; }     // put there (a game's places)
                         if (Math.hypot(p.tx - p.x, p.ty - p.y) > 120) { p.x = p.tx; p.y = p.ty; }     // too far behind: catch up
                         // (their pose carries on while they walk)
                     }
@@ -181,6 +199,14 @@
                 case 'hall-aura': { const p = people.get(m.h); if (p) { p.a = m.a; p.atrail = []; } break; }
                 case 'hall-hit': onHit(m); break;
                 case 'hall-tech': onTech(m); break;
+                case 'hall-db': onDodge(m); break;
+                case 'hall-db-throw': flights.set(m.id, { a: m.a, b: m.b, at: now(), res: '', resAt: 0 }); break;
+                case 'hall-db-res': {
+                    const f = flights.get(m.id) || { a: m.a, b: m.b, at: now() - DB_FLIGHT };
+                    f.res = m.k; f.resAt = now(); flights.set(m.id, f);
+                    logLine({ text: m.k === 'catch' ? '🏐 ' + nameOf(m.b) + ' caught ' + nameOf(m.a) + '’s throw!' : '🏐 ' + nameOf(m.a) + ' hit ' + nameOf(m.b) + ' — OUT!' }, 'game');
+                    break;
+                }
                 case 'hall-fx':
                     bursts.push({ k: m.k, at: now() });
                     startCool(m.h === me);
@@ -354,6 +380,7 @@
             const r = cv.getBoundingClientRect();
             const rx = (e.clientX - r.left) / r.width * A.W, ry = (e.clientY - r.top) / r.height * A.H;
             const q = personAt(rx, ry);
+            if (q && dodgeThrow(q)) return;
             if (q) return openPop(q, e);
             popEl.hidden = true;
             pendingHit = null;
@@ -461,6 +488,106 @@
             }
         }
 
+        /* ---------- dodgeball ---------- */
+        const dbEl = () => $('.hall-db', box);
+        function onDodge(m, quiet) {
+            const was = db.state, wasRound = db.round;
+            db = m; dbAt = now();
+            if (!m.state) flights.clear();
+            if (!quiet) {
+                const T = (i) => DB_TEAMS[i][0], sc = m.score && m.win >= 0 ? m.score[m.win] + '–' + m.score[1 - m.win] : '';      // the winner's score first
+                if (m.state === 'asking' && was !== 'asking') { dodgeNo = false; logLine({ text: '🏐 Dodgeball! Everyone’s asked to play.' }, 'game'); U.toast('🏐 Dodgeball! Join in?'); }
+                if (m.state === 'ready' && m.round !== wasRound) logLine({ text: '🏐 Round ' + m.round + ': ' + m.teams.map((tm, i) => T(i) + ' (' + tm.map(nameOf).join(', ') + ')').join(' vs ') }, 'game');
+                if (m.state === 'round' && was !== 'round') logLine({ text: '🏐 ' + T(m.win) + ' takes round ' + m.round + ' (' + sc + ')' }, 'game');
+                if (m.state === 'over' && was !== 'over') logLine({ text: '🏆 ' + T(m.win) + ' wins dodgeball ' + sc + '! (' + m.teams[m.win].map(nameOf).join(', ') + ')' }, 'game');
+            }
+            // Out, or moved to the back: keep walking only where you may.
+            const p = mine();
+            if (p && dbOn()) { p.tx = clampX(p.tx); p.ty = clampY(p.ty); }
+            paintDodge();
+        }
+        /** Clicking someone with the ball in your hand: throw it at them (the other team only). */
+        function dodgeThrow(q) {
+            if (db.state !== 'playing' || db.ball !== me || [...flights.values()].some(f => !f.res)) return false;
+            if (dbTeam(q.h) !== 1 - dbTeam(me) || dbOut(q.h)) { U.toast('Throw it at someone on the other team.'); return true; }
+            core.send({ t: 'hall-db-throw', to: q.h });
+            popEl.hidden = true;
+            return true;
+        }
+        /** The bar over the floor: the score, what's going on, and joining in. */
+        function paintDodge() {
+            const el = dbEl();
+            if (!el) return;
+            const left = Math.max(0, Math.ceil(((db.until || 0) - (now() - dbAt) * 1000) / 1000));
+            let html = '';
+            if (db.state === 'asking') {
+                const asked = db.asked || [], inn = asked.includes(me);
+                html = '<p>🏐 <b>Dodgeball!</b> ' + (inn ? 'You’re in — starting in ' + left + 's' : dodgeNo ? 'You’re sitting this one out (' + left + 's)' : 'Play? (' + left + 's)') +
+                    ' · ' + asked.length + ' in</p>' + (inn ? '' : '<div><button type="button" class="btn go" data-db="1">I’m in</button>' + (dodgeNo ? '' : '<button type="button" class="btn" data-db="0">Sit out</button>') + '</div>');
+            } else if (db.state) {
+                const T = (i) => '<b style="color:' + DB_TEAMS[i][1] + '">' + DB_TEAMS[i][0].toUpperCase() + '</b>';
+                const myT = dbTeam(me), hold = db.ball;
+                let st = '';
+                if (db.state === 'ready') st = 'Round ' + db.round + ' — get ready… ' + left;
+                else if (db.state === 'playing') st = hold === me ? '<b>You have the ball!</b> Click someone on the other team (' + left + 's)'
+                    : myT >= 0 && dbOut(me) ? 'You’re out — back in next round' : hold ? esc(nameOf(hold)) + ' has the ball (' + left + 's)' : '…';
+                else if (db.state === 'round') st = T(db.win) + ' takes round ' + db.round + '!';
+                else if (db.state === 'over') st = '🏆 ' + T(db.win) + ' wins!';
+                if (db.state === 'playing' && myT >= 0 && !dbOut(me) && hold !== me) st += ' · <span class="hg-dim">Dash or jump just before it hits you to catch it</span>';
+                if (myT < 0 && db.state !== 'over') st += ' · <span class="hg-dim">watching from the back</span>';
+                html = '<p>' + T(0) + ' ' + db.score[0] + ' – ' + db.score[1] + ' ' + T(1) + (myT >= 0 ? ' · you’re ' + T(myT) : '') + '</p><p>' + st + '</p>';
+            }
+            if (el.innerHTML !== html) el.innerHTML = html;
+            el.hidden = !html;
+        }
+        let dodgeNo = false;
+        const dbT = setInterval(() => { if (db.state) paintDodge(); else dodgeNo = false; }, 250);
+        offs.push(() => clearInterval(dbT));
+        /** The court on the floor: a line down the middle, each half its team's colour, the ends for the out, the back for the rest. */
+        function court() {
+            const [mx, y0] = toPx(500, 180), [, y1] = toPx(500, 1000), [lx] = toPx(45, 0), [rx] = toPx(955, 0), [, sy] = toPx(0, 110);
+            lc.globalAlpha = 0.1; lc.fillStyle = DB_TEAMS[0][1]; lc.fillRect(Math.round(lx), Math.round(y0), Math.round(mx - lx), Math.round(y1 - y0));
+            lc.fillStyle = DB_TEAMS[1][1]; lc.fillRect(Math.round(mx), Math.round(y0), Math.round(rx - mx), Math.round(y1 - y0));
+            lc.globalAlpha = 0.25; lc.fillStyle = '#000000';
+            lc.fillRect(F.x0, Math.round(y0), Math.round(lx - F.x0), Math.round(y1 - y0)); lc.fillRect(Math.round(rx), Math.round(y0), Math.round(F.x1 - rx), Math.round(y1 - y0));
+            lc.fillRect(F.x0, F.y0, F.x1 - F.x0, Math.round(sy - F.y0));
+            lc.globalAlpha = 0.7; lc.fillStyle = '#ffffff';
+            for (let y = Math.round(y0); y < y1; y += 4) lc.fillRect(Math.round(mx), y, 1, 2);
+            lc.globalAlpha = 1;
+        }
+        function ballAt(x, y, u) {
+            ctx.fillStyle = '#e8402f'; ctx.strokeStyle = '#7a1408'; ctx.lineWidth = Math.max(1, u / 3);
+            ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), 2.3 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(Math.round(x - 0.8 * u), Math.round(y - 0.8 * u), 0.7 * u, 0, Math.PI * 2); ctx.fill();
+        }
+        const handOf = (p, heads, u) => [(p.x + (p.face < 0 ? -1 : 1) * 6) * u, (heads.get(p.h) + 10) * u];
+        /** The ball: in someone's hand, or in the air on its way to someone (then caught, or bouncing off them). */
+        function drawBall(t, u, heads) {
+            const flying = [...flights.values()].some(f => !f.res);
+            const holder = people.get(db.ball);
+            if (!flying && holder && heads.has(holder.h) && (db.state === 'playing' || db.state === 'ready')) {
+                const [x, y] = handOf(holder, heads, u);
+                ballAt(x, y - Math.abs(Math.sin(t * 4)) * u, u);
+            }
+            for (const [id, f] of flights) {
+                const a = people.get(f.a), b = people.get(f.b), s = t - f.at;
+                if (f.res && t - f.resAt > 1.4) { flights.delete(id); continue; }
+                if (!b || !heads.has(b.h)) continue;
+                const bx = b.x * u, by = (heads.get(b.h) + 8) * u;
+                if (s < DB_FLIGHT && a && heads.has(a.h)) {
+                    const [ax, ay] = handOf(a, heads, u), k = s / DB_FLIGHT;
+                    ballAt(ax + (bx - ax) * k, ay + (by - ay) * k - Math.sin(k * Math.PI) * 10 * u, u);
+                } else if (!f.res) ballAt(bx, by, u);                                     // there: caught or not, any moment
+                else if (f.res === 'hit') {
+                    const k = Math.min(1, (t - f.resAt) / 0.6), d = a && a.x < b.x ? 1 : -1;
+                    ctx.globalAlpha = 1 - k * 0.7;
+                    ballAt(bx + d * k * 14 * u, by + (Math.pow(k, 2) * 12 - Math.sin(k * Math.PI) * 6) * u, u);
+                    ctx.globalAlpha = 1;
+                    popWord('OUT!', bx, by - 16 * u - k * 3 * u, u, '#ff6b6b');
+                } else popWord('CATCH!', bx, by - 16 * u - Math.min(1, (t - f.resAt) / 0.6) * 3 * u, u, '#8dffb0');
+            }
+        }
+
         /* ---------- rock paper scissors ---------- */
         // id → { id, a, b, state, picks, win, until }: shown over both players, finished ones for a few seconds.
         const games = new Map();
@@ -530,6 +657,12 @@
         }
         /** A dash or jump with a snowball coming at you: one try each — in time, and it misses. */
         function tryTech(t) {
+            // A dodgeball coming at you: in time, you catch it.
+            for (const [id, f] of flights) {
+                if (f.b !== me || f.tried || f.res || t - f.at >= DB_FLIGHT) continue;
+                f.tried = true;
+                if (t - f.at >= DB_CATCH) core.send({ t: 'hall-db-catch', id });
+            }
             const x = hits.find(h => h.k === 'snowball' && h.b === me && !h.tried && t - h.at < SNOW_S);
             if (!x) return;
             x.tried = true;                                     // too early counts too: no mashing
@@ -753,6 +886,13 @@
             rpsEl.hidden = !html;
             rpsEl.dataset.id = g ? g.id : done ? done.id : '';
         }
+        box.addEventListener('click', (e) => {
+            const b = e.target.closest('.hall-db [data-db]');
+            if (!b) return;
+            e.stopPropagation();
+            dodgeNo = b.dataset.db !== '1';
+            core.send({ t: 'hall-db-join', yes: !dodgeNo });
+        }, true);
         rpsEl.addEventListener('click', (e) => {
             e.stopPropagation();
             const id = rpsEl.dataset.id, a = e.target.closest('[data-ans]'), p = e.target.closest('[data-pick]');
@@ -1272,6 +1412,7 @@
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
+            if (dbOn()) court();
             const sorted = [...people.values()].sort((a, b) => a.y - b.y);
             const heads = new Map();
             for (const p of sorted) {
@@ -1289,7 +1430,12 @@
                     }
                     A.aura(lc, au[1], au[2], po.x, po.y, t, false, p.l, po, p.atrail);
                 }
+                // In a game: a ring in your team's colour at your feet; out, you're faded.
+                const team = dbOn() ? dbTeam(p.h) : -1, out = team >= 0 && dbOut(p.h);
+                if (team >= 0) { lc.fillStyle = out ? '#77708a' : DB_TEAMS[team][1]; lc.globalAlpha = 0.8; lc.beginPath(); lc.ellipse(po.x, po.y, 6, 2, 0, 0, Math.PI * 2); lc.fill(); lc.globalAlpha = 1; }
+                if (out) lc.globalAlpha = 0.45;
                 heads.set(p.h, A.person(lc, p.l, po));
+                lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
             }
             A.lights(lc, t, onAir, fx);
@@ -1312,6 +1458,7 @@
             }
             drawGlows(sorted, heads, u, t);
             drawHeld(sorted, heads, u);
+            if (db.state) drawBall(t, u, heads);
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);

@@ -38,6 +38,12 @@
 .hall-rps p { margin: 0 0 6px; }
 .hall-rps div { display: flex; gap: 6px; justify-content: center; }
 .hall-rps .hand { font-size: 26px; padding: 2px 10px; }
+.hall-db { position: absolute; z-index: 3; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: calc(100% - 16px); padding: 6px 12px; text-align: center; cursor: auto;
+    background: rgba(10, 8, 18, 0.9); border: 2px solid #ffffff; color: #fff; font: bold 13px "Courier New", monospace; }
+.hall-db p { margin: 0 0 4px; }
+.hall-db p:last-child { margin: 0; }
+.hall-db div { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
+.hall-db .hg-dim { font-weight: normal; opacity: 0.75; }
 .hall-bar { flex: none; display: flex; gap: 4px; align-items: center; padding: 5px 6px; background: var(--sk-card-bg, #1e1a2c); flex-wrap: wrap; }
 .hall-bar input { flex: 1; min-width: 120px; }
 .hall-bar .btn { padding: 3px 8px; }
