@@ -225,7 +225,9 @@
                     break;
                 }
                 case 'hall-fx':
-                    bursts.push({ k: m.k, at: now() });
+                    // Its clock starts when it's first drawn (`at`), not now: a room that's hidden or behind
+                    // another window isn't drawing, and would miss the whole thing.
+                    bursts.push({ k: m.k, got: now(), at: null });
                     startCool(m.h === me);
                     while (bursts.length > 12) bursts.shift();
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
@@ -1552,6 +1554,10 @@
             const hostTalking = !!(hostSay && hostSay.until > t);
             if (intro != null && !onAir.live) A.entrance(lc, t, intro, introSecs, onAir, info);
             else A.centre(lc, t, hostTalking ? { ...onAir, talking: true } : onAir, info);
+            for (let i = bursts.length - 1; i >= 0; i--) {
+                const b = bursts[i];
+                if (b.at == null) { if (t - b.got > 10) bursts.splice(i, 1); else b.at = t; }    // a long while out of sight: skip it
+            }
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
