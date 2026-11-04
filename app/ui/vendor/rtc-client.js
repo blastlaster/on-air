@@ -357,6 +357,33 @@
         return el._stick;
     };
 
+    /**
+     * A soft two-note chime for a new chat message (made here, no sound file). At most one a
+     * second and a half, so a busy chat doesn't ring like a slot machine.
+     */
+    var chimeCtx = null, chimeAt = 0;
+    LT.chime = function () {
+        var now = Date.now();
+        if (now - chimeAt < 1500) return;
+        chimeAt = now;
+        try {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            chimeCtx = chimeCtx || new AC();
+            if (chimeCtx.state === 'suspended') chimeCtx.resume();
+            var t = chimeCtx.currentTime;
+            [[880, 0], [1320, 0.09]].forEach(function (n) {
+                var o = chimeCtx.createOscillator(), g = chimeCtx.createGain();
+                o.type = 'sine'; o.frequency.value = n[0];
+                g.gain.setValueAtTime(0.0001, t + n[1]);
+                g.gain.exponentialRampToValueAtTime(0.12, t + n[1] + 0.015);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + n[1] + 0.35);
+                o.connect(g); g.connect(chimeCtx.destination);
+                o.start(t + n[1]); o.stop(t + n[1] + 0.4);
+            });
+        } catch (e) { /* no sound here */ }
+    };
+
     LT.chatInput = function (input) {
         if (!input || input._chatInput) return input && input._chatInput;
         var pos = -1, draft = '', box = null, picks = [], sel = 0;

@@ -13,8 +13,15 @@
     const meta = ELEMENTS.find(e => e.id === id) || { label: id, icon: '' };
     document.body.classList.add('el-' + id);
     await UI.init({ id, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>'
-        : id === 'chat' ? '<button type="button" data-hall title="blug.dj/jej: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
-    if (id === 'chat') $('.bar [data-hall]').onclick = () => app.openElement('hall');
+        : id === 'chat' ? '<button type="button" data-sound></button><button type="button" data-hall title="blug.dj/jej: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
+    if (id === 'chat') {
+        $('.bar [data-hall]').onclick = () => app.openElement('hall');
+        // 🔔: a sound for new chat messages (the same switch as Settings → Alerts).
+        const sb = $('.bar [data-sound]');
+        const paintSound = () => { const on = !!UI.info.ui.chatSound; sb.textContent = on ? '🔔' : '🔕'; sb.title = on ? 'A sound plays for new chat messages — click to turn it off' : 'Click for a sound when new chat messages come in'; };
+        sb.onclick = () => { const on = !UI.info.ui.chatSound; app.setUi({ chatSound: on }); if (on && window.LT && LT.chime) LT.chime(); };
+        paintSound(); UI.onUi(paintSound);
+    }
     const body = $('.body');
     const on = (ev, fn) => core.on(ev, fn, window);
     on('toast', (m) => { if (document.hasFocus()) UI.toast(m); });
@@ -871,7 +878,8 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 '<label><input type="checkbox" data-ui="boardAsk"> Warn me before showing the board (18+)</label></section>' +
             '<section><h3>Updates</h3><label><input type="checkbox" data-ui="updates"> Get new versions by themselves (downloaded quietly; you choose when to restart)</label>' +
                 '<p class="hint upd"></p><div class="row"><button type="button" class="btn" data-upd="check">Check now</button><button type="button" class="btn" data-upd="install" hidden>Restart to update</button><button type="button" class="btn" data-upd="page">Release notes ↗</button></div></section>' +
-            '<section><h3>Alerts</h3><label><input type="checkbox" data-ui="alerts"> Tell me when the station goes live, and when the host sends a 📣 Ping — the one sound On Air makes</label>' +
+            '<section><h3>Alerts</h3><label><input type="checkbox" data-ui="alerts"> Tell me when the station goes live, and when the host sends a 📣 Ping</label>' +
+                '<label><input type="checkbox" data-ui="chatSound"> A sound for new chat messages (🔔 in the Chat window does the same)</label>' +
                 '<label><input type="checkbox" data-ui="openAtLogin"> Start with the computer, quietly in the tray</label></section>' +
             '<section><h3>Album downloads</h3><p class="dl-dir"></p><div class="row"><button type="button" class="btn" data-dl="pick">Change folder…</button><button type="button" class="btn" data-dl="open">Open folder</button></div>' +
                 '<label><input type="checkbox" data-ui="askWhere"> Ask where to save each time</label>' +
@@ -886,7 +894,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             box.querySelectorAll('[data-skin]').forEach(b => b.classList.toggle('on', b.dataset.skin === (hol ? hol.skin : ui.skin || '')));
             box.querySelectorAll('.seg').forEach(g => g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === (ui[g.dataset.set] || (g.dataset.set === 'fx' ? 'simple' : 'normal')))));
             box.querySelectorAll('[data-el]').forEach(c => { c.checked = !ui.off.includes(c.dataset.el); });
-            const v = { onTop: ui.onTop, hideWithRadio: ui.hideWithRadio, bannerInRadio: ui.bannerInRadio, sideLeft: ui.side === 'left', boardAsk: !ui.boardOk, alerts: i.alerts, openAtLogin: i.openAtLogin, askWhere: ui.askWhere, lossless: ui.lossless, updates: i.updates, holidays: ui.holidays !== false };
+            const v = { onTop: ui.onTop, hideWithRadio: ui.hideWithRadio, bannerInRadio: ui.bannerInRadio, sideLeft: ui.side === 'left', boardAsk: !ui.boardOk, alerts: i.alerts, openAtLogin: i.openAtLogin, askWhere: ui.askWhere, lossless: ui.lossless, updates: i.updates, holidays: ui.holidays !== false, chatSound: !!ui.chatSound };
             box.querySelectorAll('[data-ui]').forEach(c => { c.checked = !!v[c.dataset.ui]; });
             $('.dl-dir', box).innerHTML = 'Albums go to <b>' + esc(i.downloads) + '</b>';
             $('.st', box).textContent = (i.station ? i.station.name + ' — ' + i.station.pageUrl : 'No station') + ' · On Air ' + i.version;

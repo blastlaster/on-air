@@ -63,6 +63,7 @@ const UI_DEFAULTS = {
     downloads: '', askWhere: false, lossless: false,
     boardOk: false,             // said yes to the board's 18+ warning
     boardTint: true,            // the board takes the look's tint
+    chatSound: false,           // a chime for new chat messages (Settings → Alerts, or 🔔 in the Chat window)
     holidays: true,             // holiday looks on their day (Spooky, Crimbus…)
     holidaySkip: '', holidayTold: '',   // the day you picked your own look instead; the day the radio said so
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)

@@ -180,6 +180,8 @@
 
     // New chat while the chat window is away: a dot on its button.
     core.on('chat', (c) => { if (c.add && elState.chat !== 'open') { const b = $('.side [data-el="chat"]'); if (b) b.classList.add('new'); } });
+    // …and a chime, if it's switched on (only for other people's messages; the radio plays it for every window).
+    core.on('chat', (c) => { if (c.add && UI.info.ui.chatSound && c.add.role !== 'system' && c.add.name !== core.name && window.LT && LT.chime) LT.chime(); });
     core.on('toast', (m) => UI.toast(m));
     core.on('state', paint);
     app.onTogglePlay(() => core.toggle());
