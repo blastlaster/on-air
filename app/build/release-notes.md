@@ -1,3 +1,3 @@
-## What's new in 0.5.18
+## What's new in 0.5.19
 
-- **The radio keeps going.** If the stream drops (your computer wakes from sleep, the Wi-Fi naps, the server lets go), On Air connects again by itself instead of going quiet, and straight away when you're back online. Before, it stopped with "The stream did not open", or stayed silent with the button still showing it was playing.
+- **Fixed: On Air couldn't reach the station in 0.5.18.** Chat, calls, requests, blug.dj/jej and the other windows stayed empty and the player said "No stream address yet." Everything's back, and the radio still reconnects by itself when the stream drops.

@@ -359,9 +359,9 @@
     }
     function play() {
         lostTries = 0; heard = false;
-        connect();
+        playStream();
     }
-    function connect() {
+    function playStream() {
         const url = streamUrl();
         if (!url) { toast('No stream address yet.'); return; }
         clearTimeout(lostT); lostT = null; clearTimeout(stuckT);
@@ -381,7 +381,7 @@
         if (!player.playing || lostT) return;
         clearTimeout(stuckT);
         if (++lostTries > 8) { stop(); toast('Lost the stream. Press play to try again.'); return; }
-        lostT = setTimeout(() => { lostT = null; if (player.playing) connect(); }, Math.min(1000 * lostTries, 8000));
+        lostT = setTimeout(() => { lostT = null; if (player.playing) playStream(); }, Math.min(1000 * lostTries, 8000));
     }
     audio.addEventListener('playing', () => { heard = true; lostTries = 0; clearTimeout(stuckT); });
     audio.addEventListener('ended', streamLost);
@@ -390,7 +390,7 @@
     audio.addEventListener('waiting', armStuck);
     audio.addEventListener('stalled', armStuck);
     // Back online: don't wait out the timer.
-    window.addEventListener('online', () => { if (player.playing && (lostT || audio.paused || audio.readyState < 3)) { lostTries = 0; connect(); } });
+    window.addEventListener('online', () => { if (player.playing && (lostT || audio.paused || audio.readyState < 3)) { lostTries = 0; playStream(); } });
 
     function stop() {
         clearTimeout(lostT); lostT = null; clearTimeout(stuckT);
