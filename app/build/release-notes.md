@@ -1,4 +1,4 @@
-## What's new in 0.5.14
+## What's new in 0.5.15
 
-- **Le Radioman's entrance.** When the show goes live, blug.dj/jej counts down on the stage screen, smoke fills the stage, the desk appears out of nowhere and Radioman walks out and sits down just as the show starts.
-- **FunpostTV takes the stage.** When FunpostTV comes on during a show, its screen grows into the middle of the stage and Radioman's desk teleports aside, then back again when it ends.
+- **Bigger fire.** 🔥 in blug.dj/jej now sends fire along the stage in waves, from the edges in to the middle, each taller than the last, then every jet at once.
+- **Better confetti.** 🎊 fires from cannons on both sides of the room, rains all the way down to the floor, and brings glittery streamers with it.
