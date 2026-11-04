@@ -113,7 +113,18 @@
         let db = { state: '' }, dbAt = 0;
         const flights = new Map();
         const DB_ZONE = { team: [[60, 470, 180, 1000], [530, 940, 180, 1000]], out: [[0, 45, 180, 1000], [955, 1000, 180, 1000]], side: [0, 1000, 0, 110] };
-        const DB_FLIGHT = 0.7, DB_CATCH = 0.45;              // a throw's time in the air; a dash or jump from here on catches it
+        // The ball rolls along the floor (in the floor's own pixels, F's size): the same sums as engine/hall-dodge.js (BALL, ballAt).
+        const BALL = { v0: 160, vMax: 400, drag: 0.9, vMin: 25, w: F.x1 - F.x0, h: F.y1 - F.y0, hitX: 5, hitY: 4 };
+        const bounceIn = (u, L) => { const m = ((u % (2 * L)) + 2 * L) % (2 * L); return m <= L ? m : 2 * L - m; };
+        function ballPos(b, s) {
+            const v0 = Math.hypot(b.vx, b.vy), k = BALL.drag, end = Math.log(Math.max(v0, BALL.vMin) / BALL.vMin) / k, st = Math.max(0, Math.min(s, end));
+            const d = (1 - Math.exp(-k * st)) / k;
+            return { x: bounceIn(b.x + b.vx * d, BALL.w), y: bounceIn(b.y + b.vy * d, BALL.h), v: v0 * Math.exp(-k * st), dead: s >= end };
+        }
+        const CHARGE_AFTER = 0.2, CHARGE_FULL = 1.0;        // hold this long and it's a charged throw; this long more, fully charged
+        const PERFECT = 1.3, PERFECT_S = 0.15;               // let go within this long of it being full: a perfect throw (engine/hall-dodge.js PERFECT)
+        let charging = null;                                 // { at, x, y }: your wind-up, and where you're aiming (room pixels)
+        const chargeOf = new Map();                          // someone's wind-up: h → when it began
         const DB_TEAMS = [['Red', '#ff4f6a'], ['Blue', '#4fa3ff']];
         const dbOn = () => !!db.state && db.state !== 'asking';
         const dbTeam = (h) => !db.teams ? -1 : db.teams[0].includes(h) ? 0 : db.teams[1].includes(h) ? 1 : -1;
@@ -200,11 +211,16 @@
                 case 'hall-hit': onHit(m); break;
                 case 'hall-tech': onTech(m); break;
                 case 'hall-db': onDodge(m); break;
-                case 'hall-db-throw': flights.set(m.id, { a: m.a, b: m.b, at: now(), res: '', resAt: 0 }); break;
+                case 'hall-db-charge': if (m.on) chargeOf.set(m.h, now()); else chargeOf.delete(m.h); break;
+                case 'hall-db-ball': chargeOf.delete(m.a); flights.set(m.id, { a: m.a, x: m.x, y: m.y, vx: m.vx, vy: m.vy, at: now(), res: '', resAt: 0, perfect: !!m.perfect }); break;
                 case 'hall-db-res': {
-                    const f = flights.get(m.id) || { a: m.a, b: m.b, at: now() - DB_FLIGHT };
-                    f.res = m.k; f.resAt = now(); flights.set(m.id, f);
-                    logLine({ text: m.k === 'catch' ? '🏐 ' + nameOf(m.b) + ' caught ' + nameOf(m.a) + '’s throw!' : '🏐 ' + nameOf(m.a) + ' hit ' + nameOf(m.b) + ' — OUT!' }, 'game');
+                    const f = flights.get(m.id) || { a: m.a, x: m.x, y: m.y, vx: 0, vy: 0, at: now() };
+                    Object.assign(f, { res: m.k, resAt: now(), b: m.b || '', rx: m.x, ry: m.y }); flights.set(m.id, f);
+                    // A catch knocks them back a step.
+                    const kp = m.to && people.get(m.b);
+                    if (kp) { const [kx, ky] = toPx(m.to[0], m.to[1]); Object.assign(kp, { knock: { x0: kp.x, y0: kp.y, x1: kx, y1: ky, at: now() }, tx: kx, ty: ky, pushed: false }); if (m.b === me) lastSent = ''; }
+                    if (m.k === 'catch') logLine({ text: '🏐 ' + nameOf(m.b) + ' caught ' + nameOf(m.a) + '’s throw!' }, 'game');
+                    else if (m.k === 'hit') logLine({ text: '🏐 ' + nameOf(m.a) + ' hit ' + nameOf(m.b) + ' — OUT!' }, 'game');
                     break;
                 }
                 case 'hall-fx':
@@ -380,6 +396,7 @@
             const r = cv.getBoundingClientRect();
             const rx = (e.clientX - r.left) / r.width * A.W, ry = (e.clientY - r.top) / r.height * A.H;
             const q = personAt(rx, ry);
+            if (skipClick) { skipClick = false; return; }          // that was a throw
             if (q && dodgeThrow(q)) return;
             if (q) return openPop(q, e);
             popEl.hidden = true;
@@ -506,13 +523,46 @@
             if (p && dbOn()) { p.tx = clampX(p.tx); p.ty = clampY(p.ty); }
             paintDodge();
         }
-        /** Clicking someone with the ball in your hand: throw it at them (the other team only). */
+        const haveBall = () => db.state === 'playing' && db.ball === me && ![...flights.values()].some(f => !f.res);
+        /** A quick click on someone on the other team with the ball in your hand: throw it straight at them. */
         function dodgeThrow(q) {
-            if (db.state !== 'playing' || db.ball !== me || [...flights.values()].some(f => !f.res)) return false;
-            if (dbTeam(q.h) !== 1 - dbTeam(me) || dbOut(q.h)) { U.toast('Throw it at someone on the other team.'); return true; }
-            core.send({ t: 'hall-db-throw', to: q.h });
+            if (!haveBall() || dbTeam(q.h) !== 1 - dbTeam(me) || dbOut(q.h)) return false;
+            throwAt(q.x, q.y, 0);
             popEl.hidden = true;
             return true;
+        }
+        function throwAt(x, y, c) {
+            const [ax, ay] = toU(x, y);
+            core.send({ t: 'hall-db-throw', ax, ay, c: +c.toFixed(2) });
+        }
+        /* Holding the ball: press and hold (anywhere in the room) to wind up, let go to throw that way.
+           A quick click still walks (or throws at whoever's under it). */
+        let press = null, skipClick = false;
+        const roomXY = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * A.W, (e.clientY - r.top) / r.height * A.H]; };
+        stage.addEventListener('pointerdown', (e) => {
+            if (!haveBall() || e.button > 0 || e.target !== cv) return;
+            const [x, y] = roomXY(e);
+            press = { at: now(), x, y };
+        });
+        listen('pointermove', (e) => { if (!press) return; [press.x, press.y] = roomXY(e); if (charging) [charging.x, charging.y] = [press.x, press.y]; });
+        listen('pointerup', (e) => {
+            if (!press) return;
+            const held = now() - press.at, [x, y] = roomXY(e);
+            press = null;
+            if (!charging) return;                                             // a click: floorClick has it
+            const q = personAt(x, y), raw = (held - CHARGE_AFTER) / CHARGE_FULL;
+            const c = raw >= 1 && raw - 1 <= PERFECT_S / CHARGE_FULL ? PERFECT : Math.min(1, Math.max(0, raw));      // just as it's full: perfect
+            charging = null;
+            skipClick = true; setTimeout(() => { skipClick = false; }, 400);
+            if (haveBall()) throwAt(q ? q.x : x, q ? q.y : y, c);
+            core.send({ t: 'hall-db-charge', on: false });
+        });
+        function chargeTick() {
+            if (press && !charging && now() - press.at >= CHARGE_AFTER && haveBall()) {
+                charging = { at: press.at + CHARGE_AFTER, x: press.x, y: press.y };
+                core.send({ t: 'hall-db-charge', on: true });
+            }
+            if (charging && !haveBall()) charging = null;
         }
         /** The bar over the floor: the score, what's going on, and joining in. */
         function paintDodge() {
@@ -529,11 +579,11 @@
                 const myT = dbTeam(me), hold = db.ball;
                 let st = '';
                 if (db.state === 'ready') st = 'Round ' + db.round + ' — get ready… ' + left;
-                else if (db.state === 'playing') st = hold === me ? '<b>You have the ball!</b> Click someone on the other team (' + left + 's)'
+                else if (db.state === 'playing') st = hold === me ? '<b>You have the ball!</b> Hold to wind up, let go to throw that way, or click someone (' + left + 's)'
                     : myT >= 0 && dbOut(me) ? 'You’re out — back in next round' : hold ? esc(nameOf(hold)) + ' has the ball (' + left + 's)' : '…';
                 else if (db.state === 'round') st = T(db.win) + ' takes round ' + db.round + '!';
                 else if (db.state === 'over') st = '🏆 ' + T(db.win) + ' wins!';
-                if (db.state === 'playing' && myT >= 0 && !dbOut(me) && hold !== me) st += ' · <span class="hg-dim">Dash or jump just before it hits you to catch it</span>';
+                if (db.state === 'playing' && myT >= 0 && !dbOut(me) && hold !== me) st += ' · <span class="hg-dim">Dash or jump just as it gets to you to catch it</span>';
                 if (myT < 0 && db.state !== 'over') st += ' · <span class="hg-dim">watching from the back</span>';
                 html = '<p>' + T(0) + ' ' + db.score[0] + ' – ' + db.score[1] + ' ' + T(1) + (myT >= 0 ? ' · you’re ' + T(myT) : '') + '</p><p>' + st + '</p>';
             }
@@ -563,28 +613,48 @@
         const handOf = (p, heads, u) => [(p.x + (p.face < 0 ? -1 : 1) * 6) * u, (heads.get(p.h) + 10) * u];
         /** The ball: in someone's hand, or in the air on its way to someone (then caught, or bouncing off them). */
         function drawBall(t, u, heads) {
-            const flying = [...flights.values()].some(f => !f.res);
+            chargeTick();
+            // One ball: none in a hand while it's rolling, or bouncing off whoever it just hit.
+            const flying = [...flights.values()].some(f => !f.res || (f.res === 'hit' && t - f.resAt < 0.6));
             const holder = people.get(db.ball);
             if (!flying && holder && heads.has(holder.h) && (db.state === 'playing' || db.state === 'ready')) {
                 const [x, y] = handOf(holder, heads, u);
-                ballAt(x, y - Math.abs(Math.sin(t * 4)) * u, u);
+                // Winding up: the ball swells and glows (and for you, a line the way you're aiming, longer the harder).
+                const since = holder.h === me ? (charging ? charging.at : 0) : chargeOf.get(holder.h) || 0;
+                const c = since ? Math.min(1, (t - since) / CHARGE_FULL) : 0;
+                const perfectNow = since && t - since >= CHARGE_FULL && t - since - CHARGE_FULL <= PERFECT_S;     // let go now!
+                if (c > 0) {
+                    ctx.save(); ctx.globalAlpha = perfectNow ? 0.95 : 0.25 + 0.35 * c + 0.15 * Math.sin(t * 20);
+                    ctx.fillStyle = perfectNow ? '#ffffff' : c >= 1 ? '#fff3a0' : '#ff9f43';
+                    ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), (3.5 + 3 * c) * u, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                }
+                if (holder.h === me && charging) {
+                    const p = mine(), dx = charging.x - p.x, dy = charging.y - p.y, n = Math.hypot(dx, dy) || 1, len = 18 + 40 * c;
+                    ctx.save(); ctx.strokeStyle = c >= 1 ? '#fff3a0' : '#ffffff'; ctx.globalAlpha = 0.8; ctx.lineWidth = Math.max(1, u * 0.6); ctx.setLineDash([u * 1.5, u * 1.5]);
+                    ctx.beginPath(); ctx.moveTo(p.x * u, (p.y - 1) * u); ctx.lineTo((p.x + dx / n * len) * u, (p.y - 1 + dy / n * len * 0.6) * u); ctx.stroke(); ctx.restore();
+                }
+                ballAt(x, y - (c ? 0 : Math.abs(Math.sin(t * 4))) * u, u * (1 + 0.35 * c));
             }
             for (const [id, f] of flights) {
-                const a = people.get(f.a), b = people.get(f.b), s = t - f.at;
+                const s = t - f.at;
                 if (f.res && t - f.resAt > 1.4) { flights.delete(id); continue; }
-                if (!b || !heads.has(b.h)) continue;
-                const bx = b.x * u, by = (heads.get(b.h) + 8) * u;
-                if (s < DB_FLIGHT && a && heads.has(a.h)) {
-                    const [ax, ay] = handOf(a, heads, u), k = s / DB_FLIGHT;
-                    ballAt(ax + (bx - ax) * k, ay + (by - ay) * k - Math.sin(k * Math.PI) * 10 * u, u);
-                } else if (!f.res) ballAt(bx, by, u);                                     // there: caught or not, any moment
-                else if (f.res === 'hit') {
-                    const k = Math.min(1, (t - f.resAt) / 0.6), d = a && a.x < b.x ? 1 : -1;
-                    ctx.globalAlpha = 1 - k * 0.7;
-                    ballAt(bx + d * k * 14 * u, by + (Math.pow(k, 2) * 12 - Math.sin(k * Math.PI) * 6) * u, u);
-                    ctx.globalAlpha = 1;
-                    popWord('OUT!', bx, by - 16 * u - k * 3 * u, u, '#ff6b6b');
-                } else popWord('CATCH!', bx, by - 16 * u - Math.min(1, (t - f.resAt) / 0.6) * 3 * u, u, '#8dffb0');
+                if (f.res === 'dead') continue;                                              // stopped: it's in someone's hand now
+                // On its way along the floor (its shadow on the floor, the ball a little above it); stopped where it got to.
+                const b = f.res ? { x: f.rx, y: f.ry } : ballPos(f, s);
+                const fx = (F.x0 + b.x) * u, fy = (F.y0 + b.y) * u;
+                if (f.res === 'hit' || f.res === 'catch') {
+                    const who = people.get(f.b), k = Math.min(1, (t - f.resAt) / 0.6);
+                    if (f.res === 'hit') {
+                        ctx.globalAlpha = 1 - k * 0.7;
+                        ballAt(fx + (f.vx > 0 ? 1 : -1) * k * 14 * u, fy - 7 * u + (Math.pow(k, 2) * 9 - Math.sin(k * Math.PI) * 6) * u, u);
+                        ctx.globalAlpha = 1;
+                        if (who && heads.has(who.h)) popWord('OUT!', who.x * u, (heads.get(who.h) - 6 - k * 3) * u, u, '#ff6b6b');
+                    } else if (who && heads.has(who.h)) popWord('CATCH!', who.x * u, (heads.get(who.h) - 6 - k * 3) * u, u, '#8dffb0');
+                    continue;
+                }
+                if (f.perfect && s < 0.8) { const th = people.get(f.a); if (th && heads.has(th.h)) popWord('PERFECT!', th.x * u, (heads.get(th.h) - 6 - s * 4) * u, u, '#fff3a0'); }
+                ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(Math.round(fx), Math.round(fy), 2.4 * u, 0.9 * u, 0, 0, Math.PI * 2); ctx.fill();
+                ballAt(fx, fy - (f.res === 'dead' ? 2.3 : 7) * u, u);
             }
         }
 
@@ -658,10 +728,16 @@
         /** A dash or jump with a snowball coming at you: one try each — in time, and it misses. */
         function tryTech(t) {
             // A dodgeball coming at you: in time, you catch it.
+            // (Only when it's about to get to you: that's your one try. The station decides if it was in time.)
+            const p = mine();
             for (const [id, f] of flights) {
-                if (f.b !== me || f.tried || f.res || t - f.at >= DB_FLIGHT) continue;
-                f.tried = true;
-                if (t - f.at >= DB_CATCH) core.send({ t: 'hall-db-catch', id });
+                if (f.res || f.tried || !p || dbTeam(me) < 0 || dbOut(me) || dbTeam(f.a) === dbTeam(me)) continue;
+                const mx = p.x - F.x0, my = p.y - F.y0;
+                for (let k = 0; k <= 80; k++) {
+                    const b = ballPos(f, t - f.at + k * 0.01);
+                    if (Math.abs(b.x - mx) <= BALL.hitX + 1 && Math.abs(b.y - my) <= BALL.hitY + 1) { f.tried = true; core.send({ t: 'hall-db-catch', id }); break; }
+                    if (b.dead) break;
+                }
             }
             const x = hits.find(h => h.k === 'snowball' && h.b === me && !h.tried && t - h.at < SNOW_S);
             if (!x) return;
@@ -1266,7 +1342,7 @@
                 if (push) {
                     pendingHit = null;
                     lookAway();
-                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1);
+                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1) * (charging ? 0.5 : 1);       // winding up a throw: slower
                     p.x = clampX(p.x + push[0] * sp * dt);
                     p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
                     p.tx = p.x; p.ty = p.y; p.walking = true;
@@ -1277,11 +1353,17 @@
                 } else if (p.pushed) { p.pushed = false; sendGo(p.x, p.y); }
             }
             for (const q of people.values()) {
+                if (q.knock) {
+                    const k = Math.min(1, (t - q.knock.at) / 0.25), e = 1 - (1 - k) * (1 - k);
+                    q.x = q.knock.x0 + (q.knock.x1 - q.knock.x0) * e; q.y = q.knock.y0 + (q.knock.y1 - q.knock.y0) * e;
+                    if (k >= 1) q.knock = null;
+                    continue;
+                }
                 if (q.pushed) continue;
                 const dx = q.tx - q.x, dy = q.ty - q.y, d = Math.hypot(dx, dy);
                 q.walking = d > 0.6;
                 if (q.walking) {
-                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * dt);
+                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * (q.h === me && charging ? 0.5 : 1) * dt);
                     q.x += dx / d * s; q.y += dy / d * s;
                     if (Math.abs(dx) > 0.5) q.face = dx < 0 ? -1 : 1;
                 }
