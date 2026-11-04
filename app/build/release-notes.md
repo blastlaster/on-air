@@ -1,4 +1,5 @@
-## What's new in 0.5.15
+## What's new in 0.5.16
 
-- **Bigger fire.** 🔥 in blug.dj/jej now sends fire along the stage in waves, from the edges in to the middle, each taller than the last, then every jet at once.
-- **Better confetti.** 🎊 fires from cannons on both sides of the room, rains all the way down to the floor, and brings glittery streamers with it.
+- **Dodgeball in blug.dj/jej.** When the host starts a game, everyone's asked to play: two teams, Red and Blue, one half of the floor each (anyone sitting out watches from the back). With the ball, hold to wind up and let go to throw it your way (let go just as it's fully charged for a perfect throw). It rolls, bounces off the walls and knocks out the first player on the other team it reaches. Dash or jump just as it gets to you to catch it. Best of three rounds.
+- **Tech a snowball.** Dash or jump just before a snowball lands and it sails right past you.
+- **Rematch.** After tic-tac-toe, checkers, Chinese checkers or rock paper scissors, press Rematch to play again.
