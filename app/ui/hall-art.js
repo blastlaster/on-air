@@ -526,11 +526,16 @@
         if (!fx) return;
         const lv = fx.level || 0, on = fx.on || {}, beat = Math.floor(t * 2);
         if (on.disco && lv >= 2) discoBall(t, lv);
-        // Fire jets either side of the stage: on every other bar at a rave, and whenever someone sets them off.
-        const burning = burstOf(fx, 'fire', 2.4, t).length > 0;
-        const onBeat = on.fire && lv >= 3 && beat % 4 === 0 && (t * 2) % 1 < 0.7;
-        if (burning || onBeat) { flame(37, t, burning ? 22 : 14); flame(203, t, burning ? 22 : 14); }
+        // Fire jets either side of the stage on every other bar at a rave.
+        if (on.fire && lv >= 3 && beat % 4 === 0 && (t * 2) % 1 < 0.7) { flame(37, t, 14); flame(203, t, 14); }
+        // Someone set the fire off: jets from the stage's edges in to the middle, wave after wave, then all at once.
+        for (const b of burstOf(fx, 'fire', FIRE_SECS, t)) {
+            const s = t - b.at;
+            FIRE_WAVES.forEach((xs, i) => { const a = s - i * 0.4; if (a >= 0 && a < 0.9) for (const x of xs) flame(x, t, (20 + i * 4) * Math.min(1, a / 0.12)); });
+            if (s >= FIRE_ALL) for (const xs of FIRE_WAVES) for (const x of xs) flame(x, t, 36 * Math.min(1, (s - FIRE_ALL) / 0.12, (FIRE_SECS - s) / 0.25));
+        }
     }
+    const FIRE_WAVES = [[37, 203], [64, 176], [91, 149], [113, 127]], FIRE_ALL = 1.75, FIRE_SECS = 2.9;
 
     /** The disco ball over the dance floor, and its sparkles going round the room. */
     function discoBall(t, lv) {
