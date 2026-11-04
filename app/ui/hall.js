@@ -26,7 +26,9 @@
     // Bonk and slap up close (you walk over first), a snowball from anywhere (engine/hall.js HITS).
     const HITS = [['bonk', '🔨', 'Bonk'], ['slap', '🐟', 'Fish slap'], ['snowball', '⛄', 'Snowball']];
     const MELEE = { bonk: 1, slap: 1 };
-    const HIT_LINE = { bonk: (a, b) => '🔨 ' + a + ' bonked ' + b, slap: (a, b) => '🐟 ' + a + ' slapped ' + b + ' with a fish', snowball: (a, b) => '⛄ ' + a + ' hit ' + b + ' with a snowball' };
+    const HIT_LINE = { bonk: (a, b) => '🔨 ' + a + ' bonked ' + b, slap: (a, b) => '🐟 ' + a + ' slapped ' + b + ' with a fish', snowball: (a, b) => '⛄ ' + a + ' threw a snowball at ' + b };
+    // Teching a snowball: dash or jump in the last moment before it lands (seconds after it's thrown; it lands at SNOW_S).
+    const SNOW_S = 0.45, TECH_FROM = 0.2;
     // Glowsticks (engine/hall.js GLOWS); rainbow goes round the colours.
     const GLOWS = [['green', '#39ff14'], ['pink', '#ff2fd0'], ['cyan', '#00e5ff'], ['yellow', '#ffe600'], ['orange', '#ff7a00'], ['purple', '#b04fff'], ['rainbow', '']];
     const GLOW_COLOR = Object.fromEntries(GLOWS);
@@ -177,6 +179,7 @@
                 case 'hall-glow': { const p = people.get(m.h); if (p) { p.g = m.g; p.trail = []; } break; }
                 case 'hall-aura': { const p = people.get(m.h); if (p) { p.a = m.a; p.atrail = []; } break; }
                 case 'hall-hit': onHit(m); break;
+                case 'hall-tech': onTech(m); break;
                 case 'hall-fx':
                     bursts.push({ k: m.k, at: now() });
                     startCool(m.h === me);
@@ -332,6 +335,7 @@
         function act(a) {
             const p = mine(), t = now();
             if (!p) return;
+            if (a === 'jump' || a === 'dash') tryTech(t);
             if (a === 'jump') { if (t < jumpReady) return; jumpReady = t + JUMP_S + 0.1; p.jumpAt = t; }
             if (a === 'dash') { if (t < dashReady) return; dashReady = t + 1; p.dashUntil = t + DASH_S; }
             core.send({ t: 'hall-act', a });
@@ -523,6 +527,22 @@
             while (hits.length > 30) hits.shift();
             logLine({ text: HIT_LINE[m.k](a.n, b.n) }, 'game');
         }
+        /** A dash or jump with a snowball coming at you: one try each — in time, and it misses. */
+        function tryTech(t) {
+            const x = hits.find(h => h.k === 'snowball' && h.b === me && !h.tried && t - h.at < SNOW_S);
+            if (!x) return;
+            x.tried = true;                                     // too early counts too: no mashing
+            if (t - x.at < TECH_FROM) return;
+            x.tech = t;
+            core.send({ t: 'hall-tech' });
+        }
+        function onTech(m) {
+            let x = null;
+            for (const h of hits) if (h.k === 'snowball' && h.b === m.h && h.a === m.a) x = h;
+            if (x && !x.tech) x.tech = now();
+            const a = people.get(m.a), b = people.get(m.h);
+            if (a && b) logLine({ text: '💨 ' + b.n + ' dodged ' + a.n + '’s snowball. TECH!' }, 'game');
+        }
         /** Knocked about: where someone is drawn, just after a hit. */
         function hitOffset(p, t) {
             let ox = 0, oy = 0;
@@ -531,7 +551,7 @@
                 const s = t - x.at;
                 if (x.k === 'slap' && s > 0.15 && s < 0.6) ox += x.dir * 5 * (1 - (s - 0.15) / 0.45);
                 if (x.k === 'bonk' && s > 0.25 && s < 0.75) oy += 2;
-                if (x.k === 'snowball' && s > 0.45 && s < 0.7) ox += x.dir * 2;
+                if (x.k === 'snowball' && !x.tech && s > SNOW_S && s < 0.7) ox += x.dir * 2;
             }
             return [ox, oy];
         }
@@ -551,6 +571,10 @@
             ctx.lineWidth = Math.max(2, fs / 5); ctx.strokeStyle = '#000';
             ctx.strokeText(text, Math.round(x), Math.round(y));
             ctx.fillStyle = color; ctx.fillText(text, Math.round(x), Math.round(y));
+        }
+        function snowball(x, y, u) {
+            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#9ab8d8'; ctx.lineWidth = Math.max(1, u / 3);
+            ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), 1.6 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         }
         /** The swings, the fish and the snowballs, and what they do. */
         function drawHits(t, u, heads) {
@@ -576,12 +600,29 @@
                     if (s < 0.4) emojiAt('🐟', hx - d * (8 - Math.min(1, s / 0.2) * 9) * u, hy + 3 * u, es, d * (-0.6 + s * 3));
                     if (s > 0.15 && s < 1.1) popWord('SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u, '#7ee3ff');
                 } else {
-                    // A snowball in an arc from their hand, then a splat.
-                    if (a && heads.has(a.h) && s < 0.45) {
+                    // A snowball in an arc from their hand, then a splat (on them; or teched, on the floor behind them).
+                    if (x.tech) {
+                        if (s < 1.2) popWord('TECH!', hx, hy - 9 * u - Math.min(s, 0.8) * 4 * u, u, '#8dffb0');
+                        const fx = (b.x + d * 26) * u, fy = (b.y - 1) * u, past = 0.3;
+                        if (a && heads.has(a.h) && s < SNOW_S) {
+                            const k = s / SNOW_S, ax = (a.x + (b.x < a.x ? -5 : 5)) * u, ay = (heads.get(a.h) + 8) * u;
+                            snowball(ax + (hx - ax) * k, ay + (hy + 3 * u - ay) * k - Math.sin(k * Math.PI) * 14 * u, u);
+                        } else if (s < SNOW_S + past) {
+                            const k = (s - SNOW_S) / past;                      // on past them, down to the floor
+                            snowball(hx + (fx - hx) * k, hy + 3 * u + (fy - hy - 3 * u) * k * k, u);
+                        } else {
+                            const k = s - SNOW_S - past;
+                            ctx.fillStyle = '#ffffff';
+                            for (let j = 0; j < 6; j++) {
+                                const a3 = j / 6 * Math.PI * 2;
+                                ctx.globalAlpha = Math.max(0, 1 - k / 0.5);
+                                ctx.fillRect(Math.round(fx + Math.cos(a3) * (2 + k * 10) * u), Math.round(fy + Math.sin(a3) * (0.5 + k * 3) * u), Math.ceil(u * 0.8), Math.ceil(u * 0.8));
+                            }
+                            ctx.globalAlpha = 1;
+                        }
+                    } else if (a && heads.has(a.h) && s < 0.45) {
                         const k = s / 0.45, ax = (a.x + (b.x < a.x ? -5 : 5)) * u, ay = (heads.get(a.h) + 8) * u;
-                        const bx = ax + (hx - ax) * k, by = ay + (hy + 3 * u - ay) * k - Math.sin(k * Math.PI) * 14 * u;
-                        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#9ab8d8'; ctx.lineWidth = Math.max(1, u / 3);
-                        ctx.beginPath(); ctx.arc(Math.round(bx), Math.round(by), 1.6 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                        snowball(ax + (hx - ax) * k, ay + (hy + 3 * u - ay) * k - Math.sin(k * Math.PI) * 14 * u, u);
                     } else if (s >= 0.45) {
                         const k = s - 0.45;
                         ctx.fillStyle = '#ffffff';
