@@ -1,5 +1,3 @@
-## What's new in 0.5.17
+## What's new in 0.5.18
 
-- **A sound for new chat messages.** Switch it on with 🔔 in the Chat window, or in Settings → Alerts.
-- **Dodgeball looks the part.** The ball is pixel art like everyone in the room, you aim with a little arrow, fast throws leave speed lines and perfect ones leave flames.
-- **No more missing out.** If your On Air is too old for a game that's starting in blug.dj/jej, it tells you to update.
+- **The radio keeps going.** If the stream drops (your computer wakes from sleep, the Wi-Fi naps, the server lets go), On Air connects again by itself instead of going quiet, and straight away when you're back online. Before, it stopped with "The stream did not open", or stayed silent with the button still showing it was playing.
