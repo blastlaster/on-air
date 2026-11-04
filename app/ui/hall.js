@@ -622,6 +622,55 @@
             ctx.fillStyle = '#ffb3a3';                                          // where the light catches it
             ctx.fillRect(Math.round((Math.round(cx) - Math.round(r * 0.6)) * u), Math.round((Math.round(cy) - Math.round(r * 0.6)) * u), Math.ceil(u), Math.ceil(u));
         }
+        /* How fast it's going, behind it: nothing for a normal throw, speed lines for a fast one,
+           flames for a perfect one (both fading as it slows). In room pixels, like the ball. */
+        const FAST_V = 250;                                   // px/s: about half charged, or more
+        const FLAME = ['#fff3a0', '#ffc046', '#ff6a1f', '#c8102e'];
+        function speedTrail(f, s, b, cx, cy, t, u) {
+            const fast = b.v > FAST_V;
+            if (!f.perfect && !fast) return;
+            const back = ballPos(f, Math.max(0, s - 0.03)), mx = b.x - back.x, my = b.y - back.y, n = Math.hypot(mx, my);
+            if (n < 0.01) return;
+            const ux = -mx / n, uy = -my / n, px = -uy, py = ux, w = Math.ceil(u);           // pointing back the way it came
+            const px1 = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(Math.round(x) * u), Math.round(Math.round(y) * u), w, w); };
+            ctx.save();
+            if (f.perfect && b.v > BALL.v0) {
+                // Flames: hottest by the ball, flickering, narrowing as they trail off.
+                const len = Math.min(16, 6 + (b.v - BALL.v0) / 20);
+                for (let d = 2; d <= len; d++) {
+                    const k = d / len, half = Math.max(0, Math.round((1 - k) * 3.5));
+                    for (let j = -half; j <= half; j++) {
+                        const flick = Math.sin(t * 40 + d * 1.7 + j * 2.3);
+                        if (k > 0.5 && flick < -0.3) continue;
+                        ctx.globalAlpha = 0.95 - k * 0.5;
+                        px1(cx + ux * d + px * j + flick * 0.6, cy + uy * d + py * j, FLAME[Math.min(3, Math.floor(k * 4 + (flick > 0.6 ? 1 : 0)))]);
+                    }
+                }
+            } else {
+                // Speed lines: three short dashes behind it, longer the faster.
+                const len = Math.min(9, 3 + (b.v - FAST_V) / 30);
+                ctx.globalAlpha = Math.min(0.85, 0.3 + (b.v - FAST_V) / 200);
+                for (const j of [-2, 0, 2]) {
+                    const skip = Math.floor(t * 30 + j) % 2;                                  // a little shimmer
+                    for (let d = 3 + skip + Math.abs(j); d <= len + 3 - Math.abs(j); d++) px1(cx + ux * d + px * j, cy + uy * d + py * j, '#ffffff');
+                }
+            }
+            ctx.restore();
+        }
+        /** Your aim while winding up: a little pixel arrow from your feet, `len` room pixels long (longer the harder), outlined dark. */
+        function aimArrow(x, y, ux, uy, len, col, u) {
+            const px = -uy, py = ux, dots = new Set();
+            const dot = (a, b) => dots.add(Math.round(a) + ',' + Math.round(b));
+            for (let d = 5; d <= len - 3; d += 0.5) dot(x + ux * d, y + uy * d);                     // the shaft
+            for (let k = 0; k <= 3; k++) for (let j = -k; j <= k; j += 0.5) dot(x + ux * (len - k) + px * j, y + uy * (len - k) + py * j);     // the head
+            const w = Math.ceil(u), at = (s) => s.split(',').map(Number);
+            ctx.save();
+            ctx.globalAlpha = 0.7; ctx.fillStyle = '#120e1e';
+            for (const s of dots) { const [a, b] = at(s); for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) ctx.fillRect(Math.round((a + ox) * u), Math.round((b + oy) * u), w, w); }
+            ctx.globalAlpha = 1; ctx.fillStyle = col;
+            for (const s of dots) { const [a, b] = at(s); ctx.fillRect(Math.round(a * u), Math.round(b * u), w, w); }
+            ctx.restore();
+        }
         const handOf = (p, heads, u) => [(p.x + (p.face < 0 ? -1 : 1) * 6) * u, (heads.get(p.h) + 10) * u];
         /** The ball: in someone's hand, or in the air on its way to someone (then caught, or bouncing off them). */
         function drawBall(t, u, heads) {
@@ -641,11 +690,8 @@
                     ctx.restore();
                 }
                 if (holder.h === me && charging) {
-                    const p = mine(), dx = charging.x - p.x, dy = charging.y - p.y, n = Math.hypot(dx, dy) || 1, len = 18 + 40 * c;
-                    // The aim: a dotted line of room pixels.
-                    ctx.save(); ctx.fillStyle = c >= 1 ? '#fff3a0' : '#ffffff'; ctx.globalAlpha = 0.8;
-                    for (let d = 4; d <= len; d += 3) ctx.fillRect(Math.round(Math.round(p.x + dx / n * d) * u), Math.round(Math.round(p.y - 1 + dy / n * d * 0.6) * u), Math.ceil(u), Math.ceil(u));
-                    ctx.restore();
+                    const p = mine(), dx = charging.x - p.x, dy = (charging.y - p.y) * 0.6, n = Math.hypot(dx, dy) || 1;
+                    aimArrow(p.x, p.y - 7, dx / n, dy / n, 10 + 18 * c, perfectNow ? (Math.floor(t * 16) % 2 ? '#ffffff' : '#ffd34a') : c >= 1 ? '#ffd34a' : '#ffffff', u);
                 }
                 ballAt(x, y - (c ? 0 : Math.round(Math.abs(Math.sin(t * 4)))) * u, u, 1 + 0.5 * c);
             }
@@ -668,6 +714,7 @@
                 }
                 if (f.perfect && s < 0.8) { const th = people.get(f.a); if (th && heads.has(th.h)) popWord('PERFECT!', th.x * u, (heads.get(th.h) - 6 - s * 4) * u, u, '#fff3a0'); }
                 pixDisc(fx / u, fy / u, 2.4, 1, 'rgba(0,0,0,0.45)', u);
+                if (!f.res) speedTrail(f, s, b, fx / u, fy / u - 7, t, u);
                 ballAt(fx, fy - (f.res === 'dead' ? 2.3 : 7) * u, u);
             }
         }
