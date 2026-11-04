@@ -173,6 +173,7 @@
                     break;
                 }
                 case 'hall-rps': onGame(m); break;
+                case 'hall-rps-again': { const g = games.get(m.id); if (g) { g.again = [...(g.again || []), m.h]; if (m.h !== me && (g.a === me || g.b === me)) U.toast(nameOf(m.h) + ' wants a rematch!'); paintRps(); } break; }
                 case 'hall-table': onTable(m.table); break;
                 case 'hall-table-del': onTableGone(m.id); break;
                 case 'hall-safe': { const p = people.get(m.h); if (p) p.s = m.s; break; }
@@ -705,8 +706,8 @@
         offs.push(() => clearInterval(coolT));
         function onGame(g, quiet) {
             const t = now(), old = games.get(g.id);
-            const keep = { asked: 21, picking: 16, done: 7, declined: 3.5, expired: 3.5, gone: 0 }[g.state] || 0;
-            if (!keep) games.delete(g.id); else games.set(g.id, { ...g, until: t + keep, at: old ? old.at : t });
+            const keep = { asked: 21, picking: 16, done: 20, declined: 3.5, expired: 3.5, gone: 0 }[g.state] || 0;
+            if (!keep) games.delete(g.id); else games.set(g.id, { ...g, until: t + keep, at: old ? old.at : t, at2: t });
             if (g.a === me || g.b === me) {
                 if (g.state !== 'picking') myPick = '';
                 if (g.state === 'asked' && g.b === me) U.toast(nameOf(g.a) + ' challenges you to rock paper scissors!');
@@ -725,10 +726,18 @@
             if (text) logLine({ text: '⚔ ' + text }, 'game');
             paintRps();
         }
-        /** Your part in a game: answer a challenge, or pick. */
+        /** Your part in a game: answer a challenge, or pick; after one, a rematch. */
         function paintRps() {
             const g = [...games.values()].find(x => (x.a === me || x.b === me) && (x.state === 'asked' || x.state === 'picking'));
+            const done = !g && [...games.values()].reverse().find(x => (x.a === me || x.b === me) && x.state === 'done' && now() < x.until);
             let html = '';
+            if (done) {
+                const other = done.a === me ? done.b : done.a, asked = done.again || [];
+                html = !people.has(other) ? '' : asked.includes(me)
+                    ? '<p>Rematch? Waiting for <b>' + esc(nameOf(other)) + '</b>…</p>'
+                    : '<p>' + (asked.includes(other) ? '<b>' + esc(nameOf(other)) + '</b> wants a rematch!' : 'Again?') + '</p>' +
+                      '<div><button type="button" class="btn go" data-again>Rematch</button><button type="button" class="btn" data-nah>No thanks</button></div>';
+            }
             if (g && g.state === 'asked' && g.b === me) {
                 html = '<p><b>' + esc(nameOf(g.a)) + '</b> challenges you to rock paper scissors!</p>' +
                     '<div><button type="button" class="btn go" data-ans="1">Accept</button><button type="button" class="btn" data-ans="0">No thanks</button></div>';
@@ -742,12 +751,14 @@
             }
             if (rpsEl.innerHTML !== html) rpsEl.innerHTML = html;
             rpsEl.hidden = !html;
-            rpsEl.dataset.id = g ? g.id : '';
+            rpsEl.dataset.id = g ? g.id : done ? done.id : '';
         }
         rpsEl.addEventListener('click', (e) => {
             e.stopPropagation();
             const id = rpsEl.dataset.id, a = e.target.closest('[data-ans]'), p = e.target.closest('[data-pick]');
             if (a) core.send({ t: 'hall-rps-answer', id, ok: a.dataset.ans === '1' });
+            if (e.target.closest('[data-again]')) core.send({ t: 'hall-rps-again', id });
+            if (e.target.closest('[data-nah]')) { const g = games.get(id); if (g) g.until = 0; paintRps(); }
             if (p) { myPick = p.dataset.pick; core.send({ t: 'hall-rps-pick', id, pick: myPick }); paintRps(); }
         });
         /** Over the players' heads: who's playing, and how it came out. */
@@ -760,7 +771,8 @@
                     let label = '', win = false;
                     if (g.state === 'asked') label = h === g.a ? '⚔' : '⚔?';
                     else if (g.state === 'picking') label = Math.floor(t * 2) % 2 ? '✊' : '✌️';
-                    else if (g.state === 'done') { label = HANDS[g.picks[h]] + (g.win === h ? ' WIN!' : !g.win ? ' DRAW' : ''); win = g.win === h; }
+                    else if (g.state === 'done' && t - g.at2 < 7) { label = HANDS[g.picks[h]] + (g.win === h ? ' WIN!' : !g.win ? ' DRAW' : ''); win = g.win === h; }
+                    else if (g.state === 'done' && (g.again || []).includes(h)) label = '🔁?';
                     else if (g.state === 'declined') label = h === g.b ? '🙅' : '';
                     else if (g.state === 'expired') label = '⌛';
                     if (label) badge(label, (p.x + 8) * u, (heads.get(h) - 2) * u, u, win);
@@ -808,6 +820,11 @@
                 logLine({ text: '🎲 ' + nameOf(tb.seats[0]) + ' opened a ' + GAME_NAMES[tb.g] + ' table' + (tb.seats.length > 2 ? ' for ' + tb.seats.length : '') + ' — press 🎲 to sit down' }, 'game');
             }
             if (!quiet && old && old.state !== 'done' && tb.state === 'done') logLine({ text: '🎲 ' + resultText(tb) }, 'game');
+            if (!quiet && old && old.state === 'done' && tb.state === 'playing') logLine({ text: '🎲 Rematch! ' + GAME_NAMES[tb.g] + ': ' + tb.seats.map(nameOf).join(' vs ') }, 'game');
+            if (!quiet && old && tb.state === 'done' && seatOf(tb) >= 0 && (tb.again || []).length > (old.again || []).length && !tb.again.includes(seatOf(tb))) {
+                const who = tb.seats[tb.again[tb.again.length - 1]];
+                if (who !== me) U.toast(nameOf(who) + ' wants a rematch! (🎲)');
+            }
             // Your own table opens by itself: when you sit down, and when the game starts.
             if (seatOf(tb) >= 0 && (!old || old.state !== tb.state) && tb.state !== 'done') { view = tb.id; gamesEl.hidden = false; }
             if (old && (old.turn !== tb.turn || old.state !== tb.state)) { sel = null; hops = []; leaving = ''; }
@@ -856,8 +873,17 @@
                 '<div class="hg-btns">' +
                 (tb.state === 'waiting' && seat < 0 && tb.seats.includes('') ? '<button type="button" class="btn go" data-sit="' + tb.id + '">Sit down</button>' : '') +
                 (tb.g === 'chinese' && mine && hops.length > 1 ? '<button type="button" class="btn go" data-go>Move</button><button type="button" class="btn" data-undo>Undo</button>' : '') +
+                (seat >= 0 && tb.state === 'done' ? againHtml(tb, seat) : '') +
                 (seat >= 0 && tb.state !== 'done' && !tb.out.includes(seat) ? '<button type="button" class="btn" data-stand>' +
                     (tb.state === 'playing' ? (leaving === tb.id ? 'Leave and lose?' : 'Leave the game') : 'Get up') + '</button>' : '') + '</div>';
+        }
+        /** After a game: a rematch, once everyone at the table asks. */
+        function againHtml(tb, seat) {
+            const asked = tb.again || [], gone = tb.seats.filter(h => !people.has(h));
+            if (gone.length) return '<span class="hg-dim">' + esc(gone.map(nameOf).join(', ')) + ' left — no rematch</span>';
+            const want = asked.length ? ' <span class="hg-dim">(' + asked.length + ' of ' + tb.seats.length + ' want one)</span>' : '';
+            return asked.includes(seat) ? '<button type="button" class="btn" disabled>Waiting for the others…</button>' + want
+                : '<button type="button" class="btn go" data-again="' + tb.id + '">🔁 Rematch</button>' + want;
         }
         function boardHtml(tb, seat, mine) {
             const b = tb.board, last = tb.last && tb.last.m;
@@ -899,6 +925,7 @@
                 if ('back' in d) { view = ''; sel = null; hops = []; return paintGames(); }
                 if (d.new) return core.send({ t: 'hall-table-new', g: d.new, n: Number(d.n) || 2 });
                 if (d.sit) return core.send({ t: 'hall-table-sit', id: d.sit });
+                if (d.again) return core.send({ t: 'hall-table-again', id: d.again });
                 if (d.open) { view = d.open; sel = null; hops = []; return paintGames(); }
                 if ('stand' in d && tb) {
                     if (tb.state === 'playing' && leaving !== tb.id) { leaving = tb.id; return paintGames(); }
