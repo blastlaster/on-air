@@ -1,5 +1,5 @@
-## What's new in 0.5.16
+## What's new in 0.5.17
 
-- **Dodgeball in blug.dj/jej.** When the host starts a game, everyone's asked to play: two teams, Red and Blue, one half of the floor each (anyone sitting out watches from the back). With the ball, hold to wind up and let go to throw it your way (let go just as it's fully charged for a perfect throw). It rolls, bounces off the walls and knocks out the first player on the other team it reaches. Dash or jump just as it gets to you to catch it. Best of three rounds.
-- **Tech a snowball.** Dash or jump just before a snowball lands and it sails right past you.
-- **Rematch.** After tic-tac-toe, checkers, Chinese checkers or rock paper scissors, press Rematch to play again.
+- **A sound for new chat messages.** Switch it on with 🔔 in the Chat window, or in Settings → Alerts.
+- **Dodgeball looks the part.** The ball is pixel art like everyone in the room, you aim with a little arrow, fast throws leave speed lines and perfect ones leave flames.
+- **No more missing out.** If your On Air is too old for a game that's starting in blug.dj/jej, it tells you to update.
