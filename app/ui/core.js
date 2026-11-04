@@ -358,22 +358,53 @@
         return u;
     }
     function play() {
+        lostTries = 0; heard = false;
+        connect();
+    }
+    function connect() {
         const url = streamUrl();
         if (!url) { toast('No stream address yet.'); return; }
+        clearTimeout(lostT); lostT = null; clearTimeout(stuckT);
         album.pause();
         audio.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
         const p = audio.play();
-        if (p && p.catch) p.catch(() => { setPlaying(false); toast('Press play again to start.'); });
+        // Only a refused start needs a press; a stream that fails to open is onerror's business.
+        if (p && p.catch) p.catch((e) => { if (player.playing && e && e.name === 'NotAllowedError') { stop(); toast('Press play again to start.'); } });
         setPlaying(true);
     }
+
+    /* Keep the radio on. A stream that drops (the computer waking from sleep, Wi-Fi
+       napping, the server letting go) connects again from what's on now instead of
+       going quiet, waiting a little longer each time; eight tries and it gives up. */
+    let heard = false, lostTries = 0, lostT = null, stuckT = null;
+    function streamLost() {
+        if (!player.playing || lostT) return;
+        clearTimeout(stuckT);
+        if (++lostTries > 8) { stop(); toast('Lost the stream. Press play to try again.'); return; }
+        lostT = setTimeout(() => { lostT = null; if (player.playing) connect(); }, Math.min(1000 * lostTries, 8000));
+    }
+    audio.addEventListener('playing', () => { heard = true; lostTries = 0; clearTimeout(stuckT); });
+    audio.addEventListener('ended', streamLost);
+    // Waiting for sound that doesn't come: after 12 s, a fresh connection.
+    const armStuck = () => { if (!player.playing) return; clearTimeout(stuckT); stuckT = setTimeout(streamLost, 12000); };
+    audio.addEventListener('waiting', armStuck);
+    audio.addEventListener('stalled', armStuck);
+    // Back online: don't wait out the timer.
+    window.addEventListener('online', () => { if (player.playing && (lostT || audio.paused || audio.readyState < 3)) { lostTries = 0; connect(); } });
+
     function stop() {
+        clearTimeout(lostT); lostT = null; clearTimeout(stuckT);
         audio.pause();
         audio.removeAttribute('src');
         try { audio.load(); } catch { /* fine */ }
         setPlaying(false);
     }
     function setPlaying(on) { player.playing = on; render(); }
-    audio.onerror = () => { if (player.playing) { setPlaying(false); toast('The stream did not open.'); } };
+    audio.onerror = () => {
+        if (!player.playing || !audio.getAttribute('src')) return;
+        if (heard || lostTries > 0) return streamLost();     // it was playing, or still getting it back
+        stop(); toast('The stream did not open.');
+    };
     function setVolume(v) {
         player.volume = Math.max(0, Math.min(1, Number(v)));
         audio.volume = player.volume; album.audio.volume = player.volume;
