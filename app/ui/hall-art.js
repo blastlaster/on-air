@@ -589,7 +589,7 @@
         if ((on.lasers && lv >= 2) || zap) lasers(t, zap ? 3 : lv);
         const puffs = burstOf(fx, 'smoke', 7, t);
         if ((on.smoke && lv >= 2) || puffs.length) smoke(t, lv, puffs);
-        for (const b of burstOf(fx, 'confetti', 4.5, t)) confetti(t - b.at, b.at);
+        for (const b of burstOf(fx, 'confetti', CONFETTI_SECS, t)) confetti(t - b.at, b.at);
     }
 
     /** Laser beams fanning out from both sides of the stage; a strobe at a rave. */
@@ -637,15 +637,56 @@
         }
     }
 
-    /** Confetti falling over the room for a few seconds. */
+    /* Confetti: two cannons on either side of the room fire it up and across (twice each), then it
+       flutters and rains all the way down to the floor, with glittery streamers curling among it.
+       A piece flies with drag: it slows from its launch to a steady fall (and sways as it falls). */
+    const CONFETTI_SECS = 7.5, DRAG = 2.4;
+    function flight(side, s, vx, vy, fall) {
+        const e = (1 - Math.exp(-DRAG * s)) / DRAG;
+        return { x: side < 0 ? -2 + vx * e : W + 2 - vx * e, y: 64 + fall * s + (vy - fall) * e };
+    }
     function confetti(s, seed) {
-        for (let i = 0; i < 90; i++) {
-            const h1 = hash(i + seed), h2 = hash(i * 3 + seed);
-            const y = -6 + (s - h2 * 0.8) * (30 + h1 * 30);
-            if (y < -4 || y > 150) continue;
-            const x = (h1 * 260 - 10) + Math.sin(s * 4 + i) * 4;
-            l.globalAlpha = Math.min(1, (4.5 - s) / 1.2);
-            R(x, y, 1 + (i % 2), 2 - (i % 2), PARTY[i % PARTY.length]);
+        const fade = Math.min(1, (CONFETTI_SECS - s) / 1.2);
+        // The cannons going off: a flash at each side.
+        for (const v of [0, 0.45]) {
+            const f = 1 - (s - v) / 0.3;
+            if (f > 0 && f <= 1) for (const side of [-1, 1]) {
+                l.fillStyle = '#fff6c8'; puff(side < 0 ? 0 : W, 64, 10 * (2 - f), 6 * (2 - f), 0.9 * f);
+            }
+        }
+        l.globalAlpha = 1;
+        // Streamers: long glittery ribbons, a few per side, trailing behind where they've been.
+        for (let i = 0; i < 12; i++) {
+            const side = i % 2 ? 1 : -1, h1 = hash(i + seed * 3), h2 = hash(i * 5 + seed);
+            const at = s - (i % 4 < 2 ? 0 : 0.45) - h2 * 0.1;
+            if (at <= 0) continue;
+            const vx = 90 + h1 * 190, vy = -(60 + h2 * 70), fall = 9 + h1 * 6, col = PARTY[(i * 3) % PARTY.length];
+            let last = null;
+            for (let k = 0; k < 14; k++) {
+                const ts = at - k * 0.045;
+                if (ts <= 0) break;
+                const p = flight(side, ts, vx, vy, fall), x = p.x + Math.sin(ts * 3 + i + k * 0.6) * (2 + k * 0.4), y = p.y;
+                if (y > 148) continue;
+                l.globalAlpha = fade * (1 - k / 16);
+                if (last) { const n = Math.max(1, Math.round(Math.max(Math.abs(x - last.x), Math.abs(y - last.y)))); for (let j = 0; j < n; j++) R(last.x + (x - last.x) * j / n, last.y + (y - last.y) * j / n, 1, 1, col); }
+                // Glitter on the ribbon: points catching the light.
+                if (hash(k + i * 17 + Math.floor(s * 12)) > 0.72) R(x, y, 1, 1, '#ffffff');
+                last = { x, y };
+            }
+        }
+        // The confetti: lots of little pieces, tumbling (now wide, now narrow) as they fall.
+        for (let i = 0; i < 170; i++) {
+            const side = i % 2 ? 1 : -1, h1 = hash(i + seed), h2 = hash(i * 3 + seed), h3 = hash(i * 7 + seed);
+            const at = s - (i % 4 < 2 ? 0 : 0.45) - h3 * 0.15;
+            if (at <= 0) continue;
+            const p = flight(side, at, 60 + h1 * 250, -(55 + h2 * 95), 20 + h3 * 16);
+            if (p.y > 149 || p.x < -3 || p.x > W + 3) continue;
+            const x = p.x + Math.sin(at * (3 + h1 * 3) + i) * 3 * Math.min(1, at), turn = Math.sin(at * (8 + h2 * 8) + i);
+            l.globalAlpha = fade;
+            const glitter = i % 9 === 0;                                           // some of it is glitter: it twinkles
+            const col = glitter ? (Math.floor(at * 10 + i) % 2 ? '#ffffff' : '#ffe680') : PARTY[i % PARTY.length];
+            if (Math.abs(turn) < 0.25) R(x, p.y, 1, 1, col);                       // edge on
+            else if (i % 2) R(x, p.y, 2, 1, col); else R(x, p.y, 1, 2, col);
         }
         l.globalAlpha = 1;
     }
