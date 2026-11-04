@@ -152,7 +152,8 @@
             if (refused || pending) return;
             if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura })) return notice('Connecting to the station…');
+            // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 2 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -605,10 +606,21 @@
             for (let y = Math.round(y0); y < y1; y += 4) lc.fillRect(Math.round(mx), y, 1, 2);
             lc.globalAlpha = 1;
         }
-        function ballAt(x, y, u) {
-            ctx.fillStyle = '#e8402f'; ctx.strokeStyle = '#7a1408'; ctx.lineWidth = Math.max(1, u / 3);
-            ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), 2.3 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(Math.round(x - 0.8 * u), Math.round(y - 0.8 * u), 0.7 * u, 0, Math.PI * 2); ctx.fill();
+        /* The ball in pixels, the room's own size (like the people): a disc of whole room pixels
+           around (cx, cy), drawn u screen pixels a side. */
+        function pixDisc(cx, cy, rx, ry, col, u) {
+            const x0 = Math.round(cx), y0 = Math.round(cy), w = Math.ceil(u);
+            ctx.fillStyle = col;
+            for (let dy = -Math.ceil(ry); dy <= Math.ceil(ry); dy++) for (let dx = -Math.ceil(rx); dx <= Math.ceil(rx); dx++)
+                if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1.05) ctx.fillRect(Math.round((x0 + dx) * u), Math.round((y0 + dy) * u), w, w);
+        }
+        /** The ball at (x, y) screen pixels; `k` swells it (winding up). */
+        function ballAt(x, y, u, k = 1) {
+            const cx = x / u, cy = y / u, r = 1.6 * k;
+            pixDisc(cx, cy, r + 1, r + 1, '#6e1208', u);                       // the outline
+            pixDisc(cx, cy, r, r, '#e8402f', u);
+            ctx.fillStyle = '#ffb3a3';                                          // where the light catches it
+            ctx.fillRect(Math.round((Math.round(cx) - Math.round(r * 0.6)) * u), Math.round((Math.round(cy) - Math.round(r * 0.6)) * u), Math.ceil(u), Math.ceil(u));
         }
         const handOf = (p, heads, u) => [(p.x + (p.face < 0 ? -1 : 1) * 6) * u, (heads.get(p.h) + 10) * u];
         /** The ball: in someone's hand, or in the air on its way to someone (then caught, or bouncing off them). */
@@ -625,15 +637,17 @@
                 const perfectNow = since && t - since >= CHARGE_FULL && t - since - CHARGE_FULL <= PERFECT_S;     // let go now!
                 if (c > 0) {
                     ctx.save(); ctx.globalAlpha = perfectNow ? 0.95 : 0.25 + 0.35 * c + 0.15 * Math.sin(t * 20);
-                    ctx.fillStyle = perfectNow ? '#ffffff' : c >= 1 ? '#fff3a0' : '#ff9f43';
-                    ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), (3.5 + 3 * c) * u, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                    pixDisc(x / u, y / u, 3.5 + 3 * c, 3.5 + 3 * c, perfectNow ? '#ffffff' : c >= 1 ? '#fff3a0' : '#ff9f43', u);
+                    ctx.restore();
                 }
                 if (holder.h === me && charging) {
                     const p = mine(), dx = charging.x - p.x, dy = charging.y - p.y, n = Math.hypot(dx, dy) || 1, len = 18 + 40 * c;
-                    ctx.save(); ctx.strokeStyle = c >= 1 ? '#fff3a0' : '#ffffff'; ctx.globalAlpha = 0.8; ctx.lineWidth = Math.max(1, u * 0.6); ctx.setLineDash([u * 1.5, u * 1.5]);
-                    ctx.beginPath(); ctx.moveTo(p.x * u, (p.y - 1) * u); ctx.lineTo((p.x + dx / n * len) * u, (p.y - 1 + dy / n * len * 0.6) * u); ctx.stroke(); ctx.restore();
+                    // The aim: a dotted line of room pixels.
+                    ctx.save(); ctx.fillStyle = c >= 1 ? '#fff3a0' : '#ffffff'; ctx.globalAlpha = 0.8;
+                    for (let d = 4; d <= len; d += 3) ctx.fillRect(Math.round(Math.round(p.x + dx / n * d) * u), Math.round(Math.round(p.y - 1 + dy / n * d * 0.6) * u), Math.ceil(u), Math.ceil(u));
+                    ctx.restore();
                 }
-                ballAt(x, y - (c ? 0 : Math.abs(Math.sin(t * 4))) * u, u * (1 + 0.35 * c));
+                ballAt(x, y - (c ? 0 : Math.round(Math.abs(Math.sin(t * 4)))) * u, u, 1 + 0.5 * c);
             }
             for (const [id, f] of flights) {
                 const s = t - f.at;
@@ -653,7 +667,7 @@
                     continue;
                 }
                 if (f.perfect && s < 0.8) { const th = people.get(f.a); if (th && heads.has(th.h)) popWord('PERFECT!', th.x * u, (heads.get(th.h) - 6 - s * 4) * u, u, '#fff3a0'); }
-                ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(Math.round(fx), Math.round(fy), 2.4 * u, 0.9 * u, 0, 0, Math.PI * 2); ctx.fill();
+                pixDisc(fx / u, fy / u, 2.4, 1, 'rgba(0,0,0,0.45)', u);
                 ballAt(fx, fy - (f.res === 'dead' ? 2.3 : 7) * u, u);
             }
         }
