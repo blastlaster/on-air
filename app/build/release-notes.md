@@ -1,4 +1,6 @@
-## What's new in 0.5.21
+## What's new in 0.5.22
 
-- **blug.dj/jej: duels.** Click someone, then ⚔ Duel. Best of three, and everyone else fades while you fight. 🔨 Bonk stuns them, 🐟 slaps knock them back (fish, then salmon, then tuna, and the tuna takes the round), ⛄ snowballs slow them and three in a row freeze them. Keys J, K and L, or the buttons.
-- **Interface: page numbers.** Each thread shows which page of the board it's on, in red near the last page so you know when to bump it, and says when it's past the bump limit.
+- **blug.dj/jej: the tuna slap.** The slap that wins a duel round now lands in slow motion, with a flash, a shockwave and a shake, and throws the loser across the room.
+- **Duel results in the chat.** Everyone sees "X defeated Y in a duel!", and if someone walks out mid-duel, "X has fled from combat. How embarrassing!"
+- **Duels on phones:** big Bonk, Slap and Snowball buttons while a duel is on.
+- **Rock paper scissors:** starting a new game or a rematch clears the last game's WIN / DRAW over your heads.
