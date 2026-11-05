@@ -51,6 +51,17 @@
     .hall-duel .hd-help { font-size: 10px; }
     .hall-duel div { margin-top: 2px; }
 }
+/* A phone's duel buttons: big, round, just above the bar. */
+.hall-dpad { position: absolute; z-index: 5; left: 0; right: 0; bottom: calc(var(--bar-h, 44px) + 10px); display: flex; justify-content: center; gap: 18px; pointer-events: none;
+    touch-action: none; -webkit-user-select: none; user-select: none; }
+.hall-dpad[hidden] { display: none; }
+.hall-dpad button { pointer-events: auto; width: 68px; height: 68px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    background: rgba(20, 14, 34, 0.72); color: #fff; border: 2px solid rgba(255, 255, 255, 0.75); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); padding: 0; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: transform 0.08s; }
+.hall-dpad button span { font-size: 28px; line-height: 1; }
+.hall-dpad button small { font: bold 10px system-ui, sans-serif; opacity: 0.85; }
+.hall-dpad button.hit { transform: scale(0.88); background: rgba(255, 47, 110, 0.85); }
+.hall-dpad.wait button { opacity: 0.45; }
 .hall-duel kbd { font: inherit; padding: 0 3px; border: 1px solid #fff6; border-radius: 3px; }
 .hall-db { position: absolute; z-index: 3; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: calc(100% - 16px); padding: 6px 12px; text-align: center; cursor: auto;
     background: rgba(10, 8, 18, 0.9); border: 2px solid #ffffff; color: #fff; font: bold 13px "Courier New", monospace; }

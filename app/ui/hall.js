@@ -75,9 +75,9 @@
             '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
-            '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div></div>';
+            '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div><div class="hall-dpad" hidden></div></div>';
         const stage = $('.hall-stage', box), cv = $('canvas', box), ctx = cv.getContext('2d');
-        const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), duelEl = $('.hall-duel', box), emojiEl = $('.hall-emoji', box);
+        const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), duelEl = $('.hall-duel', box), padEl = $('.hall-dpad', box), emojiEl = $('.hall-emoji', box);
         const tvEl = $('.hall-tv', box), msgEl = $('.hall-msg', box), logBox = $('.hall-log', box), logEl = $('.hall-lines', box), bar = $('.hall-bar', box), input = $('input', bar), lookEl = $('.hall-look', box);
         if (window.LT && LT.stickToBottom) LT.stickToBottom(logEl);       // the chat opens at its newest line
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
@@ -1156,7 +1156,7 @@
                     }
                     if (duelSay && duelSay.until > t) st += ' · <b class="hd-warn">' + esc(duelSay.text) + '</b>';
                     html = '<p>⚔ ' + score + '</p><p>' + st + '</p>' +
-                        (touch ? '<p class="hd-help">🔨 stuns · 🐟 three in a row takes the round · ⛄ slows, three freeze — tap them below</p>'
+                        (touch ? '<p class="hd-help">🔨 stuns · 🐟 three in a row takes the round · ⛄ slows, three freeze — tap the big buttons</p>'
                             : '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, three freeze</p>') +
                         '<div><button type="button" class="btn" data-dquit>Give up</button></div>';
                 }
@@ -1164,7 +1164,25 @@
             if (duelEl._html !== html) { duelEl.innerHTML = html; duelEl._html = html; }
             duelEl.hidden = !html;
             duelEl.dataset.id = d ? d.id : '';
+            paintPad(d, t);
         }
+        // On a phone, the duel's moves as big buttons over the bottom of the room (just above the bar), while it's on.
+        padEl.innerHTML = HITS.map(([k, icon, name]) => '<button type="button" data-dhit="' + k + '" title="' + name + '"><span>' + icon + '</span><small>' + name.replace('Fish ', '') + '</small></button>').join('');
+        function paintPad(d, t) {
+            const on = touch && !!d && FIGHT[d.state];
+            padEl.hidden = !on;
+            if (!on) return;
+            const s = d.st[me] || {};
+            padEl.classList.toggle('wait', d.state !== 'fighting' || s.frozen > t || s.stun > t);
+        }
+        padEl.addEventListener('pointerdown', (e) => {
+            const b = e.target.closest('[data-dhit]');
+            e.preventDefault(); e.stopPropagation();                    // a tap here isn't a walk
+            if (!b) return;
+            b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 150);
+            duelHit(b.dataset.dhit);
+        });
+        padEl.addEventListener('click', (e) => e.stopPropagation());
         const duelT = setInterval(() => { if (duels.size || !duelEl.hidden) paintDuel(); }, 200);
         offs.push(() => clearInterval(duelT));
         duelEl.addEventListener('click', (e) => {
@@ -1488,7 +1506,7 @@
         const actsEl = $('.hall-acts', box);
         function paintActs() {
             const fighting = !!duelOf(me);
-            actsEl.innerHTML = ACTIONS.filter(a => !a.duel || fighting).map(a => {
+            actsEl.innerHTML = ACTIONS.filter(a => !a.duel || (fighting && !touch)).map(a => {         // on a phone they're the big buttons
                 const k = keymap[a.id];
                 return '<button type="button" class="btn" data-act="' + a.id + '" title="' + esc(a.name) + (k ? ' (' + esc(keyName(k)) + ')' : '') + '">' + a.icon +
                     (k || editingKeys ? '<kbd>' + (waitKey === a.id ? '…' : k ? esc(keyShort(k)) : '+') + '</kbd>' : '') + '</button>';
