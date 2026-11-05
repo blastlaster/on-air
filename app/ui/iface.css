@@ -33,6 +33,8 @@
 .if-sub { color: var(--hd); }
 .if-g { color: #fff; background: var(--if-green); border-radius: 3px; padding: 0 4px; font-size: 0.85em; font-weight: bold; }
 .if-new { color: var(--sk-accent); font-weight: bold; }
+.if-page { opacity: 0.7; }
+.if-page.low { opacity: 1; color: #e0533d; font-weight: bold; }
 .if-you { color: var(--sk-accent); font-weight: bold; }
 
 /* a thread */

@@ -74,7 +74,7 @@
         if (app.onBoardHidden) app.onBoardHidden((b, list) => { if (b === boardName() && list) { shared = list; applyHidden(); } });
 
         let view = 'index', current = null;      // current = { key, kind: 'c'|'g', id }
-        let catalog = [], greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
+        let catalog = [], lastPage = 0, greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
         // Where you were: the list when you opened a thread, and each thread you've read (this session).
         let listTop = null, restoreTop = null;
         let attached = null;                                          // the picture for your next green post (a File)
@@ -234,7 +234,7 @@
             const b = boardName();
             await loadHidden();
             const pages = await getJSON('https://a.4cdn.org/' + b + '/catalog.json');
-            if (Array.isArray(pages)) { catalog = pages.flatMap(p => p.threads || []); for (const t of catalog) { seenPosts.set(t.no, t.no); for (const r of t.last_replies || []) seenPosts.set(r.no, t.no); } }
+            if (Array.isArray(pages)) { catalog = pages.flatMap(p => (p.threads || []).map(t => Object.assign(t, { page: p.page }))); lastPage = pages.reduce((m, p) => Math.max(m, p.page || 0), 0); for (const t of catalog) { seenPosts.set(t.no, t.no); for (const r of t.last_replies || []) seenPosts.set(r.no, t.no); } }
             if (catalog.length) {
                 const r = await app.iface({ to: 'fp', path: 'get.php?mode=catalog', form: { thread: catalog.map(t => t.no).join(',') } }).catch(() => null);
                 if (r && r.json && typeof r.json === 'object') greenCounts = r.json;
@@ -258,7 +258,7 @@
                 else if (view === 'archive') await showArchive();
                 else if (view === 'reports') await showReports();
                 else { await loadIndex(); render(); }
-                if (view === 'thread') loadIndex().catch(() => {});        // keeps the watcher current
+                if (view === 'thread') loadIndex().then(() => { const el = $('.if-pg', box); if (el && current) el.innerHTML = pageTag(current.id); }).catch(() => {});   // keeps the watcher (and the page) current
             } finally { busy = false; }
         }
 
@@ -316,6 +316,15 @@
             if (restoreTop != null) { main.scrollTop = restoreTop; restoreTop = null; }
         }
 
+        // Which page of the board a thread is on: near the last page it's about to fall off, so bump it.
+        function pageTag(no) {
+            const t = catalog.find(x => x.no === Number(no));
+            if (!t || t.sticky || !lastPage) return '';
+            const low = t.page >= lastPage - 1;
+            return ' <span class="if-page' + (low ? ' low' : '') + '" title="' + (low ? 'Near the last page: bump it or it falls off the board' : 'Page ' + t.page + ' of ' + lastPage) + '">p' + t.page + '/' + lastPage + '</span>' +
+                (t.bumplimit ? ' <span class="dim" title="Past the bump limit: replies no longer bump it">bump limit</span>' : '');
+        }
+
         function card(t) {
             const w = watch[t.key], fresh = w && !t.gone ? Math.max(0, (t.replies + t.gcount) - w.seen) : 0;
             const you = t.kind === 'g' && (t.last || []).some(p => quotesMine(p.text)), hidden = threadHidden(t.key);
@@ -324,7 +333,7 @@
                 '<div class="if-th-body"><div class="if-th-head">' +
                     (t.sub ? '<b class="if-sub">' + esc(t.sub) + '</b> ' : '') +
                     '<span class="dim">' + (t.kind === 'g' ? 'No.' + esc(t.id) : 'No.' + t.id) + (t.gone ? ' · gone' : '') + '</span>' +
-                    (t.kind === 'c' ? ' <span class="dim">R ' + t.replies + ' · I ' + t.images + '</span>' : ' <span class="dim">' + t.replies + ' repl' + (t.replies === 1 ? 'y' : 'ies') + '</span>') +
+                    (t.kind === 'c' ? ' <span class="dim">R ' + t.replies + ' · I ' + t.images + '</span>' + pageTag(t.id) : ' <span class="dim">' + t.replies + ' repl' + (t.replies === 1 ? 'y' : 'ies') + '</span>') +
                     (t.gcount && t.kind === 'c' ? ' <span class="if-g">G ' + t.gcount + '</span>' : '') +
                     (t.green ? ' <span class="if-g">green thread</span>' : '') +
                     (fresh ? ' <span class="if-new">' + fresh + ' new</span>' : '') +
@@ -391,6 +400,7 @@
             main.innerHTML =
                 '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '"><div class="if-thead row">' +
                     '<b class="grow ell">' + esc(head.title) + '</b>' +
+                    (cur.kind === 'c' ? '<span class="if-pg">' + pageTag(cur.id) + '</span>' : '') +
                     (head.green && !head.archived ? '<span class="dim if-exp" title="Green threads die after 3 days without a reply, then go to the archive">' + esc(expiresIn(head.expires)) + '</span>' : '') +
                     (head.archived ? '<span class="dim">archived</span>' : '') +
                     (cur.kind === 'c' ? '<button type="button" class="btn' + (prefs.threadGreen ? ' on' : '') + '" data-tgreen title="Show only the green posts (and the opening post)">🟩 Green only' + (greenIn ? ' (' + greenIn + ')' : '') + '</button>' : '') +
