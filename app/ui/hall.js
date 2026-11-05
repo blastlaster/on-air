@@ -1104,6 +1104,7 @@
         }
         /** Your duel's panel: answer a challenge, the countdown, the score and how you're doing. */
         let duelSay = null;                   // { text, until }: a moment's note ("Get closer!")
+        const touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);     // a phone: buttons, not keys
         function paintDuel() {
             const t = now();
             const d = [...duels.values()].find(x => (x.a === me || x.b === me) && (x.state !== 'over' || t < x.end));
@@ -1130,7 +1131,8 @@
                     }
                     if (duelSay && duelSay.until > t) st += ' · <b class="hd-warn">' + esc(duelSay.text) + '</b>';
                     html = '<p>⚔ ' + score + '</p><p>' + st + '</p>' +
-                        '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, three freeze</p>' +
+                        (touch ? '<p class="hd-help">🔨 stuns · 🐟 three in a row takes the round · ⛄ slows, three freeze — tap them below</p>'
+                            : '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, three freeze</p>') +
                         '<div><button type="button" class="btn" data-dquit>Give up</button></div>';
                 }
             }

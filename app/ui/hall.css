@@ -44,6 +44,12 @@
 .hall-duel div { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
 .hall-duel .hd-help { font-weight: normal; font-size: 11px; opacity: 0.8; }
 .hall-duel .hd-warn { color: #ffd34a; }
+@media (max-width: 520px) {
+    .hall-duel { top: 4px; padding: 3px 8px; font-size: 11px; }
+    .hall-duel p { margin: 0 0 2px; }
+    .hall-duel .hd-help { font-size: 10px; }
+    .hall-duel div { margin-top: 2px; }
+}
 .hall-duel kbd { font: inherit; padding: 0 3px; border: 1px solid #fff6; border-radius: 3px; }
 .hall-db { position: absolute; z-index: 3; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: calc(100% - 16px); padding: 6px 12px; text-align: center; cursor: auto;
     background: rgba(10, 8, 18, 0.9); border: 2px solid #ffffff; color: #fff; font: bold 13px "Courier New", monospace; }
