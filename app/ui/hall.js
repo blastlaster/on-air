@@ -29,6 +29,11 @@
     const HIT_LINE = { bonk: (a, b) => '🔨 ' + a + ' bonked ' + b, slap: (a, b) => '🐟 ' + a + ' slapped ' + b + ' with a fish', snowball: (a, b) => '⛄ ' + a + ' threw a snowball at ' + b };
     // Teching a snowball: dash or jump in the last moment before it lands (seconds after it's thrown; it lands at SNOW_S).
     const SNOW_S = 0.45, TECH_FROM = 0.2;
+    // Duels (engine/hall-duel.js): slaps in a row are with a fish, a salmon, then a tuna (that one takes the round):
+    // [name, pop word, its colour, how big, a tint on the fish]. Snowballs slow you to DUEL_SLOW.
+    const DUEL_FISH = [['fish', 'SLAP!', '#7ee3ff', 1, ''], ['salmon', 'SALMON SLAP!!', '#ff9a7a', 1.35, 'hue-rotate(160deg) saturate(1.6)'],
+        ['tuna', 'TUNA SLAP!!!', '#b9c6ff', 1.8, 'saturate(0.45) brightness(0.75)']];
+    const DUEL_SLOW = 0.45;
     // Glowsticks (engine/hall.js GLOWS); rainbow goes round the colours.
     const GLOWS = [['green', '#39ff14'], ['pink', '#ff2fd0'], ['cyan', '#00e5ff'], ['yellow', '#ffe600'], ['orange', '#ff7a00'], ['purple', '#b04fff'], ['rainbow', '']];
     const GLOW_COLOR = Object.fromEntries(GLOWS);
@@ -67,12 +72,12 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-db" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div></div>';
         const stage = $('.hall-stage', box), cv = $('canvas', box), ctx = cv.getContext('2d');
-        const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), emojiEl = $('.hall-emoji', box);
+        const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), duelEl = $('.hall-duel', box), emojiEl = $('.hall-emoji', box);
         const tvEl = $('.hall-tv', box), msgEl = $('.hall-msg', box), logBox = $('.hall-log', box), logEl = $('.hall-lines', box), bar = $('.hall-bar', box), input = $('input', bar), lookEl = $('.hall-look', box);
         if (window.LT && LT.stickToBottom) LT.stickToBottom(logEl);       // the chat opens at its newest line
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
@@ -111,6 +116,17 @@
         const toU = (x, y) => [Math.round((x - F.x0) / (F.x1 - F.x0) * 1000), Math.round((y - F.y0) / (F.y1 - F.y0) * 1000)];
         // Dodgeball (engine/hall-dodge.js): the game as the station last said, and throws in the air (id → { a, b, at, res, resAt, tried }).
         let db = { state: '' }, dbAt = 0;
+        // Duels: id → the duel as the station last said, with st: when each thing on each of them wears off (this page's clock).
+        const duels = new Map();
+        const FIGHT = { ready: 1, fighting: 1, round: 1 };
+        const duelOf = (h) => [...duels.values()].find(d => (d.a === h || d.b === h) && FIGHT[d.state]) || null;
+        const foeOf = (d, h) => (d.a === h ? d.b : d.a);
+        /** Rooted to the spot: stunned or frozen, or waiting for a round to start. */
+        function held(h, t = now()) {
+            const d = duelOf(h), s = d && d.st[h];
+            return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && (s.stun > t || s.frozen > t)));
+        }
+        const slowOf = (h, t = now()) => { const d = duelOf(h), s = d && d.st[h]; return s && d.state === 'fighting' && s.slow > t ? DUEL_SLOW : 1; };
         const flights = new Map();
         const DB_ZONE = { team: [[60, 470, 180, 1000], [530, 940, 180, 1000]], out: [[0, 45, 180, 1000], [955, 1000, 180, 1000]], side: [0, 1000, 0, 110] };
         // The ball rolls along the floor (in the floor's own pixels, F's size): the same sums as engine/hall-dodge.js (BALL, ballAt).
@@ -153,7 +169,8 @@
             if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 2 })) return notice('Connecting to the station…');
+            // 3 = can duel too (engine/hall-duel.js DUEL.roomV).
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 3 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -177,6 +194,8 @@
                     for (const g of m.games || []) onGame(g, true);
                     tables.clear();
                     for (const tb of m.tables || []) onTable(tb, true);
+                    duels.clear();
+                    for (const d of m.duels || []) onDuel(d, true);
                     notice('');
                     break;
                 case 'hall-add': add(m.p); break;
@@ -211,6 +230,8 @@
                 case 'hall-aura': { const p = people.get(m.h); if (p) { p.a = m.a; p.atrail = []; } break; }
                 case 'hall-hit': onHit(m); break;
                 case 'hall-tech': onTech(m); break;
+                case 'hall-duel': onDuel(m); break;
+                case 'hall-duel-del': duels.delete(m.id); paintDuel(); paintActs(); break;
                 case 'hall-db': onDodge(m); break;
                 case 'hall-db-charge': if (m.on) chargeOf.set(m.h, now()); else chargeOf.delete(m.h); break;
                 case 'hall-db-ball': chargeOf.delete(m.a); flights.set(m.id, { a: m.a, x: m.x, y: m.y, vx: m.vx, vy: m.vy, at: now(), res: '', resAt: 0, perfect: !!m.perfect }); break;
@@ -380,7 +401,7 @@
         let jumpReady = 0, dashReady = 0;
         function act(a) {
             const p = mine(), t = now();
-            if (!p) return;
+            if (!p || held(me, t)) return;
             if (a === 'jump' || a === 'dash') tryTech(t);
             if (a === 'jump') { if (t < jumpReady) return; jumpReady = t + JUMP_S + 0.1; p.jumpAt = t; }
             if (a === 'dash') { if (t < dashReady) return; dashReady = t + 1; p.dashUntil = t + DASH_S; }
@@ -735,7 +756,8 @@
                     : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
                 (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
                     : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
-                    : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
+                    : (duelOf(me) ? '' : '<button type="button" class="btn go" data-duel="' + esc(q.h) + '">⚔ Duel</button>') +
+                      HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
             popEl.style.left = Math.min(sr.width - 220, Math.max(4, e.clientX - sr.left + 8)) + 'px';
             popEl.style.top = Math.max(4, e.clientY - sr.top - 30) + 'px';
             popEl.hidden = false;
@@ -748,6 +770,8 @@
             if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
+            const du = e.target.closest('[data-duel]');
+            if (du) { popEl.hidden = true; return core.send({ t: 'hall-duel', to: du.dataset.duel }); }
             const b = e.target.closest('[data-rps]');
             if (!b) return;
             core.send({ t: 'hall-rps', to: b.dataset.rps });
@@ -759,7 +783,7 @@
         const near = (p, q) => Math.abs(p.x - q.x) <= 14 && Math.abs(p.y - q.y) <= 9;
         function doHit(h, k) {
             const p = mine(), q = people.get(h);
-            if (!p || !q) return;
+            if (!p || !q || held(me)) return;
             if (MELEE[k] && !near(p, q)) {
                 // Up close for these: walk over to their side first, then swing.
                 const side = p.x < q.x ? -1 : 1, x = clampX(q.x + side * 9), y = clampY(q.y);
@@ -784,9 +808,16 @@
             const a = people.get(m.a), b = people.get(m.b);
             if (!a || !b) return;
             if (m.k !== 'snowball' || Math.abs(b.x - a.x) > 1) a.face = b.x < a.x ? -1 : 1;
-            hits.push({ a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1 });
+            hits.push({ a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1, n: m.n || 0 });
             while (hits.length > 30) hits.shift();
-            logLine({ text: HIT_LINE[m.k](a.n, b.n) }, 'game');
+            if (m.to) {
+                // A duel's slap knocks them back a little.
+                const [kx, ky] = toPx(m.to[0], m.to[1]);
+                Object.assign(b, { knock: { x0: b.x, y0: b.y, x1: kx, y1: ky, at: now() }, tx: kx, ty: ky, pushed: false });
+                if (m.b === me) { lastSent = ''; pendingHit = null; }
+            }
+            const fish = m.k === 'slap' && m.n ? DUEL_FISH[m.n - 1] : null;
+            logLine({ text: fish ? '🐟 ' + a.n + ' slapped ' + b.n + ' with a ' + fish[0] + (m.n === 3 ? '!' : '') : HIT_LINE[m.k](a.n, b.n) }, 'game');
         }
         /** A dash or jump with a snowball coming at you: one try each — in time, and it misses. */
         function tryTech(t) {
@@ -869,9 +900,14 @@
                         if (s < 1) popWord('BONK!', hx, hy - 9 * u - s * 3 * u, u, '#ffd34a');
                     }
                 } else if (x.k === 'slap') {
-                    // A fish swung across their face.
-                    if (s < 0.4) emojiAt('🐟', hx - d * (8 - Math.min(1, s / 0.2) * 9) * u, hy + 3 * u, es, d * (-0.6 + s * 3));
-                    if (s > 0.15 && s < 1.1) popWord('SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u, '#7ee3ff');
+                    // A fish swung across their face (in a duel: a fish, a salmon, a tuna — bigger each time).
+                    const f = DUEL_FISH[Math.max(0, (x.n || 1) - 1)];
+                    if (s < 0.4) {
+                        if (f[4]) ctx.filter = f[4];
+                        emojiAt('🐟', hx - d * (8 - Math.min(1, s / 0.2) * 9) * u, hy + 3 * u, Math.round(es * f[3]), d * (-0.6 + s * 3));
+                        ctx.filter = 'none';
+                    }
+                    if (s > 0.15 && s < 1.1) popWord(x.n ? f[1] : 'SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u * (x.n === 3 ? 1.3 : 1), f[2]);
                 } else {
                     // A snowball in an arc from their hand, then a splat (on them; or teched, on the floor behind them).
                     if (x.tech) {
@@ -1040,6 +1076,113 @@
             if (e.target.closest('[data-nah]')) { const g = games.get(id); if (g) g.until = 0; paintRps(); }
             if (p) { myPick = p.dataset.pick; core.send({ t: 'hall-rps-pick', id, pick: myPick }); paintRps(); }
         });
+        /* ---------- duels (engine/hall-duel.js) ---------- */
+        function onDuel(m, quiet) {
+            const t = now(), old = duels.get(m.id);
+            if (m.state === 'declined' || m.state === 'expired' || m.state === 'gone') duels.delete(m.id);
+            else {
+                const st = {};
+                for (const [h, x] of Object.entries(m.st || {})) st[h] = { slow: t + x.slow / 1000, frozen: t + x.frozen / 1000, stun: t + x.stun / 1000 };
+                duels.set(m.id, { ...m, st, end: t + (m.until || 0) / 1000 });
+            }
+            const mineToo = m.a === me || m.b === me;
+            if (!quiet && mineToo && m.state === 'asked' && m.b === me && !old) U.toast(nameOf(m.a) + ' challenges you to a duel!');
+            if (!quiet && (!old || old.state !== m.state || old.round !== m.round)) {
+                const A_ = nameOf(m.a), B_ = nameOf(m.b), W = nameOf(m.win), L = nameOf(m.win === m.a ? m.b : m.a);
+                const text = m.state === 'asked' ? A_ + ' challenges ' + B_ + ' to a duel…'
+                    : m.state === 'declined' ? B_ + ' said no to ' + A_ + '’s duel.'
+                    : m.state === 'expired' ? A_ + '’s duel with ' + B_ + ' never started.'
+                    : m.state === 'ready' && m.round === 1 ? A_ + ' and ' + B_ + ' face off!'
+                    : m.state === 'round' ? (m.win ? W + ' takes round ' + m.round + '!' : 'Round ' + m.round + ': time’s up — nobody takes it.')
+                    : m.state === 'over' ? '🏆 ' + W + ' wins the duel against ' + L + ', ' + Math.max(...m.score) + '–' + Math.min(...m.score) +
+                        (m.why === 'quit' ? ' (' + L + ' gave up)' : m.why === 'left' ? ' (' + L + ' left)' : '') + '!'
+                    : '';
+                if (text) logLine({ text: '⚔ ' + text }, 'game');
+            }
+            paintDuel();
+            if (mineToo) { paintActs(); pendingHit = null; }
+        }
+        /** Your duel's panel: answer a challenge, the countdown, the score and how you're doing. */
+        let duelSay = null;                   // { text, until }: a moment's note ("Get closer!")
+        function paintDuel() {
+            const t = now();
+            const d = [...duels.values()].find(x => (x.a === me || x.b === me) && (x.state !== 'over' || t < x.end));
+            let html = '';
+            if (d) {
+                const foe = foeOf(d, me), F_ = '<b>' + esc(nameOf(foe)) + '</b>', left = Math.max(0, Math.ceil(d.end - t));
+                const mineIdx = d.a === me ? 0 : 1, score = 'You ' + d.score[mineIdx] + ' – ' + d.score[1 - mineIdx] + ' ' + F_;
+                const key = (k) => keymap['duel:' + k] ? ' <kbd>' + esc(keyShort(keymap['duel:' + k])) + '</kbd>' : '';
+                if (d.state === 'asked' && d.b === me) {
+                    html = '<p>' + F_ + ' challenges you to a duel! ⚔</p><div><button type="button" class="btn go" data-dans="1">Fight!</button><button type="button" class="btn" data-dans="0">No thanks</button></div>';
+                } else if (d.state === 'asked') {
+                    html = '<p>Waiting for ' + F_ + ' to accept your duel… (' + left + 's)</p><div><button type="button" class="btn" data-dquit>Call it off</button></div>';
+                } else if (d.state === 'over') {
+                    html = '<p>' + (d.win === me ? '🏆 You win the duel!' : F_ + ' wins the duel.') + ' ' + d.score[mineIdx] + '–' + d.score[1 - mineIdx] + '</p>';
+                } else {
+                    const s = d.st[me] || {}, ch = (d.chain || {})[me] || {}, theirs = (d.chain || {})[foe] || {};
+                    let st = d.state === 'ready' ? 'Round ' + d.round + ' — get ready… ' + left
+                        : d.state === 'round' ? (d.win === me ? 'You take round ' + d.round + '!' : d.win ? F_ + ' takes round ' + d.round + '.' : 'Time’s up — nobody takes it.')
+                        : s.frozen > t ? '🧊 <b>You’re frozen!</b>' : s.stun > t ? '💫 <b>You’re stunned!</b>' : s.slow > t ? '❄️ You’re slowed' : 'Round ' + d.round + ' — FIGHT!';
+                    if (d.state === 'fighting') {
+                        if (ch.slap) st += ' · your slaps: ' + '🐟'.repeat(ch.slap);
+                        if (ch.snow) st += ' · your snowballs: ' + '⛄'.repeat(ch.snow);
+                        if (theirs.slap === 2) st += ' · <b class="hd-warn">one more slap and they take it!</b>';
+                    }
+                    if (duelSay && duelSay.until > t) st += ' · <b class="hd-warn">' + esc(duelSay.text) + '</b>';
+                    html = '<p>⚔ ' + score + '</p><p>' + st + '</p>' +
+                        '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, three freeze</p>' +
+                        '<div><button type="button" class="btn" data-dquit>Give up</button></div>';
+                }
+            }
+            if (duelEl._html !== html) { duelEl.innerHTML = html; duelEl._html = html; }
+            duelEl.hidden = !html;
+            duelEl.dataset.id = d ? d.id : '';
+        }
+        const duelT = setInterval(() => { if (duels.size || !duelEl.hidden) paintDuel(); }, 200);
+        offs.push(() => clearInterval(duelT));
+        duelEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = duelEl.dataset.id, a = e.target.closest('[data-dans]');
+            if (a) core.send({ t: 'hall-duel-answer', id, ok: a.dataset.dans === '1' });
+            if (e.target.closest('[data-dquit]')) core.send({ t: 'hall-duel-quit', id });
+        });
+        /** A key in a duel: that hit, at your opponent (bonks and slaps when you're close enough). */
+        function duelHit(k) {
+            const d = duelOf(me), p = mine();
+            if (!d) return U.toast('Duel someone first: click them, then ⚔ Duel.');
+            const q = people.get(foeOf(d, me));
+            if (!p || !q || d.state !== 'fighting' || held(me)) return;
+            if (MELEE[k] && !near(p, q)) { duelSay = { text: 'Get closer!', until: now() + 1.2 }; return paintDuel(); }
+            if (k !== 'snowball' || Math.abs(q.x - p.x) > 1) p.face = q.x < p.x ? -1 : 1;
+            core.send({ t: 'hall-hit', to: q.h, k });
+        }
+        /** On the duellists: frozen in ice, stars when stunned, a snowflake when slowed, and the fish and snowballs in a row so far. */
+        function drawDuels(t, u, heads) {
+            const es = Math.max(10, Math.round(3.6 * u / dpr)) * dpr;
+            for (const d of duels.values()) {
+                if (d.state !== 'fighting' && d.state !== 'ready') continue;
+                for (const h of [d.a, d.b]) {
+                    const p = people.get(h), s = d.st[h];
+                    if (!p || !s || !heads.has(h)) continue;
+                    const hy = heads.get(h), x = p.x * u;
+                    if (s.frozen > t) {
+                        ctx.fillStyle = 'rgba(170, 225, 255, 0.45)'; ctx.strokeStyle = '#e8f8ff'; ctx.lineWidth = Math.max(1, u / 2);
+                        const x0 = Math.round((p.x - 6) * u), y0 = Math.round((hy - 2) * u), w = Math.round(12 * u), hh = Math.round((p.y + 1 - hy + 2) * u);
+                        ctx.fillRect(x0, y0, w, hh); ctx.strokeRect(x0, y0, w, hh);
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x0 + Math.round(2 * u), y0 + Math.round(2 * u), Math.ceil(u), Math.round(hh * 0.4));
+                    } else if (s.stun > t) {
+                        for (let k = 0; k < 3; k++) {
+                            const a2 = t * 7 + k * 2.1;
+                            popWord('*', x + Math.cos(a2) * 6 * u, (hy - 2) * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a');
+                        }
+                    } else if (s.slow > t) emojiAt('❄️', x + 6 * u, (hy - 1) * u, es, 0);
+                    // What their opponent has going on them: 🐟🐟 (one more and that's the round), ⛄⛄.
+                    const c = (d.chain || {})[foeOf(d, h)] || {};
+                    const marks = '🐟'.repeat(c.slap || 0) + '⛄'.repeat(c.snow || 0);
+                    if (marks && d.state === 'fighting') emojiAt(marks, x, (hy - 7) * u, es, 0);
+                }
+            }
+        }
         /** Over the players' heads: who's playing, and how it came out. */
         function gameBadges(t, u, heads) {
             for (const [id, g] of games) {
@@ -1293,17 +1436,20 @@
             ...EMOTES.map(([id, icon, name]) => ({ id: 'e:' + id, icon, name, run: () => emote(id) })),
             { id: 'jump', icon: '⏫', name: 'Jump', run: () => act('jump') },
             { id: 'dash', icon: '💨', name: 'Dash', run: () => act('dash') },
+            ...HITS.map(([k, icon, name]) => ({ id: 'duel:' + k, icon, name: name + ' your opponent', duel: true, run: () => duelHit(k) })),
             ...BURSTS.map(([k, icon, name]) => ({ id: 'burst:' + k, icon, name, run: () => burst(k) })),
             { id: 'emoji', icon: '😀', name: 'Emoji, things to hold, feelings and glowsticks', run: () => toggleEmoji() },
             { id: 'boards', icon: '🎲', name: 'Board games', run: () => toggleGames() },
             { id: 'chat', icon: '💬', name: 'Show or hide the chat', run: () => toggleChat() },
             { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() }
         ];
-        const KEYS0 = Object.fromEntries([...EMOTES.map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift']]);
+        const KEYS0 = Object.fromEntries([...EMOTES.map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
         const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
         let keymap = null;
         try { keymap = JSON.parse(localStorage.getItem('ltl.hallKeys') || 'null'); } catch { /* the usual */ }
         if (!keymap || typeof keymap !== 'object') keymap = { ...KEYS0 };
+        // Keys chosen before there were duels: give the duel ones theirs, where the key's free.
+        if (!Object.keys(keymap).some(id => id.startsWith('duel:'))) for (const id of ['duel:bonk', 'duel:slap', 'duel:snowball']) if (!Object.values(keymap).includes(KEYS0[id])) keymap[id] = KEYS0[id];
         const keyNorm = (k) => (k.length === 1 ? k.toLowerCase() : k);
         const keyName = (k) => (k === ' ' ? 'Space' : k.length === 1 ? k.toUpperCase() : k);
         const keyShort = (k) => (k === ' ' ? '␣' : k === 'Shift' ? '⇧' : k.length === 1 ? k.toUpperCase() : k.replace(/^Arrow/, '').slice(0, 3));
@@ -1314,7 +1460,8 @@
         try { actsMode = localStorage.getItem('ltl.hallActs') || 'side'; } catch { /* default */ }
         const actsEl = $('.hall-acts', box);
         function paintActs() {
-            actsEl.innerHTML = ACTIONS.map(a => {
+            const fighting = !!duelOf(me);
+            actsEl.innerHTML = ACTIONS.filter(a => !a.duel || fighting).map(a => {
                 const k = keymap[a.id];
                 return '<button type="button" class="btn" data-act="' + a.id + '" title="' + esc(a.name) + (k ? ' (' + esc(keyName(k)) + ')' : '') + '">' + a.icon +
                     (k || editingKeys ? '<kbd>' + (waitKey === a.id ? '…' : k ? esc(keyShort(k)) : '+') + '</kbd>' : '') + '</button>';
@@ -1402,10 +1549,11 @@
             const t = now(), p = mine();
             if (p) {
                 const push = pushing();
-                if (push) {
+                if (push && held(me, t)) { if (p.pushed) { p.pushed = false; sendGo(p.x, p.y); } }
+                else if (push) {
                     pendingHit = null;
                     lookAway();
-                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1) * (charging ? 0.5 : 1);       // winding up a throw: slower
+                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1) * (charging ? 0.5 : 1) * slowOf(me, t);       // winding up a throw (or snowed on): slower
                     p.x = clampX(p.x + push[0] * sp * dt);
                     p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
                     p.tx = p.x; p.ty = p.y; p.walking = true;
@@ -1426,7 +1574,8 @@
                 const dx = q.tx - q.x, dy = q.ty - q.y, d = Math.hypot(dx, dy);
                 q.walking = d > 0.6;
                 if (q.walking) {
-                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * (q.h === me && charging ? 0.5 : 1) * dt);
+                    if (held(q.h, t)) { q.walking = false; continue; }
+                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * (q.h === me && charging ? 0.5 : 1) * slowOf(q.h, t) * dt);
                     q.x += dx / d * s; q.y += dy / d * s;
                     if (Math.abs(dx) > 0.5) q.face = dx < 0 ? -1 : 1;
                 }
@@ -1563,7 +1712,7 @@
             A.fxBack(lc, t, onAir, fx);
             if (dbOn()) court();
             const sorted = [...people.values()].sort((a, b) => a.y - b.y);
-            const heads = new Map();
+            const heads = new Map(), fight = duelOf(me);
             for (const p of sorted) {
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
                 const po = { x: p.x + ox, y: p.y + oy, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
@@ -1583,6 +1732,7 @@
                 const team = dbOn() ? dbTeam(p.h) : -1, out = team >= 0 && dbOut(p.h);
                 if (team >= 0) { lc.fillStyle = out ? '#77708a' : DB_TEAMS[team][1]; lc.globalAlpha = 0.8; lc.beginPath(); lc.ellipse(po.x, po.y, 6, 2, 0, 0, Math.PI * 2); lc.fill(); lc.globalAlpha = 1; }
                 if (out) lc.globalAlpha = 0.45;
+                else if (fight && p.h !== fight.a && p.h !== fight.b) lc.globalAlpha = 0.22;     // in a duel: only the two of you
                 heads.set(p.h, A.person(lc, p.l, po));
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
@@ -1600,13 +1750,16 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             for (const p of sorted) {
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
+                ctx.globalAlpha = fight && p.h !== fight.a && p.h !== fight.b ? 0.3 : 1;
                 const nx = p.x * u, ny = (p.y + 1.5) * u;
                 ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(p.n, nx + dpr, ny + dpr);
                 ctx.fillStyle = p.c || (p.h === me ? '#ffd34a' : '#e6e0f2'); ctx.fillText(p.n, nx, ny);
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
+            ctx.globalAlpha = 1;
             drawGlows(sorted, heads, u, t);
             drawHeld(sorted, heads, u);
+            if (duels.size) drawDuels(t, u, heads);
             if (db.state) drawBall(t, u, heads);
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);

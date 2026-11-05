@@ -38,6 +38,13 @@
 .hall-rps p { margin: 0 0 6px; }
 .hall-rps div { display: flex; gap: 6px; justify-content: center; }
 .hall-rps .hand { font-size: 26px; padding: 2px 10px; }
+.hall-duel { position: absolute; z-index: 4; left: 50%; top: 8px; transform: translateX(-50%); width: max-content; max-width: min(360px, calc(100% - 16px)); padding: 6px 12px; text-align: center; cursor: auto;
+    background: rgba(10, 8, 18, 0.92); border: 2px solid #ff4f6a; color: #fff; font: bold 13px "Courier New", monospace; }
+.hall-duel p { margin: 0 0 4px; }
+.hall-duel div { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
+.hall-duel .hd-help { font-weight: normal; font-size: 11px; opacity: 0.8; }
+.hall-duel .hd-warn { color: #ffd34a; }
+.hall-duel kbd { font: inherit; padding: 0 3px; border: 1px solid #fff6; border-radius: 3px; }
 .hall-db { position: absolute; z-index: 3; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: calc(100% - 16px); padding: 6px 12px; text-align: center; cursor: auto;
     background: rgba(10, 8, 18, 0.9); border: 2px solid #ffffff; color: #fff; font: bold 13px "Courier New", monospace; }
 .hall-db p { margin: 0 0 4px; }
