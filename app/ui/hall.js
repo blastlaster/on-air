@@ -111,7 +111,12 @@
             else if (introEnd > now()) introEnd = 0;                // called off
         }
         const boxes = new Map();          // key → { k, want, side, name, who, talk, strip }
-        const now = () => performance.now() / 1000;
+        // The room's clock, in seconds: it runs slow for a moment when a tuna lands (slowMo).
+        let clockReal = 0, clockAt = 0, clockRate = 1;
+        const now = () => clockAt + (performance.now() / 1000 - clockReal) * clockRate;
+        function setRate(r) { const t = now(); clockReal = performance.now() / 1000; clockAt = t; clockRate = r; }
+        let slowTimer = 0;
+        function slowMo(secs, rate) { setRate(rate); clearTimeout(slowTimer); slowTimer = setTimeout(() => setRate(1), secs * 1000); }
         const toPx = (u, v) => [F.x0 + u / 1000 * (F.x1 - F.x0), F.y0 + v / 1000 * (F.y1 - F.y0)];
         const toU = (x, y) => [Math.round((x - F.x0) / (F.x1 - F.x0) * 1000), Math.round((y - F.y0) / (F.y1 - F.y0) * 1000)];
         // Dodgeball (engine/hall-dodge.js): the game as the station last said, and throws in the air (id → { a, b, at, res, resAt, tried }).
@@ -811,9 +816,10 @@
             hits.push({ a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1, n: m.n || 0 });
             while (hits.length > 30) hits.shift();
             if (m.to) {
-                // A duel's slap knocks them back a little.
-                const [kx, ky] = toPx(m.to[0], m.to[1]);
-                Object.assign(b, { knock: { x0: b.x, y0: b.y, x1: kx, y1: ky, at: now() }, tx: kx, ty: ky, pushed: false });
+                // A duel's slap knocks them back a little; the tuna, in slow motion, throws them across the room.
+                const [kx, ky] = toPx(m.to[0], m.to[1]), tuna = m.n === 3;
+                if (tuna) { slowMo(1.8, 0.3); for (let i = hits.length - 2; i >= 0; i--) if (hits[i].b === m.b && hits[i].k === 'slap') hits.splice(i, 1); }     // just the tuna's words
+                Object.assign(b, { knock: { x0: b.x, y0: b.y, x1: kx, y1: ky, at: now() + (tuna ? 0.15 : 0), dur: tuna ? 0.9 : 0.25, arc: tuna ? 26 : 0 }, tx: kx, ty: ky, pushed: false });
                 if (m.b === me) { lastSent = ''; pendingHit = null; }
             }
             const fish = m.k === 'slap' && m.n ? DUEL_FISH[m.n - 1] : null;
@@ -907,7 +913,23 @@
                         emojiAt('🐟', hx - d * (8 - Math.min(1, s / 0.2) * 9) * u, hy + 3 * u, Math.round(es * f[3]), d * (-0.6 + s * 3));
                         ctx.filter = 'none';
                     }
-                    if (s > 0.15 && s < 1.1) popWord(x.n ? f[1] : 'SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u * (x.n === 3 ? 1.3 : 1), f[2]);
+                    if (x.n === 3 && s > 0.12 && s < 0.7) {
+                        // The tuna lands: a flash, a shockwave and rays out of where it hit.
+                        const k = (s - 0.12) / 0.58, cx = hx + d * 2 * u, cy = hy + 4 * u;
+                        ctx.save();
+                        ctx.globalAlpha = Math.max(0, 1 - k);
+                        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, 2 * u * (1 - k));
+                        ctx.beginPath(); ctx.arc(cx, cy, (4 + k * 40) * u, 0, Math.PI * 2); ctx.stroke();
+                        ctx.strokeStyle = '#ffd34a'; ctx.lineWidth = Math.max(1, u);
+                        for (let j = 0; j < 12; j++) {
+                            const a3 = j / 12 * Math.PI * 2 + 0.2, r0 = (3 + k * 12) * u, r1 = r0 + (6 + (j % 3) * 5) * u * (1 - k * 0.5);
+                            ctx.beginPath(); ctx.moveTo(cx + Math.cos(a3) * r0, cy + Math.sin(a3) * r0); ctx.lineTo(cx + Math.cos(a3) * r1, cy + Math.sin(a3) * r1); ctx.stroke();
+                        }
+                        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = Math.max(0, 0.9 - k * 3);
+                        ctx.beginPath(); ctx.arc(cx, cy, (6 + k * 10) * u, 0, Math.PI * 2); ctx.fill();
+                        ctx.restore();
+                    }
+                    if (s > 0.15 && s < 1.1) popWord(x.n ? f[1] : 'SLAP!', hx + d * 6 * u, hy - 7 * u - s * 3 * u, u * (x.n === 3 ? 1.7 : 1), f[2]);
                 } else {
                     // A snowball in an arc from their hand, then a splat (on them; or teched, on the floor behind them).
                     if (x.tech) {
@@ -1014,6 +1036,9 @@
         offs.push(() => clearInterval(coolT));
         function onGame(g, quiet) {
             const t = now(), old = games.get(g.id);
+            // A new game (or a rematch) between either of them: the last one's WIN / DRAW comes down.
+            if (!old && (g.state === 'asked' || g.state === 'picking'))
+                for (const [id, x] of games) if (x.state !== 'asked' && x.state !== 'picking' && [x.a, x.b].some(h => h === g.a || h === g.b)) games.delete(id);
             const keep = { asked: 21, picking: 16, done: 20, declined: 3.5, expired: 3.5, gone: 0 }[g.state] || 0;
             if (!keep) games.delete(g.id); else games.set(g.id, { ...g, until: t + keep, at: old ? old.at : t, at2: t });
             if (g.a === me || g.b === me) {
@@ -1094,10 +1119,10 @@
                     : m.state === 'expired' ? A_ + '’s duel with ' + B_ + ' never started.'
                     : m.state === 'ready' && m.round === 1 ? A_ + ' and ' + B_ + ' face off!'
                     : m.state === 'round' ? (m.win ? W + ' takes round ' + m.round + '!' : 'Round ' + m.round + ': time’s up — nobody takes it.')
-                    : m.state === 'over' ? '🏆 ' + W + ' wins the duel against ' + L + ', ' + Math.max(...m.score) + '–' + Math.min(...m.score) +
-                        (m.why === 'quit' ? ' (' + L + ' gave up)' : m.why === 'left' ? ' (' + L + ' left)' : '') + '!'
                     : '';
                 if (text) logLine({ text: '⚔ ' + text }, 'game');
+                // How it ended, for everyone (not just those with ⚔ games on).
+                if (m.state === 'over') logLine({ text: m.why === 'left' ? '🏃 ' + L + ' has fled from combat. How embarrassing!' : '🏆 ' + W + ' defeated ' + L + ' in a duel!' + (m.why === 'quit' ? ' (' + L + ' gave up)' : '') }, 'announce');
             }
             paintDuel();
             if (mineToo) { paintActs(); pendingHit = null; }
@@ -1118,7 +1143,7 @@
                 } else if (d.state === 'asked') {
                     html = '<p>Waiting for ' + F_ + ' to accept your duel… (' + left + 's)</p><div><button type="button" class="btn" data-dquit>Call it off</button></div>';
                 } else if (d.state === 'over') {
-                    html = '<p>' + (d.win === me ? '🏆 You win the duel!' : F_ + ' wins the duel.') + ' ' + d.score[mineIdx] + '–' + d.score[1 - mineIdx] + '</p>';
+                    html = '<p>' + (d.why === 'left' && d.win === me ? '🏃 ' + F_ + ' fled — you win!' : (d.win === me ? '🏆 You win the duel!' : F_ + ' wins the duel.') + ' ' + d.score[mineIdx] + '–' + d.score[1 - mineIdx]) + '</p>';
                 } else {
                     const s = d.st[me] || {}, ch = (d.chain || {})[me] || {}, theirs = (d.chain || {})[foe] || {};
                     let st = d.state === 'ready' ? 'Round ' + d.round + ' — get ready… ' + left
@@ -1567,9 +1592,10 @@
             }
             for (const q of people.values()) {
                 if (q.knock) {
-                    const k = Math.min(1, (t - q.knock.at) / 0.25), e = 1 - (1 - k) * (1 - k);
+                    const k = Math.max(0, Math.min(1, (t - q.knock.at) / (q.knock.dur || 0.25))), e = q.knock.arc ? k : 1 - (1 - k) * (1 - k);
                     q.x = q.knock.x0 + (q.knock.x1 - q.knock.x0) * e; q.y = q.knock.y0 + (q.knock.y1 - q.knock.y0) * e;
-                    if (k >= 1) q.knock = null;
+                    q.lift = q.knock.arc ? Math.sin(k * Math.PI) * q.knock.arc : 0;          // up in the air on the way
+                    if (k >= 1) { q.knock = null; q.lift = 0; }
                     continue;
                 }
                 if (q.pushed) continue;
@@ -1680,7 +1706,7 @@
             if (stopped) return;
             requestAnimationFrame(frame);
             if (document.hidden || ms - last < 1000 / FPS - 2) return;
-            const dt = Math.min(0.1, (ms - (last || ms)) / 1000);
+            const dt = Math.min(0.1, (ms - (last || ms)) / 1000) * clockRate;
             last = ms;
             step(dt);
             const t = now(), s = core.state, tr = s.track;
@@ -1717,7 +1743,7 @@
             const heads = new Map(), fight = duelOf(me);
             for (const p of sorted) {
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
-                const po = { x: p.x + ox, y: p.y + oy, face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t };
                 const au = auraOf(p.a);
                 if (au) {
@@ -1746,7 +1772,9 @@
             const boothOn = speakerBoxes(dt, t, onAir);
             if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(low, 0, 0, cv.width, cv.height);
+            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) ? cv.width / A.W * 2 : 0;
+            ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
+            if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
             const u = cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';

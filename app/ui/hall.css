@@ -25,6 +25,7 @@
 .hall-lines { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; scrollbar-width: thin; }
 .hall-lines li { padding: 1px 7px; overflow-wrap: anywhere; }
 .hall-lines li.game { color: #ffd34a; }
+.hall-lines li.announce { color: #ffd34a; font-weight: bold; }
 .hall-lines .hl-when { display: none; margin-right: 5px; font-size: 0.8em; color: rgba(255, 255, 255, 0.5); white-space: nowrap; }
 .hall-log.times .hl-when { display: inline; }
 .hall-log-top label.hl-times { flex: none; }
