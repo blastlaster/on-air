@@ -68,6 +68,7 @@ const UI_DEFAULTS = {
     holidays: true,             // holiday looks on their day (Spooky, Crimbus…)
     holidaySkip: '', holidayTold: '',   // the day you picked your own look instead; the day the radio said so
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)
+    travelOn: false,            // the Studio-on-a-server field in Settings → Station (type "mysterioustraveller" on the radio)
     ifaceServer: '',            // green threads server, if not the station's
     ifaceToken: '', ifaceTokenFor: ''   // the station's moderator token, and the server it is for (never sent to the pages)
 };
@@ -1324,8 +1325,7 @@ function uiInfo() {
     return {
         ui: { ...cfg.ui, ifaceToken: undefined }, ifaceAdmin: cfg.ui.ifaceToken ? cfg.ui.ifaceTokenFor : '', updates: cfg.updates !== false, update: updates ? { ...updates.state } : null,
         alerts: !!cfg.alerts, openAtLogin: !!cfg.openAtLogin, version: app.getVersion(),
-        // A station's Studio on a server (only offered on a PC that has had a Studio).
-        studioSsh: cfg.studioSsh || '', studioSeen: !!(cfg.studioUrl || cfg.studioSsh || studioHere),
+        studioSsh: cfg.studioSsh || '',             // a station's Studio on a server (its field shows once travelOn is typed)
         station: st ? { name: st.name, pageUrl: st.pageUrl, pointerUrl: st.pointerUrl, engineUrl: st.engineUrl } : null,
         downloads: cfg.ui.downloads || path.join(app.getPath('music'), safeName(st ? st.name : 'On Air'))
     };

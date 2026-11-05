@@ -190,11 +190,18 @@
     document.body.classList.toggle('side-left', info.ui.side === 'left');
 
     // Type "interface" on the radio: the Interface button appears (type it again to hide it).
+    // "mysterioustraveller" does the same for the Studio-on-a-server field in Settings → Station.
     let typed = '';
     window.addEventListener('keydown', (e) => {
         if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /input|textarea/i.test(e.target.tagName)) return;
-        typed = (typed + e.key.toLowerCase()).slice(-9);
-        if (typed !== 'interface') return;
+        typed = (typed + e.key.toLowerCase()).slice(-19);
+        if (typed.endsWith('mysterioustraveller')) {
+            typed = '';
+            const on = !info.ui.travelOn;
+            app.setUi({ travelOn: on });
+            return UI.toast(on ? '👻 It is a mystery' : '👻 Gone again');
+        }
+        if (!typed.endsWith('interface')) return;
         typed = '';
         const on = !info.ui.ifaceOn;
         app.setUi({ ifaceOn: on });

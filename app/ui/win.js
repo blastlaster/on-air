@@ -904,7 +904,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             $('.upd', box).textContent = 'You have ' + i.version + '. ' + ({ checking: 'Checking…', downloading: 'Downloading ' + u.version + '…', ready: u.version + ' is ready.', installing: 'Installing ' + u.version + '…', none: 'That’s the newest.', manual: u.version + ' is out — download it from the release page.', error: 'Couldn’t check just now.' }[u.status] || '');
             $('[data-upd="install"]', box).hidden = u.status !== 'ready';
             const sf = $('.ssh', box);
-            sf.hidden = $('.ssh-hint', box).hidden = !i.studioSeen;
+            sf.hidden = $('.ssh-hint', box).hidden = !i.ui.travelOn;
             if (document.activeElement !== sf.a) sf.a.value = i.studioSsh || '';
         }
         paint(UI.info); UI.onUi(paint);
