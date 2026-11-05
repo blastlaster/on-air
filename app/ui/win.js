@@ -886,7 +886,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 '<label><input type="checkbox" data-ui="lossless"> Lossless (FLAC or WAV) when the album has it — much bigger</label></section>' +
             '<section><h3>You</h3><form class="row me"><input name="n" maxlength="32" placeholder="Your name in chat and on calls" class="grow" style="width:auto"><button class="btn">Save</button></form>' +
             '<div class="row name-colors" title="Your name colour in chat and blug.dj/jej"></div></section>' +
-            '<section><h3>Station</h3><p class="st dim"></p><div class="row"><button type="button" class="btn" data-st="stations">Stations…</button></div></section>';
+            '<section><h3>Station</h3><p class="st dim"></p><div class="row"><button type="button" class="btn" data-st="stations">Stations…</button></div>' +
+                '<form class="row ssh" hidden><input name="a" maxlength="120" placeholder="you@server" class="grow" style="width:auto" title="The station’s server, for its Studio (through SSH, with your key from ssh-agent)"><button class="btn">Save</button></form>' +
+                '<p class="hint ssh-hint" hidden>Studio on a server: the tray’s Studio connects to it when this PC isn’t running the station. Empty to stop.</p></section>';
 
         function paint(i) {
             const ui = i.ui;
@@ -901,6 +903,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             const u = i.update || {};
             $('.upd', box).textContent = 'You have ' + i.version + '. ' + ({ checking: 'Checking…', downloading: 'Downloading ' + u.version + '…', ready: u.version + ' is ready.', installing: 'Installing ' + u.version + '…', none: 'That’s the newest.', manual: u.version + ' is out — download it from the release page.', error: 'Couldn’t check just now.' }[u.status] || '');
             $('[data-upd="install"]', box).hidden = u.status !== 'ready';
+            const sf = $('.ssh', box);
+            sf.hidden = $('.ssh-hint', box).hidden = !i.studioSeen;
+            if (document.activeElement !== sf.a) sf.a.value = i.studioSsh || '';
         }
         paint(UI.info); UI.onUi(paint);
         $('.me', box).n.value = core.name;
@@ -913,6 +918,13 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         paintColors();
         nc.onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; core.setColor(b.dataset.c); paintColors(); };
         $('.me', box).onsubmit = (e) => { e.preventDefault(); if (core.setName(e.target.n.value)) UI.toast('Saved.'); };
+        $('.ssh', box).onsubmit = async (e) => {
+            e.preventDefault();
+            const a = e.target.a.value.trim();
+            if (a && !/^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$/.test(a)) return UI.toast('That should look like you@server.');
+            const i = await app.setUi({ studioSsh: a });
+            UI.toast(i.studioSsh ? 'Saved. Studio in the tray connects to ' + i.studioSsh + '.' : 'Saved: no server.');
+        };
         box.onclick = async (e) => {
             const b = e.target.closest('button');
             if (!b) return;

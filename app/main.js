@@ -33,6 +33,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { spawn } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const { resolveStation, Watcher } = require('./watch');
 
@@ -70,7 +71,7 @@ const UI_DEFAULTS = {
     ifaceServer: '',            // green threads server, if not the station's
     ifaceToken: '', ifaceTokenFor: ''   // the station's moderator token, and the server it is for (never sent to the pages)
 };
-const DEFAULTS = { stations: [], current: 0, alerts: true, openAtLogin: false, updates: true, seen: '', seenPing: '', toldTray: false, ui: {}, windows: {}, ifaceKey: '' };
+const DEFAULTS = { stations: [], current: 0, alerts: true, openAtLogin: false, updates: true, seen: '', seenPing: '', toldTray: false, ui: {}, windows: {}, ifaceKey: '', studioSsh: '' };
 let cfg = load();
 function load() {
     let c;
@@ -794,8 +795,9 @@ async function studioCheck() {
 }
 /** At start, or when the engine asks: open the Studio, unless a show is on in another Studio window. */
 async function studioStart(argv) {
-    const u = studioArg(argv);
+    const u = studioArg(argv), ssh = sshArg(argv);
     if (u && !process.env.ONAIR_SMOKE) { studioUrl = u; if (cfg.studioUrl !== u) { cfg.studioUrl = u; save(); } }
+    if (ssh) { if (cfg.studioSsh !== ssh) { cfg.studioSsh = ssh; save(); refreshTray(); } return studioAnywhere(); }      // the station on a server: open it now
     if (studioOpen()) return toFront(studioWin);
     if (!(await studioCheck())) return;
     const live = await studioGet('/api/status').then(s => !!s.live).catch(() => false);
@@ -847,12 +849,97 @@ function openStudio() {
     w.on('resize', keep); w.on('move', keep); w.on('maximize', keep); w.on('unmaximize', keep);
     w.on('closed', () => {
         studioWin = null; refreshTray();
+        if (fwd || fwdWanted) stopForward();             // a station on a server: let go of it (it keeps running there)
         if (quitAfterStudio) { quitAfterStudio = false; app.quit(); }
     });
     // No "Open the studio" click needed here: the app has already said yes to the microphone.
     wc.on('did-finish-load', () => wc.executeJavaScript("{ const b = document.getElementById('startBtn'); if (b && !b.disabled) b.click(); }").catch(() => {}));
     wc.loadURL(studioUrl + '/');
     refreshTray();
+}
+
+/* ---------- the Studio of a station on a server ----------
+   Its engine answers only on the server itself, so On Air gets there the way you would
+   by hand: an SSH port forward (Windows' own ssh, with your key from ssh-agent), hidden,
+   for as long as the Studio is open. A station on this PC comes first: then nothing's
+   forwarded. Set the address (you@server) in Settings → Station, or start On Air with
+   --studio-ssh=you@server. */
+const cleanSsh = (a) => { a = String(a || '').trim(); return /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$/.test(a) ? a : ''; };
+let fwd = null, fwdWanted = false, fwdBusy = false;     // the ssh process; whether to keep it (the Studio is open on it)
+const sshArg = (argv) => { const a = (argv || []).find(x => String(x).startsWith('--studio-ssh=')); return a ? cleanSsh(a.slice(13)) : ''; };
+const studioPort = () => Number(new URL(studioUrl || 'http://127.0.0.1:7700').port) || 7700;
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+function sshCmd() {
+    // (Test runs can stand something else in for ssh: ONAIR_SSH, a program, and ONAIR_SSH_ARG, its first argument.)
+    if (process.env.ONAIR_SMOKE && process.env.ONAIR_SSH) return [process.env.ONAIR_SSH, process.env.ONAIR_SSH_ARG ? [process.env.ONAIR_SSH_ARG] : []];
+    const w = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'OpenSSH', 'ssh.exe');
+    return [process.platform === 'win32' && fs.existsSync(w) ? w : 'ssh', []];
+}
+const portFree = (port) => new Promise((ok) => {
+    const s = require('node:net').createServer();
+    s.once('error', () => ok(false));
+    s.listen(port, '127.0.0.1', () => s.close(() => ok(true)));
+});
+/** What went wrong, from what ssh said, in plain words. */
+function sshWhy(err) {
+    const e = String(err || '');
+    if (/Permission denied/i.test(e)) return 'Your SSH key isn’t unlocked. Open a terminal, run ssh-add, type your passphrase there, then try the Studio again.';
+    if (/ENOENT|not recognized|not found/i.test(e)) return 'Windows’ SSH client isn’t installed: Settings → Apps → Optional features → OpenSSH Client.';
+    if (/Host key verification failed|IDENTIFICATION HAS CHANGED/i.test(e)) return 'The server’s key isn’t the one this PC knows. Check it in a terminal (ssh ' + cfg.studioSsh + ') before connecting.';
+    if (/Could not resolve/i.test(e)) return 'Couldn’t find ' + cfg.studioSsh.split('@')[1] + '. Check the address in Settings → Station.';
+    if (/timed out|refused|No route|unreachable/i.test(e)) return 'The server didn’t answer. Is it on, and is this PC online?';
+    if (/forward|listen/i.test(e)) return 'Another program on this PC is using the Studio’s port.';
+    return (e.trim().split(/\r?\n/).pop() || 'ssh stopped.').slice(0, 200);
+}
+function startForward() {
+    const port = studioPort();
+    const [exe, pre] = sshCmd();
+    const p = spawn(exe, [...pre, '-N', '-T', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
+        '-o', 'StrictHostKeyChecking=accept-new', '-L', `${port}:127.0.0.1:${port}`, '-L', `${port + 1}:127.0.0.1:${port + 1}`, cfg.studioSsh],
+        { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    p.err = ''; p.done = false;
+    p.stderr.on('data', (d) => { p.err = (p.err + d).slice(-2000); });
+    p.on('error', (e) => { p.err += ' ' + e.message; p.done = true; if (fwd === p) fwd = null; });
+    p.on('exit', () => {
+        p.done = true;
+        if (fwd !== p) return;
+        fwd = null;
+        // Dropped while the Studio's open on it (the network blinked): connect again.
+        if (fwdWanted && studioOpen()) { console.log('[studio] the server connection dropped:', p.err.trim().slice(-200)); setTimeout(() => { if (fwdWanted && studioOpen() && !fwd) startForward(); }, 3000); }
+        else studioCheck();
+    });
+    fwd = p;
+    return p;
+}
+function stopForward() {
+    fwdWanted = false;
+    const p = fwd;
+    fwd = null;
+    if (p && !p.done) try { p.kill(); } catch { /* gone */ }
+    setTimeout(() => studioCheck(), 500);
+}
+/** The tray's Studio: this PC's station if it runs one, otherwise the one on the server. */
+async function studioAnywhere() {
+    if (studioOpen()) return toFront(studioWin);
+    if (await studioCheck()) return openStudio();
+    if (!cfg.studioSsh || fwdBusy) return;
+    fwdBusy = true;
+    try {
+        const port = studioPort();
+        if (!fwd) {
+            if (!(await portFree(port)) || !(await portFree(port + 1))) return tip('Studio', `Another program on this PC is using port ${port} or ${port + 1}, and it isn’t a station. Close it and try again.`);
+            startForward();
+        }
+        const p = fwd;
+        for (let i = 0; i < 40; i++) {
+            await wait(500);
+            if (p.done && process.env.ONAIR_SMOKE) console.log('[studio] ssh stopped:', sshWhy(p.err));
+            if (p.done) return tip('Couldn’t reach the station’s server', sshWhy(p.err));
+            if (await studioCheck()) { fwdWanted = true; if (process.env.ONAIR_SMOKE) console.log('[studio] through', cfg.studioSsh); return openStudio(); }
+        }
+        stopForward();
+        tip('Couldn’t reach the station’s server', 'It connected, but the station there didn’t answer. Is the engine running on the server?');
+    } finally { fwdBusy = false; }
 }
 
 /* ---------- the tray ---------- */
@@ -878,7 +965,7 @@ function refreshTray() {
         { label: 'Open', click: () => createWindow(true) },
         { label: pageState && pageState.playing ? 'Pause' : 'Play', enabled: !!st, click: () => toPage('toggle-play') },
         { label: 'Reload', enabled: !!st, click: reloadPage },
-        ...(studioHere || studioOpen() ? [{ label: 'Studio', click: openStudio }] : []),
+        ...(studioHere || studioOpen() || cfg.studioSsh ? [{ label: 'Studio', click: () => studioAnywhere() }] : []),
         { type: 'separator' },
         { label: 'Live alerts', type: 'checkbox', checked: !!cfg.alerts, click: (i) => { cfg.alerts = i.checked; save(); broadcastUi(); } },
         { label: 'Start with the computer', type: 'checkbox', checked: !!cfg.openAtLogin, click: (i) => { cfg.openAtLogin = i.checked; save(); startWithComputer(); broadcastUi(); } },
@@ -1237,6 +1324,8 @@ function uiInfo() {
     return {
         ui: { ...cfg.ui, ifaceToken: undefined }, ifaceAdmin: cfg.ui.ifaceToken ? cfg.ui.ifaceTokenFor : '', updates: cfg.updates !== false, update: updates ? { ...updates.state } : null,
         alerts: !!cfg.alerts, openAtLogin: !!cfg.openAtLogin, version: app.getVersion(),
+        // A station's Studio on a server (only offered on a PC that has had a Studio).
+        studioSsh: cfg.studioSsh || '', studioSeen: !!(cfg.studioUrl || cfg.studioSsh || studioHere),
         station: st ? { name: st.name, pageUrl: st.pageUrl, pointerUrl: st.pointerUrl, engineUrl: st.engineUrl } : null,
         downloads: cfg.ui.downloads || path.join(app.getPath('music'), safeName(st ? st.name : 'On Air'))
     };
@@ -1250,6 +1339,7 @@ handle('ui-set', (e, patch) => {
         else if (k === 'openAtLogin') { cfg.openAtLogin = !!patch.openAtLogin; startWithComputer(); }
         else if (k === 'updates') { cfg.updates = !!patch.updates; if (cfg.updates && updates) updates.check(); }
         else if (k === 'ifaceToken' || k === 'ifaceTokenFor') continue;          // only through iface-token
+        else if (k === 'studioSsh') cfg.studioSsh = cleanSsh(patch.studioSsh);
         else if (k in UI_DEFAULTS) cfg.ui[k] = patch[k];
     }
     if ('onTop' in patch) for (const w of allWindows()) { const id = idOf(w.webContents); if (prefs(id).onTop === undefined) w.setAlwaysOnTop(!!cfg.ui.onTop, 'floating'); }
@@ -1368,7 +1458,7 @@ on('back', (e) => { if (stationsWin && !stationsWin.isDestroyed() && e.sender ==
 handle('stations-window', () => { showStations(); });
 
 /* ---------- go ---------- */
-app.on('second-instance', (e, argv) => { createWindow(true); if (studioArg(argv)) studioStart(argv); });
+app.on('second-instance', (e, argv) => { createWindow(true); if (studioArg(argv) || sshArg(argv)) studioStart(argv); });
 let updating = false;
 app.on('before-quit', (e) => {
     // The Studio closes first (asking, if you're on air); then On Air quits, and installs an update if there is one.
@@ -1378,6 +1468,7 @@ app.on('before-quit', (e) => {
     quitting = true; if (saveT) save();
 });
 app.on('window-all-closed', () => { /* stay in the tray */ });
+app.on('will-quit', () => { if (fwd) stopForward(); });
 
 app.whenReady().then(async () => {
     serveApp();
