@@ -1,3 +1,3 @@
-## What's new in 0.5.23
+## What's new in 0.5.24
 
-- It is a mystery 👻
+- It is still a mystery 👻
