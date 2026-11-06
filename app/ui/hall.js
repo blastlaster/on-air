@@ -111,6 +111,17 @@
             else if (introEnd > now()) introEnd = 0;                // called off
         }
         const boxes = new Map();          // key → { k, want, side, name, who, talk, strip }
+        // The studio's room delay (engine/hall.js roomDelay): what's on air shows when listeners hear it, in order.
+        let delay = 0, streamDue = 0;
+        const streamTimers = new Set();
+        function onStream(fn) {
+            const at = Math.max(Date.now() + delay * 1000, streamDue);
+            streamDue = at;
+            if (at - Date.now() < 30) return fn();
+            const tm = setTimeout(() => { streamTimers.delete(tm); fn(); }, at - Date.now());
+            streamTimers.add(tm);
+        }
+        offs.push(() => { for (const tm of streamTimers) clearTimeout(tm); });
         // The room's clock, in seconds: it runs slow for a moment when a tuna lands (slowMo).
         let clockReal = 0, clockAt = 0, clockRate = 1;
         const now = () => clockAt + (performance.now() / 1000 - clockReal) * clockRate;
@@ -193,7 +204,7 @@
                 case 'hall-welcome':
                     people.clear();
                     for (const p of m.people || []) add(p);
-                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; setIntro(air.intro); onDodge(m.dodge || { state: '' }, true);
+                    me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; delay = Number(air.delay) || 0; setIntro(air.intro); onDodge(m.dodge || { state: '' }, true);
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
@@ -258,8 +269,16 @@
                     while (bursts.length > 12) bursts.shift();
                     if (m.h && BURST_LINE[m.k]) logLine({ text: BURST_LINE[m.k].replace('{n}', nameOf(m.h)) }, 'game');
                     break;
-                case 'hall-booth': booth = { host: !!m.host, calls: m.calls || [], vm: m.vm || null }; break;
-                case 'hall-air': air = { live: m.live, talking: m.talking, music: m.music, screen: m.screen, fx: m.fx || air.fx, tag: m.tag }; setIntro(m.intro); paintBursts(); break;
+                case 'hall-booth': { const b = { host: !!m.host, calls: m.calls || [], vm: m.vm || null }; onStream(() => { booth = b; }); break; }
+                case 'hall-air': {
+                    // The studio's settings straight away; going live, talk and music when listeners hear them.
+                    delay = Number(m.delay) || 0;
+                    air = { ...air, screen: m.screen, fx: m.fx || air.fx, tag: m.tag };
+                    paintBursts();
+                    const heard = { live: m.live, talking: m.talking, music: m.music };
+                    onStream(() => { air = { ...air, ...heard }; setIntro(m.intro); paintBursts(); });
+                    break;
+                }
                 case 'hall-closed':
                     joined = false; pending = false; refused = true; people.clear(); me = '';
                     notice((m.reason || 'blug.dj/jej is closed right now.') + ' Click to try again.');
