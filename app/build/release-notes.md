@@ -1,3 +1,3 @@
-## What's new in 0.5.24
+## What's new in 0.5.25
 
-- It is still a mystery 👻
+- **blug.dj/jej keeps time with what you hear.** The stream runs a few seconds behind, so the room now waits to match it: going live, the host talking, the music and the speaker boxes show up when they reach your ears, not before.
