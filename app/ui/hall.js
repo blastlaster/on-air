@@ -112,10 +112,25 @@
         }
         const boxes = new Map();          // key → { k, want, side, name, who, talk, strip }
         // The studio's room delay (engine/hall.js roomDelay): what's on air shows when listeners hear it, in order.
-        let delay = 0, streamDue = 0;
+        // Each listener's own player holds back some more (or less): the studio's delay is as heard on a
+        // usual player (about LAG_USUAL s buffered), so this one adds how far it is behind that.
+        // core.streamLag(): seconds buffered ahead of what's playing, null when not playing the stream.
+        const LAG_USUAL = 2.5;
+        let delay = 0, streamDue = 0, lagAvg = null;
         const streamTimers = new Set();
+        function sampleLag() {
+            let v = null;
+            try { v = core.streamLag ? core.streamLag() : null; } catch { v = null; }
+            if (typeof v !== 'number' || !isFinite(v) || v < 0) { lagAvg = null; return; }
+            lagAvg = lagAvg == null ? v : lagAvg * 0.8 + v * 0.2;       // smoothed: a buffer refill doesn't jolt the room
+        }
+        sampleLag();
+        const lagT = setInterval(sampleLag, 1000);
+        offs.push(() => clearInterval(lagT));
+        /** How long this room waits: 0 when the studio says straight away; otherwise its delay plus this player's extra. */
+        const roomWait = () => delay > 0 ? Math.max(0, Math.min(30, delay + (lagAvg == null ? 0 : lagAvg - LAG_USUAL))) : 0;
         function onStream(fn) {
-            const at = Math.max(Date.now() + delay * 1000, streamDue);
+            const at = Math.max(Date.now() + roomWait() * 1000, streamDue);
             streamDue = at;
             if (at - Date.now() < 30) return fn();
             const tm = setTimeout(() => { streamTimers.delete(tm); fn(); }, at - Date.now());
