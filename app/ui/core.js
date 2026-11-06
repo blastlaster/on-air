@@ -400,6 +400,13 @@
         setPlaying(false);
     }
     function setPlaying(on) { player.playing = on; render(); }
+    /** How far behind the newest audio it has the radio is playing (seconds), or null when it isn't playing the stream. */
+    function streamLag() {
+        const b = audio.buffered;
+        if (!player.playing || audio.paused || !audio.getAttribute('src') || !b || !b.length) return null;
+        const lag = b.end(b.length - 1) - audio.currentTime;
+        return Number.isFinite(lag) ? Math.max(0, lag) : null;
+    }
     audio.onerror = () => {
         if (!player.playing || !audio.getAttribute('src')) return;
         if (heard || lostTries > 0) return streamLost();     // it was playing, or still getting it back
@@ -643,7 +650,7 @@
         get emotes() { return emotes; },
         get emotesKey() { return emotesKey; },
         on, toast, now: serverNow, skipVote, hallLook,
-        play, stop, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
+        play, stop, streamLag, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,
         send, setName,
         chatSend(text) { return send({ t: 'chat', text }); },
