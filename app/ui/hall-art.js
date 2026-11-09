@@ -73,7 +73,7 @@
     }
 
     /* =========================================================
-       RADIOMAN — the host, behind his desk, at his mic
+       RADIOMAN — the host, behind his desk (he's a microphone: no mic, a coffee)
        ========================================================= */
     // d dome, D dome shade, m the mark on his dome, f face, s lower face, e ear,
     // b brow, w eye white, k pupil / mouth, t teeth
@@ -123,7 +123,7 @@
                 if (ch !== '.') R(RX - 10 + c, hy + r, 1, 1, RM_PAL[ch]);
             }
         });
-        // Talk lines off the side of his mouth (the mic is on the other side).
+        // Talk lines off the side of his mouth (his coffee's on the other side).
         if (talking) {
             const f = Math.floor(t * 6) % 2, x = RX + 12, y = hy + 15;
             R(x, y - 4 - f, 2 + f, 1, '#ffffff');
@@ -132,7 +132,7 @@
         }
         desk(t, air.live, true, nod);
     }
-    /** The desk, its ON AIR lamp and the mic (and his hands on it, when he's there). */
+    /** The desk, its ON AIR lamp and his coffee (and his hands on it, when he's there). */
     function desk(t, lit, hands, nod) {
         R(RX - 28, RY + 30, 56, 3, '#8a5a3a'); R(RX - 28, RY + 30, 56, 1, '#a8774f');
         R(RX - 26, RY + 33, 52, 11, '#5a3a22');
@@ -140,11 +140,18 @@
         // The ON AIR lamp on the desk's front.
         R(RX - 13, RY + 36, 26, 7, '#1a1020');
         text(l, 'ON AIR', RX - 11, RY + 37, lit ? (Math.floor(t * 2) % 2 ? '#ff4a4a' : '#ff2a2a') : '#4a2a2a');
-        // The mic: base on the desk, a stand, its head by his mouth.
-        R(RX - 15, RY + 29, 6, 1, '#2a2a2a');
-        R(RX - 12, RY + 19, 1, 10, '#3c3c3c');
-        R(RX - 12, RY + 18, 4, 1, '#3c3c3c');
-        R(RX - 10, RY + 13 + (nod || 0), 3, 5, '#2a2a2a'); R(RX - 9, RY + 14 + (nod || 0), 1, 3, '#6a6a6a');
+        // His coffee: a mug on the desk, well clear of his left hand (RX - 13), steam curling up.
+        const cx = RX - 22, cy = RY + 25;
+        R(cx, cy, 5, 5, '#e8e2d6'); R(cx, cy, 5, 1, '#fffaf0'); R(cx + 4, cy + 1, 1, 4, '#c8c0b2');   // the mug
+        R(cx + 1, cy + 1, 3, 1, '#4a2a16');                                                           // the coffee
+        R(cx - 2, cy + 1, 2, 1, '#e8e2d6'); R(cx - 2, cy + 1, 1, 3, '#e8e2d6'); R(cx - 2, cy + 3, 2, 1, '#e8e2d6');   // the handle
+        R(cx + 1, cy + 3, 3, 1, '#c0392b');                                                           // a stripe
+        l.globalAlpha = 0.55;
+        for (let i = 0; i < 2; i++) {
+            const k = (t * 0.8 + i * 0.5) % 1, sy = cy - 1 - Math.floor(k * 6);
+            R(cx + 1 + i * 2 + Math.round(Math.sin(t * 3 + i * 2 + k * 5)), sy, 1, 2, '#ffffff');
+        }
+        l.globalAlpha = 1;
     }
 
     /* =========================================================
@@ -159,7 +166,7 @@
         const E = Math.min(ENTRANCE, Math.max(1, secs)), k = E / ENTRANCE;
         return { smoke: E, desk: E - 1.5 * k, clear: 1.5 * k, sit: 0.6 * k };
     }
-    /** Radioman on his feet, his head's top at y: jacket, trousers, shoes, legs swapping as he walks. */
+    /** Radioman on his feet, his head's top at y: jacket, trousers, fancy gold slippers, legs swapping as he walks. */
     function rmStanding(x, y, step) {
         RM_HEAD.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] !== '.') R(x - 10 + c, y + r, 1, 1, RM_PAL[row[c]]); });
         for (let r = 0; r < 12; r++) { const w = 16 + Math.min(r, 3) * 2; R(x - w / 2, y + 19 + r, w, 1, '#6f7480'); }
@@ -169,7 +176,13 @@
         R(x - 12, y + 21 + a, 2, 8, '#646a76'); R(x + 10, y + 21 - a, 2, 8, '#646a76');
         R(x - 12, y + 29 + a, 2, 2, '#b0b0b0'); R(x + 10, y + 29 - a, 2, 2, '#b0b0b0');
         R(x - 5 + a, y + 31, 4, 5, '#3a3d48'); R(x + 1 - a, y + 31, 4, 5, '#3a3d48');
-        R(x - 6 + a, y + 36, 5, 1, '#151515'); R(x + 1 - a, y + 36, 5, 1, '#151515');
+        // Fancy gold slippers: a curled-up toe (he walks right), a shine, a darker sole.
+        for (const sx of [x - 6 + a, x + 1 - a]) {
+            R(sx, y + 35, 4, 1, '#e8b830'); R(sx, y + 36, 6, 1, '#d4a020'); R(sx, y + 37, 6, 1, '#8a6410');
+            R(sx + 6, y + 35, 1, 1, '#ffd84a');                                    // the curl
+            R(sx + 1, y + 35, 1, 1, '#fff2a8');                                    // the shine
+            R(sx + 4, y + 35, 1, 1, '#e0304a');                                    // a ruby on the toe
+        }
     }
     /** The middle of the stage during the countdown (in place of centre()). */
     function entrance(t, left, secs, air, info) {
