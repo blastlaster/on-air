@@ -1124,6 +1124,41 @@
         }
         if (s < 1.5) { l.globalAlpha = Math.max(0, 0.5 - s / 3); for (let i = 0; i < 10; i++) puff(40 + i * 18, 8 + Math.sin(i) * 4, 12, 6, 1); l.globalAlpha = 1; }
     }
+    /**
+     * Daniel's way in: through the right-hand wall, s seconds after he hit it. A jagged hole (it
+     * fades after a while), bricks flying across the floor and staying where they land, dust.
+     */
+    function wallBurst(s, seed) {
+        if (s < 0) return;
+        const fade = Math.max(0, Math.min(1, (14 - s) / 2));
+        if (!fade) return;
+        // The hole: dark inside, broken brick round the edge.
+        l.globalAlpha = fade;
+        const HX = W - 18, HY = 52, HW = 18, HH = 56;
+        R(HX, HY, HW, HH, '#07050c');
+        for (let i = 0; i < 9; i++) {
+            const r = Math.sin(i * 7.31 + seed) * 43758.5453, k = r - Math.floor(r);
+            R(HX - 1 - Math.round(k * 3), HY + i * 6, 2 + Math.round(k * 3), 4, i % 2 ? '#7a4a3a' : '#9a5c48');          // the broken edge
+            R(HX + Math.round(k * 10), HY - 2 - Math.round(k * 2), 4, 2 + Math.round(k * 2), '#8a5444');                     // the top of the hole
+        }
+        // Bricks: thrown out across the room, bouncing once, then lying there.
+        for (let i = 0; i < 22; i++) {
+            const r = Math.sin(i * 12.9898 + seed * 3.1) * 43758.5453, a = r - Math.floor(r), b = (a * 9.17) % 1, c = (a * 3.77) % 1;
+            const vx = -(50 + a * 150), vy = -(30 + b * 90), land = FLOOR.y0 + 8 + c * (FLOOR.y1 - FLOOR.y0 - 12);
+            const x0 = HX + 4 + b * 10, y0 = HY + 8 + c * 44;
+            // Up and over (gravity), till it reaches its spot on the floor.
+            const g = 240, tl = (-vy + Math.sqrt(vy * vy + 2 * g * Math.max(1, land - y0))) / g, st = Math.min(s, tl);
+            const x = Math.max(FLOOR.x0, x0 + vx * st * (s > tl ? 1 : 1)), y = s >= tl ? land : y0 + vy * st + 0.5 * g * st * st;
+            const sz = 2 + Math.floor(c * 3);
+            R(x, y - sz, sz + 1, sz, i % 3 ? '#9a5c48' : '#c27a5e'); R(x, y - sz, sz + 1, 1, '#d89a80');
+        }
+        // Dust, first thing.
+        if (s < 1.6) {
+            l.globalAlpha = fade * Math.max(0, 0.7 - s / 2.3);
+            for (let i = 0; i < 6; i++) puff(HX - 6 - i * 9 - s * 20, HY + 20 + Math.sin(i * 2) * 14, 9 + s * 6, 6 + s * 3, 1);
+        }
+        l.globalAlpha = 1;
+    }
     /** The magic flash someone comes back in (k 0–1). */
     function sparkle(x, y, k) {
         l.save();
@@ -1152,5 +1187,6 @@
         burger: (ctx, x, y, t, o) => { l = ctx; return burger(x, y, t, o || {}); },
         star: (ctx, x, y, t) => { l = ctx; star(x, y, t); },
         rubble: (ctx, s, seed) => { l = ctx; rubble(s, seed || 1); },
+        wallBurst: (ctx, s, seed) => { l = ctx; wallBurst(s, seed || 1); },
         sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); } };
 })();

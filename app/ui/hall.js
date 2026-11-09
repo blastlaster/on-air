@@ -11,6 +11,8 @@
    ============================================================= */
 (function () {
     'use strict';
+    // Where this file came from: the room's own sounds sit next to it in the app (on the listener site they come from the station).
+    const HERE = ((document.currentScript && document.currentScript.src) || '').replace(/[^/]*(\?.*)?$/, '');
 
     const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['jump', '⤴️', 'Jump'], ['sit', '🪑', 'Sit'], ['cheer', '🙌', 'Cheer'],
         ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep']];
@@ -1244,6 +1246,35 @@
         let bt = { state: '', burgers: [], eaten: [], stars: [], score: 0 }, btD = null, btEat = null, btStart = 0, btBurp = 0, btZapAt = 0, btFrenzy = 0;
         const btZap = new Map(), btBack = new Map();
         const BT_YELLS = ['HEY EVERYBODY, IT’S ME, DANIEL!', 'IT’S BURGERTIME!'];
+        // His yell (daniel-burgertime.mp3): when each line is said, in seconds into it — the bubbles follow the sound.
+        const BT_CLIP = 'daniel-burgertime.mp3', BT_SAID = [[0.2, 3.65], [4.0, 7.0]];
+        let btAudio = null, btClipUrl = null;
+        /** Where his yell is: next to this file in the app; from the station on the website (its address is in station.json, beside us). */
+        function clipUrl() {
+            if (!btClipUrl) btClipUrl = (async () => {
+                if (core.engine) return core.engine.replace(/\/+$/, '') + '/js/' + BT_CLIP;
+                try {
+                    const j = await (await fetch(HERE + 'station.json', { cache: 'no-cache' })).json();
+                    if (j && j.engine) return String(j.engine).replace(/\/+$/, '') + '/js/' + BT_CLIP;
+                } catch { /* served by the station itself: it's right here */ }
+                return HERE + BT_CLIP;
+            })();
+            return btClipUrl;
+        }
+        async function yell() {
+            try {
+                if (btAudio) btAudio.pause();
+                const a = btAudio = new Audio(window.onairApp ? HERE + BT_CLIP : await clipUrl());
+                const v = Number(core.state && core.state.volume);
+                a.volume = Number.isFinite(v) ? Math.max(0.15, Math.min(1, v)) : 0.85;
+                await a.play();
+            } catch { /* no sound (the browser won't, or it isn't there): the bubbles keep to the clock */ }
+        }
+        /** Which line he's saying now (-1 none): by the sound while it plays, else by the clock. */
+        function yellLine(t) {
+            const s = btAudio && !btAudio.paused && btAudio.currentTime > 0 ? btAudio.currentTime : t - btStart;
+            return BT_SAID.findIndex(([a, b]) => s >= a && s < b);
+        }
         const btOn = () => !!bt.state;
         const isBurger = (h) => btOn() && (bt.state === 'zap' || bt.state === 'chase' || bt.state === 'burp') && (bt.burgers.includes(h) || btZap.has(h)) && !bt.eaten.includes(h);
         const isEaten = (h) => btOn() && bt.eaten.includes(h);
@@ -1254,11 +1285,12 @@
         function onBt(m, quiet) {
             const t = now(), was = bt.state;
             bt = { state: m.state || '', burgers: m.burgers || [], eaten: m.eaten || [], stars: m.stars || [], score: m.score || 0, until: t + (m.until || 0) / 1000 };
-            if (!bt.state) { btD = null; btZap.clear(); btEat = null; btFrenzy = 0; return; }
+            if (!bt.state) { btD = null; btZap.clear(); btEat = null; btFrenzy = 0; if (btAudio) { btAudio.pause(); btAudio = null; } return; }
             if (m.d && !btD) { const [x, y] = toPx(m.d[0], m.d[1]); btD = { x, y, tx: x, ty: y, v: 0 }; }
             if (bt.state === was) return;
             if (bt.state === 'enter') {
                 btStart = t; btZap.clear(); btBack.clear(); btFrenzy = 0;
+                if (!quiet) yell();
                 if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[0] }, 'announce');
             }
             if (bt.state === 'zap') { btZapAt = t; if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[1] }, 'announce'); }
@@ -1319,7 +1351,8 @@
         function drawBtWords(t, u, top) {
             if (!btOn()) return;
             const s = bt.state;
-            if (top && s === 'enter') bubble(t - btStart < 3.2 ? BT_YELLS[0] : BT_YELLS[1], top.x * u, top.y * u, u);
+            const line = (s === 'enter' || s === 'zap') ? yellLine(t) : -1;
+            if (top && line >= 0) bubble(BT_YELLS[line], top.x * u, top.y * u, u);
             const big = (str, y, c) => {
                 const fs = Math.max(16, Math.round(9 * u / dpr)) * dpr;
                 ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -2028,6 +2061,7 @@
             const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y);
             const heads = new Map(), fight = duelOf(me);
             btStep(dt);
+            if (btOn() && btStart) A.wallBurst(lc, t - btStart, 5);
             let danielTop = null, danielDrawn = !btD;
             for (const p of sorted) {
                 if (!danielDrawn && btD.y < p.y) { danielTop = drawDaniel(t); danielDrawn = true; }
@@ -2071,7 +2105,7 @@
             const boothOn = speakerBoxes(dt, t, onAir);
             if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
-            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) ? cv.width / A.W * 2 : 0;
+            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) || (bt.state === 'enter' && t - btStart < 0.7) ? cv.width / A.W * 2 : 0;
             ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
             if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
