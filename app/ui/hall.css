@@ -222,3 +222,30 @@
 .he-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; padding: 6px; }
 .he-e { font-size: 22px; line-height: 1; padding: 6px 0; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .he-e:hover, .he-e.on { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); }
+
+/* Hot potato: the pass button while you hold the lit bomb */
+.hall-bomb-btn { position: absolute; z-index: 6; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 8px 18px !important; font-size: 17px !important; font-weight: bold;
+    background: #d81e2e !important; border-color: #ff8a8a !important; color: #fff !important; border-radius: 22px !important; box-shadow: 0 0 18px rgba(255, 40, 40, 0.75); animation: hall-bomb 0.5s infinite alternate; }
+.hall-bomb-btn[hidden] { display: none; }
+.hall-bomb-btn kbd { font-size: 11px; opacity: 0.8; margin-left: 4px; }
+@keyframes hall-bomb { to { box-shadow: 0 0 4px rgba(255, 40, 40, 0.3); } }
+/* Points and what they unlock (🎨 Look) */
+.hl-pts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.hl-pts b { font-size: 16px; }
+.hl-pts .hl-how { flex-basis: 100%; opacity: 0.6; }
+.hl-nm.hl-locked { opacity: 0.55; cursor: help; }
+.hl-nm.hl-locked small { opacity: 0.85; }
+/* [s4s] beside the room, on the left (the FunpostFM site, when [s4s] is switched on) */
+.hall-page-body.with-s4s { flex-direction: row; }
+.hall-page-body.with-s4s > .hall { min-width: 0; }
+.hall-s4s { flex: none; width: clamp(260px, 32vw, 480px); display: flex; flex-direction: column; border-right: 2px solid #7b3cff; background: #f0e0d6; }
+.hall-s4s[hidden] { display: none; }
+.hall-s4s .hs-top { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: #1a0733; color: #fff; font-size: 13px; }
+.hall-s4s .hs-top a { margin-left: auto; color: #9fd8ff; }
+.hall-s4s .hs-top button { background: none; border: 1px solid rgba(255, 255, 255, 0.4); color: #fff; border-radius: 5px; cursor: pointer; padding: 1px 7px; }
+.hall-s4s iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+.hall-page-top button.hp-s4s.on { background: rgba(255, 255, 255, 0.28); }
+@media (max-width: 760px) {
+    .hall-s4s { position: absolute; z-index: 30; left: 0; top: 0; bottom: 0; width: 88vw; box-shadow: 6px 0 20px rgba(0, 0, 0, 0.6); }
+    .hall-page-body { position: relative; }
+}

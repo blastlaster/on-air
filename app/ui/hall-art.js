@@ -28,9 +28,13 @@
         { key: 'top', label: 'Top', names: ['Tee', 'Hoodie', 'Jacket', 'Tank', 'Suit', 'Dress'] },
         { key: 'shirt', label: 'Colour', colors: SHIRT.map(s => s[1]) },
         { key: 'pants', label: 'Pants', colors: PANTS },
-        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower', 'Burger'] }
+        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower', 'Burger',
+            'Flower crown', 'Tiara', 'Skull mask', 'Demon horns', 'Crown of flames'] },
+        { key: 'back', label: 'Back', names: ['None', 'Angel wings', 'Fairy wings', 'Seraph wings', 'Devil tail', 'Bat wings', 'Villain cape'] }
     ];
-    const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * ((p.colors || p.names).length - (p.key === 'extra' ? 1 : 0)))]));     // (never the secret burger)
+    // Anyone can have these; the rest are earned (the secret burger, and what nice and ebil points unlock: app/ui/hall.js REWARDS).
+    const FREE = { extra: 11, back: 1 };
+    const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * (FREE[p.key] || (p.colors || p.names).length))]));
 
     /* ---------- a tiny 3×5 pixel font (rows of 3 bits: 4 left, 2 middle, 1 right) ---------- */
     const FONT = {
@@ -831,6 +835,8 @@
         }
         l.restore();
     }
+    const EARNED = { hearts: (...a) => auraHearts(...a), butterflies: (...a) => auraButterflies(...a), twinkle: (...a) => auraTwinkle(...a), heaven: (...a) => auraHeaven(...a),
+        fire: (x, y, t, front) => auraFire(x, y, t, front, false), brimstone: (...a) => auraBrimstone(...a), hellfire: (...a) => auraHellfire(...a), storm: (...a) => auraStorm(...a) };
     /** An aura, behind the person (front false) or the bits over them (front true). */
     function aura(ctx, kind, color, x, y, t, front, look, o, trail) {
         l = ctx;
@@ -839,8 +845,10 @@
             if (kind === 'shadow') auraShadow(x, y, t, true);
             if (kind === 'charge') auraLightning(x, y, t);
             if (kind === 'petals') auraPetals(x, y, t, true);
+            if (EARNED[kind]) EARNED[kind](x, y, t, true);
             return;
         }
+        if (EARNED[kind]) return EARNED[kind](x, y, t, false);
         if (kind === 'glow') auraGlow(x, y, t, c, 1);
         else if (kind === 'super') { auraGlow(x, y, t, c, 0.9); auraFlames(x, y, t, c, 1); }
         else if (kind === 'charge') { auraGlow(x, y, t, c, 1); auraFlames(x, y, t, c, 1.3); }
@@ -895,6 +903,7 @@
         }
         y -= lift;
         const sit = e === 'sit' || e === 'sleep';
+        if (L.back) backPiece(L.back, x, sit ? y + 1 : y, f, t, o.step === 0 || o.step === 1);
         if (sit) {
             R(x - 3 + (f > 0 ? 1 : -1), y - 3, 7, 2, pa);
             R(f > 0 ? x + 4 : x - 4, y - 3, 1, 2, '#15151c');
@@ -987,6 +996,29 @@
             case 11:                                                                                                                         // the secret burger (Burgertime survivors)
                 R(x - 3, hy - 2, 7, 1, '#d9893a'); R(x - 3, hy - 3, 7, 1, '#6b3a1f'); R(x - 4, hy - 3, 1, 1, '#ffcc33'); R(x - 3, hy - 4, 7, 1, '#5fd14f');
                 R(x - 3, hy - 6, 7, 2, '#e89a45'); R(x - 2, hy - 7, 5, 1, '#e89a45'); R(x - 1, hy - 6, 1, 1, '#fff2c8'); R(x + 2, hy - 6, 1, 1, '#fff2c8'); break;
+            case 12:                                                                                                                         // flower crown (nice points)
+                R(x - 3, hy - 1, 7, 1, '#4fae4a');
+                ['#ff7ccc', '#ffd34a', '#ffffff', '#ff9ad2'].forEach((c, i) => { R(x - 3 + i * 2, hy - 2, 1, 1, c); R(x - 3 + i * 2, hy - 3, 1, 1, i % 2 ? '#ffe9f4' : c); });
+                break;
+            case 13:                                                                                                                         // tiara (nice points)
+                R(x - 2, hy - 2, 5, 1, '#e8e8f0'); R(x - 2, hy - 3, 1, 1, '#e8e8f0'); R(x + 2, hy - 3, 1, 1, '#e8e8f0'); R(x, hy - 4, 1, 1, '#e8e8f0');
+                R(x, hy - 3, 1, 1, Math.floor(t * 3) % 4 ? '#5ad0ff' : '#ffffff'); break;
+            case 14:                                                                                                                         // skull mask (ebil points)
+                R(x - 3, hy + 1, 7, 5, '#ece8dc'); R(ex[0] - 1, hy + 2, 2, 2, '#111'); R(ex[1], hy + 2, 2, 2, '#111'); R(mx, hy + 4, 1, 1, '#333');
+                R(x - 2, hy + 5, 5, 1, '#ece8dc'); R(x - 1, hy + 5, 1, 1, '#555'); R(x + 1, hy + 5, 1, 1, '#555'); break;
+            case 15:                                                                                                                         // demon horns (ebil points)
+                for (const s of [-1, 1]) {
+                    R(x + s * 3, hy - 1, 1, 1, '#5a1414'); R(x + s * 4, hy - 2, 1, 2, '#6a1818'); R(x + s * 5, hy - 4, 1, 2, '#8a2020');
+                    R(x + s * 4, hy - 5, 1, 1, '#b02a2a'); R(x + s * 3, hy - 6, 1, 1, '#e0d0b0');
+                }
+                break;
+            case 16:                                                                                                                         // crown of flames (999 ebil)
+                for (let i = 0; i < 5; i++) {
+                    const fh = 2 + Math.round(hash(i * 7 + Math.floor(t * 12)) * 3);
+                    R(x - 2 + i, hy - 3 - fh, 1, fh, i % 2 ? '#ffb020' : '#ff5a10'); R(x - 2 + i, hy - 3 - fh, 1, 1, '#ffe080');
+                }
+                R(x - 2, hy - 3, 5, 2, '#2a2a2a'); R(x - 2, hy - 4, 1, 1, '#2a2a2a'); R(x, hy - 4, 1, 1, '#2a2a2a'); R(x + 2, hy - 4, 1, 1, '#2a2a2a');
+                R(x, hy - 2, 1, 1, '#ff2a2a'); break;
         }
         // Asleep: Zs floating up.
         if (e === 'sleep') {
@@ -996,6 +1028,219 @@
             l.globalAlpha = 1;
         }
         return hy - lift;                                              // where a bubble goes
+    }
+
+    /** What's on their back (behind them): wings, a tail or a cape. Feet at (x, y), facing f. */
+    function backPiece(k, x, y, f, t, walking) {
+        // A wing on each side: rows of feathers (widths out from the body), flapping.
+        const wing = (rows, top, cols, flap) => {
+            const up = flap ? Math.round(Math.sin(t * flap) * 1.2) : 0;
+            for (const s of [-1, 1]) rows.forEach((w, i) => {
+                const yy = top + i - (i < 3 ? up : 0);
+                R(s < 0 ? x - 3 - w : x + 4, yy, w, 1, cols[Math.min(cols.length - 1, i % cols.length)]);
+            });
+        };
+        if (k === 1) wing([2, 4, 5, 5, 4, 3, 2, 1], y - 16, ['#ffffff', '#f2f2ff', '#dfe4f5'], 4);                       // angel wings
+        else if (k === 2) {                                                                                               // fairy wings: see-through
+            l.globalAlpha = 0.65;
+            wing([3, 4, 5, 4, 2], y - 17, ['#a8f0ff', '#c8f8ff', '#ffb0f0'], 9);
+            wing([2, 3, 2], y - 11, ['#ffb0f0', '#ffd0f8'], 9);
+            l.globalAlpha = 1;
+        } else if (k === 3) {                                                                                             // seraph wings: big and golden, glowing
+            l.globalAlpha = 0.35; wing([3, 5, 7, 8, 8, 7, 6, 4, 3, 1], y - 20, ['#fff3b0'], 3); l.globalAlpha = 1;
+            wing([2, 4, 6, 7, 7, 6, 5, 3, 2], y - 19, ['#fff8d8', '#ffe680', '#ffd34a'], 3);
+        } else if (k === 4) {                                                                                             // devil tail, wagging
+            const b = -f, w = Math.round(Math.sin(t * 5));
+            R(x + b * 3, y - 6, 1, 1, '#a0141e'); R(x + b * 4, y - 5, 1, 1, '#a0141e'); R(x + b * 5, y - 5, 1, 1, '#a0141e');
+            R(x + b * 6, y - 6 + w, 1, 1, '#a0141e'); R(x + b * 7, y - 7 + w, 1, 1, '#a0141e');
+            R(x + b * 7 - (b < 0 ? 2 : 0), y - 9 + w, 3, 2, '#c0392b'); R(x + b * 8, y - 10 + w, 1, 1, '#c0392b');
+        } else if (k === 5) {                                                                                             // bat wings: membranes and bones
+            wing([1, 3, 5, 6, 6, 4, 2], y - 16, ['#3a1440', '#2a1030'], 5);
+            for (const s of [-1, 1]) { R(s < 0 ? x - 9 : x + 4, y - 14, 6, 1, '#120612'); R(s < 0 ? x - 5 : x + 8, y - 11, 1, 1, '#120612'); R(s < 0 ? x - 8 : x + 7, y - 11, 1, 2, '#120612'); }
+        } else if (k === 6) {                                                                                             // villain cape, flowing out behind
+            const b = -f, wave = walking ? Math.floor(t * 8) % 2 : 0;
+            R(x - 5, y - 11, 11, 10, '#1a0a14');
+            R(x + b * 5 - (b < 0 ? 1 : 0), y - 9, 2, 8 + wave, '#1a0a14');
+            R(b < 0 ? x - 5 : x + 5, y - 11, 1, 9, '#a0122a');
+            R(x - 4, y - 12, 9, 1, '#a0122a');
+        }
+    }
+
+    /* ---------- auras earned with nice and ebil points (app/ui/hall.js REWARDS) ---------- */
+    /** Fire: real flames up from the feet, white-hot at the root, embers and a little smoke. */
+    function auraFire(x, y, t, front, big) {
+        const tick = Math.floor(t * 14), W2 = big ? 11 : 8, H2 = big ? 34 : 22;
+        l.save(); l.globalCompositeOperation = 'lighter';
+        for (let dx = -W2; dx <= W2; dx++) {
+            if (front && (Math.abs(dx) > W2 - 2 || hash(dx + tick) < 0.5)) continue;           // in front: just a few low tongues
+            const e = Math.cos(dx / (W2 + 1) * Math.PI / 2), hh = (front ? 6 : H2) * e * (0.6 + 0.4 * hash(dx * 3 + tick));
+            for (let i = 0; i < hh; i++) {
+                const k = i / Math.max(1, hh);
+                l.fillStyle = k < 0.2 ? 'rgba(255,244,160,0.55)' : k < 0.5 ? 'rgba(255,170,30,0.5)' : k < 0.8 ? 'rgba(255,70,16,0.42)' : 'rgba(160,16,16,0.3)';
+                l.fillRect(Math.round(x + dx + Math.sin(t * 9 + i * 0.5 + dx) * k * 1.5), Math.round(y - 1 - i), 1, 1);
+            }
+        }
+        l.restore();
+        if (front) return;
+        for (let i = 0; i < (big ? 14 : 8); i++) {                                                // embers, then smoke
+            const s = (t * 0.9 + hash(i + 5)) % 1;
+            l.globalAlpha = 1 - s; R(x + (hash(i + 9) - 0.5) * W2 * 2.4 + Math.sin(t * 3 + i) * 2, y - 8 - s * H2 * 1.3, 1, 1, i % 2 ? '#ffd040' : '#ff6020');
+        }
+        l.fillStyle = '#2a2024';
+        for (let i = 0; i < 3; i++) { const s = (t * 0.4 + i / 3) % 1; puff(x + Math.sin(t + i * 2) * 4, y - H2 - s * 14, 4 + s * 4, 2 + s * 2, 0.35 * (1 - s)); }
+        l.globalAlpha = 1;
+    }
+    /** Little pixel hearts floating up round you. */
+    function heart(x, y, c) { R(x, y, 1, 1, c); R(x + 2, y, 1, 1, c); R(x, y + 1, 3, 1, c); R(x + 1, y + 2, 1, 1, c); }
+    function auraHearts(x, y, t, front) {
+        for (let i = front ? 1 : 0; i < 10; i += 2) {
+            const s = (t * 0.5 + hash(i + 20)) % 1;
+            l.globalAlpha = Math.min(1, s * 4, (1 - s) * 2);
+            heart(Math.round(x - 10 + hash(i + 21) * 18 + Math.sin(t * 2 + i) * 2), Math.round(y - 4 - s * 26), ['#ff3d6e', '#ff7ca8', '#ffb3c8'][i % 3]);
+        }
+        l.globalAlpha = 1;
+    }
+    /** Butterflies flitting round you, wings opening and shutting. */
+    function auraButterflies(x, y, t, front) {
+        const COL = [['#ffb020', '#ff7a00'], ['#5ad0ff', '#2a7cff'], ['#ff7ccc', '#d14fff']];
+        for (let i = 0; i < 3; i++) {
+            const a = t * (0.9 + i * 0.2) + i * 2.1, bx = x + Math.cos(a) * 11, by = y - 12 + Math.sin(a * 1.7) * 7;
+            if ((Math.sin(a) > 0) !== front) continue;                                      // the near side of the circle in front
+            const open = Math.floor(t * 10 + i) % 2, [c1, c2] = COL[i];
+            R(bx, by, 1, 2, '#2a1a10');
+            if (open) { R(bx - 2, by - 1, 2, 2, c1); R(bx + 1, by - 1, 2, 2, c1); R(bx - 1, by + 1, 1, 1, c2); R(bx + 1, by + 1, 1, 1, c2); }
+            else { R(bx - 1, by - 1, 1, 2, c1); R(bx + 1, by - 1, 1, 2, c1); }
+        }
+    }
+    /** Twinkle: stars glinting on and off all round you, and two gold ones going round. */
+    function auraTwinkle(x, y, t, front) {
+        l.save(); l.globalCompositeOperation = 'lighter';
+        for (let i = front ? 1 : 0; i < 12; i += 2) {
+            const s = (t * 0.8 + hash(i + 40)) % 1, k = Math.sin(s * Math.PI);
+            const sx = x - 12 + hash(i + 41) * 24, sy = y - 26 + hash(i + 42) * 26;
+            l.globalAlpha = k; R(sx, sy, 1, 1, '#ffffff');
+            if (k > 0.6) { R(sx - 1, sy, 1, 1, '#fff3a0'); R(sx + 1, sy, 1, 1, '#fff3a0'); R(sx, sy - 1, 1, 1, '#fff3a0'); R(sx, sy + 1, 1, 1, '#fff3a0'); }
+        }
+        l.restore();
+        for (let i = 0; i < 2; i++) {
+            const a = t * 2 + i * Math.PI;
+            if ((Math.sin(a) > 0) !== front) continue;
+            const sx = x + Math.cos(a) * 10, sy = y - 10 + Math.sin(a) * 3;
+            R(sx, sy - 1, 1, 3, '#ffd34a'); R(sx - 1, sy, 3, 1, '#ffd34a');
+        }
+        l.globalAlpha = 1;
+    }
+    /** Heaven: a shaft of light down on you from above, and feathers drifting down. */
+    function auraHeaven(x, y, t, front) {
+        if (!front) {
+            const g = l.createLinearGradient(0, 0, 0, y);
+            const p = 0.8 + 0.2 * Math.sin(t * 2);
+            g.addColorStop(0, 'rgba(255,248,200,0)'); g.addColorStop(0.6, 'rgba(255,248,200,' + 0.16 * p + ')'); g.addColorStop(1, 'rgba(255,248,200,' + 0.34 * p + ')');
+            l.save(); l.globalCompositeOperation = 'lighter'; l.fillStyle = g;
+            l.beginPath(); l.moveTo(x - 6, 0); l.lineTo(x + 6, 0); l.lineTo(x + 11, y); l.lineTo(x - 11, y); l.fill(); l.restore();
+            auraGlow(x, y, t, '#fff3b0', 1);
+        }
+        for (let i = front ? 1 : 0; i < 8; i += 2) {
+            const s = (t * 0.25 + hash(i + 60)) % 1, fx = x - 12 + hash(i + 61) * 24 + Math.sin(t * 2 + i) * 3, fy = y - 34 + s * 34;
+            l.globalAlpha = Math.min(1, s * 5, (1 - s) * 5);
+            R(fx, fy, 2, 1, '#ffffff'); R(fx + (Math.floor(t * 2 + i) % 2 ? 2 : -1), fy + 1, 1, 1, '#e0e4f5');
+        }
+        l.globalAlpha = 1;
+    }
+    /** Brimstone: a glowing crack in the floor round you, embers and dark red smoke. */
+    function auraBrimstone(x, y, t, front) {
+        if (!front) {
+            const p = 0.6 + 0.4 * Math.sin(t * 4);
+            for (let i = 0; i < 14; i++) {
+                const a = i / 14 * Math.PI * 2, r = 8 + hash(i + 80) * 4;
+                l.globalAlpha = p; R(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.3, 2, 1, i % 3 ? '#ff4a10' : '#ffb020');
+            }
+            l.fillStyle = '#5a1010';
+            for (let i = 0; i < 5; i++) { const s = (t * 0.45 + hash(i + 82)) % 1; puff(x + (hash(i + 83) - 0.5) * 16 + Math.sin(t + i) * 3, y - 2 - s * 24, 1.5 + s * 3, 1 + s * 2, 0.3 * (1 - s)); }
+        }
+        for (let i = front ? 1 : 0; i < 10; i += 2) {
+            const s = (t * 1.1 + hash(i + 85)) % 1;
+            l.globalAlpha = 1 - s; R(x + (hash(i + 86) - 0.5) * 18, y - 2 - s * 26, 1, 1, i % 4 ? '#ff6020' : '#ffd040');
+        }
+        l.globalAlpha = 1;
+    }
+    /** Hellfire: towering flames, a ring of lava in the floor. */
+    function auraHellfire(x, y, t, front) {
+        if (!front) {
+            for (let i = 0; i < 22; i++) {
+                const a = i / 22 * Math.PI * 2;
+                l.globalAlpha = 0.7 + 0.3 * Math.sin(t * 6 + i);
+                R(x + Math.cos(a) * 13, y + Math.sin(a) * 4, 2, 1, i % 2 ? '#ff3a00' : '#ffc030');
+            }
+            l.globalAlpha = 1;
+        }
+        auraFire(x, y, t, front, true);
+    }
+    /** Storm: a dark cloud over your head, rain, and red lightning striking down now and then. */
+    function auraStorm(x, y, t, front) {
+        const cy = y - 30;
+        if (front) {
+            if (Math.floor(t * 6) % 9 === 0) {                                               // the strike
+                const seed = Math.floor(t * 6);
+                let px = x + (hash(seed) - 0.5) * 10, py = cy + 3;
+                l.globalAlpha = 0.95;
+                while (py < y) { R(px, py, 1, 3, '#ff3040'); R(px + 1, py, 1, 1, '#ffd0d0'); px += Math.round(hash(seed + py) * 2 - 1) * 2; py += 3; }
+                l.globalAlpha = 1;
+            }
+            return;
+        }
+        for (let i = 0; i < 9; i++) { const s = (t * 2 + hash(i + 90)) % 1; l.globalAlpha = 0.6; R(x - 9 + hash(i + 91) * 18, cy + 3 + s * (y - cy - 3), 1, 2, '#8fb0d8'); }
+        l.globalAlpha = 1;
+        // The cloud: dark, lit a little on top, rumbling.
+        const r = Math.round(Math.sin(t * 9));
+        for (const [dx, dy, w, h, c] of [[-9, 1, 18, 3, '#3a3846'], [-7, -1, 7, 3, '#4a4858'], [0, -2, 8, 4, '#4a4858'], [-4, -3, 5, 2, '#5c5a6c'], [2, -4, 4, 2, '#5c5a6c'], [-8, 3, 16, 1, '#2a2834']])
+            R(x + dx + r, cy + dy, w, h, c);
+    }
+
+    /** A bomb going off at (x, y), s seconds ago: a flash, a fireball, smoke, bits flying. */
+    function explosion(x, y, s) {
+        if (s < 0 || s > 2.2) return;
+        if (s < 0.12) { l.globalAlpha = 1 - s / 0.12; R(0, 0, W, H, '#fff6d0'); l.globalAlpha = 1; }
+        const r = Math.min(1, s / 0.35) * 22 * (s < 0.6 ? 1 : Math.max(0, 1 - (s - 0.6) / 0.8));
+        if (r > 0.5) {
+            l.save(); l.globalCompositeOperation = 'lighter';
+            for (const [k, c] of [[1, '#ff4a10'], [0.75, '#ffa020'], [0.45, '#fff2a0']]) {
+                l.fillStyle = c; l.globalAlpha = 0.85;
+                const rr = r * k, hy = Math.round(rr * 0.8);
+                for (let yy = -hy; yy <= hy; yy++) { const w = Math.sqrt(Math.max(0, rr * rr - (yy / 0.8) ** 2)); l.fillRect(Math.round(x - w), Math.round(y - 8) + yy, Math.round(w * 2), 1); }
+            }
+            l.restore();
+        }
+        l.fillStyle = '#3a3438';
+        for (let i = 0; i < 8; i++) {
+            const a = hash(i + 3) * Math.PI * 2, d = 6 + s * 26, k = Math.max(0, 1 - s / 2.2);
+            puff(x + Math.cos(a) * d, y - 10 + Math.sin(a) * d * 0.5 - s * 10, 5 + s * 6, 3 + s * 4, 0.9 * k);
+        }
+        l.globalAlpha = 1;
+        for (let i = 0; i < 14; i++) {                                                       // bits flying out and falling
+            const a = hash(i + 50) * Math.PI * 2, v = 40 + hash(i + 51) * 50, bx = x + Math.cos(a) * v * s, by = y - 8 - Math.abs(Math.sin(a)) * v * s + 70 * s * s;
+            if (by > y + 6) continue;
+            R(bx, by, 1, 1, i % 3 ? '#2a2a2a' : '#ff9020');
+        }
+    }
+    /** Daniel's Burger Smash landing at (x, y), s seconds ago: a ring across the floor, cracks, dust. */
+    function shockwave(x, y, s) {
+        if (s < 0 || s > 1.4) return;
+        const k = s / 0.6, a = Math.max(0, 1 - s / 1.4);
+        if (k < 1) {
+            l.strokeStyle = 'rgba(255,240,200,' + (0.9 * (1 - k)) + ')'; l.lineWidth = 2;
+            l.beginPath(); l.ellipse(x, y, 4 + k * 34, 2 + k * 15, 0, 0, Math.PI * 2); l.stroke();
+            l.strokeStyle = 'rgba(255,200,80,' + (0.7 * (1 - k)) + ')'; l.lineWidth = 1;
+            l.beginPath(); l.ellipse(x, y, 2 + k * 22, 1 + k * 9, 0, 0, Math.PI * 2); l.stroke();
+        }
+        l.globalAlpha = a;
+        for (let i = 0; i < 8; i++) {                                                        // cracks
+            const ang = i / 8 * Math.PI * 2 + 0.3;
+            for (let j = 2; j < 9; j++) R(x + Math.cos(ang) * j * 1.6 + (hash(i * 9 + j) - 0.5), y + Math.sin(ang) * j * 0.7, 1, 1, '#1a1018');
+        }
+        l.fillStyle = '#c8b8a0';
+        for (let i = 0; i < 6; i++) puff(x + (i - 2.5) * (4 + s * 10), y - 2 - s * 6, 3 + s * 3, 1.5 + s * 1.5, 0.5 * a);
+        l.globalAlpha = 1;
     }
 
     /** The stage screen's picture area, in room pixels (FunpostTV goes here). */
@@ -1187,7 +1432,7 @@
     }
 
     const SECRET_BURGER = 11;               // extra 11: only for Burgertime survivors (app/ui/hall.js offers it)
-    window.HallArt = { W, H, FLOOR, SECRET_BURGER, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+    window.HallArt = { W, H, FLOOR, SECRET_BURGER, FREE, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
         entrance: (ctx, t, left, secs, air, info) => { l = ctx; entrance(t, left, secs, air, info); },
@@ -1201,5 +1446,7 @@
         star: (ctx, x, y, t) => { l = ctx; star(x, y, t); },
         rubble: (ctx, s, seed) => { l = ctx; rubble(s, seed || 1); },
         wallBurst: (ctx, s, seed) => { l = ctx; wallBurst(s, seed || 1); },
-        sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); } };
+        sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); },
+        explosion: (ctx, x, y, s) => { l = ctx; explosion(x, y, s); },
+        shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); } };
 })();

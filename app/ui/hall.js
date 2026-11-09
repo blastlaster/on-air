@@ -43,9 +43,23 @@
     const GLOW_COLOR = Object.fromEntries(GLOWS);
     // Auras (the same tab: one glow thing at a time). The first four take a colour.
     const AURAS = [['glow', '✨', 'Glow'], ['super', '🔥', 'Super'], ['charge', '⚡', 'Charge'], ['rings', '⭕', 'Halo rings'],
-        ['rainbow', '🌈', 'Rainbow'], ['shadow', '🌑', 'Shadow'], ['ultra', '💠', 'Ultra'], ['petals', '🌸', 'Petals']];
-    // Petals: earned with nice points (giving people what you're holding; engine/hall.js NICE).
-    const NICE_FOR_PETALS = 11;
+        ['rainbow', '🌈', 'Rainbow'], ['shadow', '🌑', 'Shadow'], ['ultra', '💠', 'Ultra'], ['petals', '🌸', 'Petals'],
+        ['hearts', '💕', 'Hearts'], ['butterflies', '🦋', 'Butterflies'], ['twinkle', '🌟', 'Twinkle'], ['heaven', '😇', 'Heaven'],
+        ['fire', '🔥', 'Fire'], ['brimstone', '🌋', 'Brimstone'], ['hellfire', '👹', 'Hellfire'], ['storm', '⛈️', 'Storm']];
+    /* What nice points (giving people what you're holding; engine/hall.js NICE) and ebil points (passing
+       a lit bomb; engine/hall-potato.js) unlock, all the way to 999: [points, at, what, which, name]. */
+    const POINTS = { nice: ['😇', 'nice'], ebil: ['😈', 'ebil'] };
+    const REWARDS = [
+        ['nice', 11, 'aura', 'petals', 'the Petals aura'], ['nice', 33, 'extra', 12, 'the Flower crown'], ['nice', 66, 'aura', 'hearts', 'the Hearts aura'],
+        ['nice', 111, 'back', 1, 'Angel wings'], ['nice', 222, 'aura', 'butterflies', 'the Butterflies aura'], ['nice', 333, 'extra', 13, 'the Tiara'],
+        ['nice', 555, 'back', 2, 'Fairy wings'], ['nice', 777, 'aura', 'twinkle', 'the Twinkle aura'], ['nice', 999, 'aura', 'heaven', 'the Heaven aura'],
+        ['nice', 999, 'back', 3, 'Seraph wings'],
+        ['ebil', 11, 'aura', 'fire', 'the Fire aura'], ['ebil', 33, 'back', 4, 'a Devil tail'], ['ebil', 66, 'extra', 14, 'the Skull mask'],
+        ['ebil', 111, 'back', 5, 'Bat wings'], ['ebil', 222, 'aura', 'brimstone', 'the Brimstone aura'], ['ebil', 333, 'extra', 15, 'Demon horns'],
+        ['ebil', 555, 'back', 6, 'the Villain cape'], ['ebil', 666, 'aura', 'hellfire', 'the Hellfire aura'], ['ebil', 777, 'aura', 'storm', 'the Storm aura'],
+        ['ebil', 999, 'extra', 16, 'the Crown of flames']
+    ];
+    const rewardFor = (what, which) => REWARDS.find(r => r[2] === what && r[3] === which) || null;
     const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };
     const RAINBOW_BG = 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)';
     const auraOf = (a) => (a ? ['aura', ...a.split(':')] : null);                      // ['aura', kind, colour?]
@@ -86,6 +100,33 @@
         const popEl = $('.hall-pop', box), rpsEl = $('.hall-rps', box), duelEl = $('.hall-duel', box), padEl = $('.hall-dpad', box), emojiEl = $('.hall-emoji', box);
         const tvEl = $('.hall-tv', box), msgEl = $('.hall-msg', box), logBox = $('.hall-log', box), logEl = $('.hall-lines', box), bar = $('.hall-bar', box), input = $('input', bar), lookEl = $('.hall-look', box);
         if (window.LT && LT.stickToBottom) LT.stickToBottom(logEl);       // the chat opens at its newest line
+        /* [s4s] beside the room, on the left: on the FunpostFM site, when its [s4s] board is switched on.
+           📋 in the room's top bar shows or hides it (remembered). */
+        (function s4s() {
+            const pageTop = box.parentNode && box.parentNode.querySelector('.hall-page-top'), frame = document.getElementById('boardFrame');
+            if (!pageTop || !frame || document.body.classList.contains('no-s4s')) return;
+            const src = frame.dataset.src || frame.src || 'https://boards.4chan.org/s4s/';
+            let on = window.innerWidth >= 900;
+            try { const v = localStorage.getItem('ltl.hallS4s'); if (v) on = v === '1'; } catch { /* the usual */ }
+            const side = document.createElement('aside');
+            side.className = 'hall-s4s';
+            side.innerHTML = '<div class="hs-top"><b>📋 [s4s]</b> <span class="nsfw-tag">NSFW</span><a href="https://boards.4chan.org/s4s/" target="_blank" rel="noopener">Open ↗</a>' +
+                '<button type="button" data-s4sx title="Hide [s4s]">✕</button></div><iframe title="[s4s] - Shit 4chan Says" referrerpolicy="no-referrer"></iframe>';
+            box.insertBefore(side, box.firstChild);
+            const ifr = $('iframe', side), btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'hp-s4s'; btn.title = 'Show or hide [s4s] beside the room';
+            btn.innerHTML = '📋<span class="hn"> [s4s]</span>';
+            pageTop.insertBefore(btn, pageTop.querySelector('[data-play]'));
+            const paint = () => {
+                side.hidden = !on; box.classList.toggle('with-s4s', on); btn.classList.toggle('on', on);
+                if (on && !ifr.src) ifr.src = src;
+            };
+            const flip = () => { on = !on; try { localStorage.setItem('ltl.hallS4s', on ? '1' : '0'); } catch { /* full */ } paint(); };
+            btn.addEventListener('click', flip);
+            $('[data-s4sx]', side).addEventListener('click', flip);
+            offs.push(() => { btn.remove(); side.remove(); box.classList.remove('with-s4s'); });
+            paint();
+        })();
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
         const lc = low.getContext('2d');
 
@@ -159,8 +200,10 @@
         const duelOf = (h) => [...duels.values()].find(d => (d.a === h || d.b === h) && FIGHT[d.state]) || null;
         const foeOf = (d, h) => (d.a === h ? d.b : d.a);
         /** Rooted to the spot: stunned, or waiting for a round to start. */
+        const btStun = new Map();                       // h → when they can walk again: flattened by Daniel's Burger Smash
         function held(h, t = now()) {
             const d = duelOf(h), s = d && d.st[h];
+            if ((btStun.get(h) || 0) > t) return true;
             return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
         const slowOf = (h, t = now()) => { const d = duelOf(h), s = d && d.st[h]; return s && d.state === 'fighting' && s.slow > t ? DUEL_SLOW[Math.max(1, Math.min(3, s.lvl || 2))] : 1; };
@@ -207,7 +250,8 @@
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 3 })) return notice('Connecting to the station…');
+            // 4: hot potato and Burger Smash.
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 4 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -234,21 +278,18 @@
                     duels.clear();
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
+                    onBomb(m.bomb || { h: '' }, true);
                     notice('');
                     break;
                 case 'hall-bt': onBt(m); break;
                 case 'hall-give': {
                     logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + m.o }, 'game');
                     if (m.b === me) U.toast(nameOf(m.a) + ' gave you ' + m.o + '!');
-                    if (m.a === me && m.nice) {
-                        nice++;
-                        try { localStorage.setItem('ltl.hallNice', String(nice)); } catch { /* this time only */ }
-                        if (nice === NICE_FOR_PETALS) U.toast('🌸 ' + NICE_FOR_PETALS + ' nice points! The Petals aura is yours: 🎨 Look → Aura.');
-                        else U.toast('That was nice! +1 nice point (' + nice + (nice < NICE_FOR_PETALS ? ' of ' + NICE_FOR_PETALS + ' for something pretty' : '') + ')');
-                        if (!lookEl.hidden) openLook();
-                    }
+                    if (m.a === me && m.nice) gotPoint('nice');
                     break;
                 }
+                case 'hall-bomb': onBomb(m); break;
+                case 'hall-bt-smash': onSmash(m); break;
                 case 'hall-bt-d': {
                     const [x, y] = toPx(m.x, m.y), [tx, ty] = toPx(m.tx, m.ty);
                     if (!btD || Math.hypot(btD.x - x, btD.y - y) > 30) btD = { x, y };          // far off: straight there
@@ -279,13 +320,24 @@
                         if (!p || (h === me && !m.put)) continue;
                         [p.tx, p.ty] = toPx(xy[0], xy[1]);
                         p.run = !!xy[2];                       // sprinting there
-                        if (m.put) { p.x = p.tx; p.y = p.ty; p.pushed = false; if (h === me) lastSent = ''; continue; }     // put there (a game's places)
-                        if (Math.hypot(p.tx - p.x, p.ty - p.y) > 120) { p.x = p.tx; p.y = p.ty; }     // too far behind: catch up
+                        if (m.put) { p.x = p.tx; p.y = p.ty; p.pushed = false; p.real = null; if (h === me) lastSent = ''; continue; }     // put there (a game's places)
+                        // Where the station has them right now (on their way): drawn behind that, they walk faster
+                        // till they've caught up (step()) — no jumping there. Only miles off (back from another tab) do they jump.
+                        if (xy.length >= 5) {
+                            const [rx, ry] = toPx(xy[3], xy[4]);
+                            p.real = { x: rx, y: ry, at: now() };
+                            if (Math.hypot(rx - p.x, ry - p.y) > 100) { p.x = rx; p.y = ry; }
+                        } else p.real = null;
                         // (their pose carries on while they walk)
                     }
                     break;
                 case 'hall-emote': { const p = people.get(m.h); if (p && m.h !== me) { p.e = m.e; p.et = now(); } break; }
-                case 'hall-look': { const p = people.get(m.h); if (p) p.l = m.l; break; }
+                case 'hall-look': {
+                    const p = people.get(m.h);
+                    if (p) p.l = m.l;
+                    if (m.h === me && m.l && m.l.extra !== look.extra) { look.extra = m.l.extra; saveLook(); if (!lookEl.hidden) paintLook(); }
+                    break;
+                }
                 case 'hall-name': { const p = people.get(m.h); if (p) { p.n = m.n; p.c = m.c || ''; } break; }
                 case 'hall-hold': { const p = people.get(m.h); if (p) p.o = m.o; if (m.h === me) paintEmoji(); break; }
                 case 'hall-mood': { const p = people.get(m.h); if (p) p.f = m.f; if (m.h === me) paintEmoji(); break; }
@@ -503,7 +555,7 @@
         function act(a) {
             const p = mine(), t = now();
             if (!p || held(me, t)) return;
-            if (a === 'jump' || a === 'dash') tryTech(t);
+            if (a === 'jump' || a === 'dash') { tryTech(t); trySmashTech(t); }
             if (a === 'jump') { if (t < jumpReady) return; jumpReady = t + JUMP_S + 0.1; p.jumpAt = t; }
             if (a === 'dash') { if (t < dashReady) return; dashReady = t + 1; p.dashUntil = t + DASH_S; }
             core.send({ t: 'hall-act', a });
@@ -622,12 +674,85 @@
             for (const p of sorted) {
                 if (!p.o || !heads.has(p.h)) continue;
                 const f = p.face < 0 ? -1 : 1, x = (p.x + f * 6) * u, y = (heads.get(p.h) + 10) * u;
+                const lit = p.o === BOMB && bomb && bomb.h === p.h, red = lit && bombBlink(x, y, fs, now());
                 ctx.save();
                 ctx.translate(Math.round(x), Math.round(y));
                 ctx.scale(-f, 1);                     // emoji face left; turn them the way their holder faces
                 ctx.fillText(p.o, 0, 0);
+                if (red) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ff1a1a'; ctx.beginPath(); ctx.arc(0, fs * 0.08, fs * 0.36, 0, Math.PI * 2); ctx.fill(); }
+                if (lit) { ctx.globalAlpha = 1; ctx.fillStyle = Math.floor(now() * 20) % 2 ? '#fff3a0' : '#ff9a20'; ctx.fillRect(Math.round(fs * 0.22), Math.round(-fs * 0.5), Math.max(2, Math.round(fs / 7)), Math.max(2, Math.round(fs / 7))); }
                 ctx.restore();
             }
+        }
+
+        /* ---------- hot potato (engine/hall-potato.js) ---------- */
+        const BOMB = '💣', BOMB_REACH = [160, 230];      // how close to pass it (the room's units)
+        let bomb = null;                                 // { h, from, end, n }: who has it and when it goes off (this page's clock)
+        const booms = [];                                // { x, y, at }: going off
+        const bombMine = () => !!bomb && bomb.h === me;
+        function onBomb(m, quiet) {
+            const t = now();
+            if (m.boom) {
+                bomb = null;
+                const [x, y] = toPx(m.boom.x, m.boom.y);
+                booms.push({ x, y, at: t });
+                for (const [h, xy] of Object.entries(m.boom.hits || {})) {
+                    const q = people.get(h);
+                    if (!q) continue;
+                    const [kx, ky] = toPx(xy[0], xy[1]);
+                    Object.assign(q, { knock: { x0: q.x, y0: q.y, x1: kx, y1: ky, at: t, dur: 0.85, arc: 24 }, tx: kx, ty: ky, pushed: false, real: null });
+                    if (h === me) { lastSent = ''; pendingHit = null; }
+                }
+                if (!quiet) logLine({ text: '💥 BOOM! ' + nameOf(m.boom.h) + ' was holding the bomb. 😇' }, 'announce');
+            } else if (m.fizzle) {
+                bomb = null;
+                if (!quiet) logLine({ text: '💣 The bomb fizzled out.' }, 'game');
+            } else if (m.h) {
+                const first = !bomb;
+                bomb = { h: m.h, from: m.from, end: t + (m.left || 0) / 1000, n: m.n || 0 };
+                if (!quiet && first) logLine({ text: '💣 ' + nameOf(m.from) + ' handed ' + nameOf(m.h) + ' a lit bomb! HOT POTATO!' }, 'announce');
+                if (!quiet && m.h === me) U.toast('💣 You’ve got the bomb! Pass it on — J' + (touch ? ' or 💣 Pass' : '') + ' — before it goes off!');
+                if (!quiet && m.from === me && m.ebil) gotPoint('ebil');
+            } else bomb = null;
+            paintBombBtn();
+        }
+        /** Pass it to whoever's closest (in reach), or the one you clicked (a bomb you're only holding: that lights it). */
+        function passBomb(h) {
+            const p = mine();
+            if (!p || !(bombMine() || (h && p.o === BOMB && !bomb))) return;
+            let q = h ? people.get(h) : null;
+            if (!q) {
+                let best = Infinity;
+                for (const x of people.values()) {
+                    if (x.h === me || x.s || isEaten(x.h)) continue;
+                    const [ux, uy] = toU(x.x, x.y), [mx, my] = toU(p.x, p.y), dx = Math.abs(ux - mx) / BOMB_REACH[0], dy = Math.abs(uy - my) / BOMB_REACH[1];
+                    if (dx > 1 || dy > 1) continue;
+                    const d = Math.hypot(dx, dy);
+                    if (d < best) { best = d; q = x; }
+                }
+            }
+            if (!q) return U.toast('Nobody close enough — run at someone!');
+            const [ax, ay] = toU(p.x, p.y), [bx, by] = toU(q.x, q.y);
+            core.send({ t: 'hall-give', to: q.h, ax, ay, bx, by });
+        }
+        const bombBtn = document.createElement('button');
+        bombBtn.type = 'button'; bombBtn.className = 'btn hall-bomb-btn'; bombBtn.hidden = true;
+        bombBtn.innerHTML = '💣 Pass it! <kbd>J</kbd>';
+        bombBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); passBomb(); });
+        bombBtn.addEventListener('click', (e) => e.stopPropagation());
+        stage.appendChild(bombBtn);
+        function paintBombBtn() { bombBtn.hidden = !bombMine(); }
+        /** The lit bomb: blinking red, faster the nearer it is to going off; a fizzing fuse. */
+        function bombBlink(x, y, fs, t) {
+            const left = Math.max(0, bomb.end - t), per = Math.max(0.06, Math.min(0.6, left / 14));
+            const on = Math.floor(t / per) % 2 === 0;
+            if (on) {
+                const r = fs * (0.75 + 0.25 * Math.min(1, 6 / Math.max(1, left)));
+                const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+                g.addColorStop(0, 'rgba(255,40,40,0.95)'); g.addColorStop(0.5, 'rgba(255,0,0,0.45)'); g.addColorStop(1, 'rgba(255,0,0,0)');
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+            }
+            return on;
         }
 
         /* ---------- dodgeball ---------- */
@@ -862,7 +987,8 @@
             const sr = stage.getBoundingClientRect();
             const their = tableOf(q.h);
             const mineHeld = (mine() || {}).o;
-            popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">🎁 Give them your ' + mineHeld + '</button>' : '') +
+            popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
+                (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + mineHeld) + '</button>' : '') +
                 '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
                     ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
@@ -886,7 +1012,12 @@
             const du = e.target.closest('[data-duel]');
             if (du) { popEl.hidden = true; return core.send({ t: 'hall-duel', to: du.dataset.duel }); }
             const gv = e.target.closest('[data-give]');
-            if (gv) { popEl.hidden = true; return core.send({ t: 'hall-give', to: gv.dataset.give }); }
+            if (gv) {
+                popEl.hidden = true;
+                const p = mine(), q = people.get(gv.dataset.give);
+                if (p && q && p.o === BOMB) return passBomb(q.h);           // (with where you both are: what you saw counts)
+                return core.send({ t: 'hall-give', to: gv.dataset.give });
+            }
             const b = e.target.closest('[data-rps]');
             if (!b) return;
             core.send({ t: 'hall-rps', to: b.dataset.rps });
@@ -1278,8 +1409,20 @@
         const btOn = () => !!bt.state;
         const isBurger = (h) => btOn() && (bt.state === 'zap' || bt.state === 'chase' || bt.state === 'burp') && (bt.burgers.includes(h) || btZap.has(h)) && !bt.eaten.includes(h);
         const isEaten = (h) => btOn() && bt.eaten.includes(h);
-        let nice = 0;                                 // nice points: things you've given people (11 unlock the petals aura)
-        try { nice = Number(localStorage.getItem('ltl.hallNice')) || 0; } catch { /* none yet */ }
+        let nice = 0, ebil = 0;                       // nice points (things you've given people) and ebil points (bombs you've passed): REWARDS
+        try { nice = Number(localStorage.getItem('ltl.hallNice')) || 0; ebil = Number(localStorage.getItem('ltl.hallEbil')) || 0; } catch { /* none yet */ }
+        const pointsOf = (kind) => (kind === 'ebil' ? ebil : nice);
+        /** A point more: kept, and whatever it unlocks announced. */
+        function gotPoint(kind) {
+            if (kind === 'ebil') ebil++; else nice++;
+            const n = pointsOf(kind), [icon, word] = POINTS[kind];
+            try { localStorage.setItem(kind === 'ebil' ? 'ltl.hallEbil' : 'ltl.hallNice', String(n)); } catch { /* this time only */ }
+            const got = REWARDS.filter(r => r[0] === kind && r[1] === n), next = REWARDS.find(r => r[0] === kind && r[1] > n);
+            if (got.length) U.toast(icon + ' ' + n + ' ' + word + ' points! ' + got.map(r => r[4]).join(' and ') + (got.length > 1 ? ' are' : ' is') + ' yours: 🎨 Look.');
+            else U.toast(icon + ' +1 ' + word + ' point (' + n + (next ? ' of ' + next[1] + ' for ' + next[4] : '') + ')');
+            if (!lookEl.hidden) openLook();
+        }
+        const unlocked = (what, which) => { const r = rewardFor(what, which); return !r || pointsOf(r[0]) >= r[1]; };
         let burgerLook = false;                       // the secret burger (extra 11): yours once you've survived
         try { burgerLook = localStorage.getItem('ltl.hallBurger') === '1'; } catch { /* not yet */ }
         function onBt(m, quiet) {
@@ -1316,6 +1459,60 @@
             btD.x += dx * k; btD.y += (py - btD.y) * k;
             if (Math.abs(ex) > 0.5) btD.face = ex < 0 ? -1 : 1;
         }
+        /* Burger Smash: he leaps (where he'll land is marked on the floor), then slams down. A dash or a jump
+           just before he lands, close by, is a TECH (one try). */
+        const swaves = [];                              // { x, y, at }: landings
+        let btSmash = null;                             // { id, x, y, from, at, tried }
+        const SMASH = { rx: 26, ry: 12, stun: 1.1, tech: 0.3, up: 16 };
+        function onSmash(m) {
+            const t = now();
+            if (!m.land) {
+                const [x, y] = toPx(m.x, m.y);
+                btSmash = { id: m.id, x, y, from: t, at: t + (m.in || 750) / 1000, tried: false };
+                return;
+            }
+            if (btSmash && btSmash.id === m.id) btSmash.done = true;
+            for (const [h, xy] of Object.entries(m.hits || {})) {
+                const q = people.get(h);
+                if (!q) continue;
+                const [kx, ky] = toPx(xy[0], xy[1]);
+                Object.assign(q, { knock: { x0: q.x, y0: q.y, x1: kx, y1: ky, at: t, dur: 0.55, arc: 14 }, tx: kx, ty: ky, pushed: false, real: null });
+                btStun.set(h, t + SMASH.stun);
+                if (h === me) { lastSent = ''; U.toast('💫 SMASHED! Dash or jump just before he lands to TECH it.'); }
+            }
+            for (const h of m.tech || []) { btTech.set(h, t); logLine({ text: '💨 ' + nameOf(h) + ' teched Daniel’s Burger Smash!' }, 'game'); }
+        }
+        const btTech = new Map();                       // h → when they teched one
+        /** A dash or jump: if Daniel's about to land on you, that's your one try at a tech. */
+        function trySmashTech(t) {
+            const s = btSmash, p = mine();
+            if (!s || s.tried || s.done || !p || !isBurger(me)) return;
+            if (Math.abs(p.x - s.x) > SMASH.rx + 6 || Math.abs(p.y - s.y) > SMASH.ry + 4) return;      // not in it: no try used
+            s.tried = true;                                                                         // too early counts too: no mashing
+            if (t < s.at - SMASH.tech || t > s.at + 0.08) return;
+            core.send({ t: 'hall-bt-tech' });
+        }
+        /** Daniel's height off the floor in a smash (and the slam when he lands). */
+        function smashLift(t) {
+            const s = btSmash;
+            if (!s) return 0;
+            if (t >= s.at) {
+                if (!s.slam) { s.slam = true; swaves.push({ x: s.x, y: s.y, at: s.at }); }
+                if (t > s.at + 1.5) btSmash = null;
+                return 0;
+            }
+            const k = (t - s.from) / (s.at - s.from);
+            return 4 * SMASH.up * k * (1 - k);
+        }
+        /** Where he'll come down: a red ring on the floor, more solid as he falls. */
+        function smashMark(t) {
+            const s = btSmash;
+            if (!s || t >= s.at) return;
+            const k = Math.max(0, Math.min(1, (t - s.from) / (s.at - s.from)));
+            lc.strokeStyle = 'rgba(255,40,60,' + (0.3 + 0.6 * k) + ')'; lc.lineWidth = 1;
+            lc.setLineDash([2, 2]); lc.beginPath(); lc.ellipse(s.x, s.y, SMASH.rx, SMASH.ry, 0, 0, Math.PI * 2); lc.stroke(); lc.setLineDash([]);
+            lc.fillStyle = 'rgba(255,40,60,' + 0.12 * k + ')'; lc.beginPath(); lc.ellipse(s.x, s.y, SMASH.rx, SMASH.ry, 0, 0, Math.PI * 2); lc.fill();
+        }
         /** Daniel himself (drawn among everyone, by how far forward he is), the lasers, the burp and the jump. */
         function drawDaniel(t) {
             if (!btD) return null;
@@ -1325,6 +1522,7 @@
             else if (s === 'zap') mode = 'zap';
             else if (s === 'chase') {
                 if (btEat && t - btEat.at < 1) { mode = 'chomp'; open = Math.abs(Math.sin((t - btEat.at) * 12)); }
+                else if (btSmash && t < btSmash.at + 0.35) { mode = t < btSmash.at ? 'zap' : 'chomp'; open = t < btSmash.at ? 1 : 0.2; lift = smashLift(t); }   // BURGER SMASH
                 else if (btD.f) { mode = 'frenzy'; open = Math.abs(Math.sin(t * (14 + btD.f * 10))); }        // chomping at the air
                 else { mode = btD.lunge ? 'lunge' : 'chase'; open = btD.lunge ? 0.8 : 0.25; }
             } else if (s === 'burp') {
@@ -1369,6 +1567,19 @@
                 if (t - btFrenzy < 2.2) big('FEEDING FRENZY!', cv.height * 0.3 + Math.sin(t * 40) * 3 * dpr, '#ff3b5c');
             }
             if (s === 'burp' && t - btBurp < 2.2) big('BUUUURP!', cv.height * 0.3 + Math.sin(t * 30) * 2 * dpr, '#b88cf2');
+            if (btSmash && t - btSmash.from < 1.4) big('BURGER SMASH!', cv.height * 0.22 + Math.sin(t * 50) * 2 * dpr, '#ff9a3c');
+            // Stunned burgers: stars going round; a TECH! over whoever dodged it.
+            for (const [h, until] of btStun) {
+                const p = people.get(h);
+                if (until < t) { btStun.delete(h); continue; }
+                if (!p) continue;
+                for (let k = 0; k < 3; k++) { const a2 = t * 7 + k * 2.1; popWord('*', p.x * u + Math.cos(a2) * 6 * u, (p.y - 16) * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a'); }
+            }
+            for (const [h, at] of btTech) {
+                const p = people.get(h), k = t - at;
+                if (k > 1) { btTech.delete(h); continue; }
+                if (p) popWord('TECH!', p.x * u, (p.y - 20 - k * 6) * u, u, '#7ee3ff');
+            }
             if (bt.score && (s === 'chase' || s === 'burp')) {
                 const fs = Math.max(11, Math.round(3.6 * u / dpr)) * dpr;
                 ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1752,6 +1963,7 @@
             if (editingKeys && waitKey) { actionKey(e); return; }
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
+            if (k === 'j' && bombMine()) { if (!e.repeat) passBomb(); e.preventDefault(); return; }       // hot potato: J passes it
             if (keymap.dash && keyNorm(e.key) === keymap.dash) { sprintKey = true; if (e.repeat) return; }
             if (actionKey(e)) return;
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
@@ -1910,11 +2122,12 @@
                 }
                 if (q.pushed) continue;
                 const dx = q.tx - q.x, dy = q.ty - q.y, d = Math.hypot(dx, dy);
+                const keepUp = q.h === me ? 1 : catchUp(q, t, d);
                 q.walking = d > 0.6;
                 if (q.walking) {
                     if (held(q.h, t)) { q.walking = false; continue; }
                     const fast = q.h === me ? running : q.run;
-                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : fast ? SPRINT.mult : 1) * (q.h === me && charging ? 0.5 : 1) * slowOf(q.h, t) * dt);
+                    const s = Math.min(d, SPEED * keepUp * (q.dashUntil > t ? DASH_SPEED : fast ? SPRINT.mult : 1) * (q.h === me && charging ? 0.5 : 1) * slowOf(q.h, t) * dt);
                     q.x += dx / d * s; q.y += dy / d * s;
                     if (Math.abs(dx) > 0.5) q.face = dx < 0 ? -1 : 1;
                 }
@@ -1923,6 +2136,17 @@
             hitWhenClose();
         }
 
+        /** How much faster to walk someone who's drawn behind where they really are (1: not behind). */
+        function catchUp(q, t, d) {
+            const r = q.real;
+            if (!r) return 1;
+            // Where they'd be by now: from where the station had them, on towards where they're going.
+            const v = SPEED * (q.run ? SPRINT.mult : 1) * (t - r.at), ex = q.tx - r.x, ey = q.ty - r.y, en = Math.hypot(ex, ey);
+            const left = Math.max(0, en - v);                       // how far they've still to go, really
+            const behind = d - left;
+            if (behind <= 3) { if (left <= 0) q.real = null; return 1; }
+            return 1 + Math.min(2.5, behind / 12);
+        }
         /** Your breath for sprinting, under your name: only while it's not full. */
         function sprintBar(u) {
             const p = mine();
@@ -2065,12 +2289,14 @@
             const heads = new Map(), fight = duelOf(me);
             btStep(dt);
             if (btOn() && btStart) A.wallBurst(lc, t - btStart, 5);
+            if (btOn()) smashMark(t);
+            for (let i = swaves.length - 1; i >= 0; i--) { const s = t - swaves[i].at; if (s > 1.4) swaves.splice(i, 1); else A.shockwave(lc, swaves[i].x, swaves[i].y, s); }
             let danielTop = null, danielDrawn = !btD;
             for (const p of sorted) {
                 if (!danielDrawn && btD.y < p.y) { danielTop = drawDaniel(t); danielDrawn = true; }
                 if (isBurger(p.h)) {
                     // Zapped: a burger on legs (with a gold star if it made it).
-                    heads.set(p.h, A.burger(lc, p.x, p.y, t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y);
+                    heads.set(p.h, A.burger(lc, p.x, p.y - (p.lift || 0), t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y);
                     continue;
                 }
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
@@ -2100,6 +2326,7 @@
                 if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
             }
             if (!danielDrawn) danielTop = drawDaniel(t);
+            for (let i = booms.length - 1; i >= 0; i--) { const s = t - booms[i].at; if (s > 2.2) booms.splice(i, 1); else A.explosion(lc, booms[i].x, booms[i].y, s); }
             if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) A.rubble(lc, t - btBurp - 2.2, 7);
             A.lights(lc, t, onAir, fx);
             if (intro != null) A.introOver(lc, t, intro, introSecs);
@@ -2108,7 +2335,8 @@
             const boothOn = speakerBoxes(dt, t, onAir);
             if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
-            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) || (bt.state === 'enter' && t - btStart < 0.7) ? cv.width / A.W * 2 : 0;
+            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) || (bt.state === 'enter' && t - btStart < 0.7)
+                || booms.some(b => t - b.at < 0.5) || swaves.some(w => t - w.at < 0.3) ? cv.width / A.W * 2 : 0;
             ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
             if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
@@ -2132,6 +2360,7 @@
             drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
             drawBtWords(t, u, danielTop);
+            for (const b of booms) if (t - b.at < 1) popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020');
             gameBadges(t, u, heads);
             tableBadges(u, heads, t);
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
@@ -2184,18 +2413,25 @@
                 A.PARTS.map(p => '<div class="hl-row"><span>' + p.label + '</span><div>' +
                     (p.colors ? p.colors.map((c, i) => '<button type="button" class="hl-sw" data-k="' + p.key + '" data-v="' + i + '" style="background:' + c + '" title="' + p.label + ' ' + (i + 1) + '"></button>').join('')
                         : p.names.map((n, i) => p.key === 'extra' && i === A.SECRET_BURGER && !burgerLook ? ''
+                            : !unlocked(p.key, i) ? lockedBtn(rewardFor(p.key, i), n)
                             : '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + (p.key === 'extra' && i === A.SECRET_BURGER ? '🍔 ' : '') + n + '</button>').join('')) +
                     '</div></div>').join('') +
                 sec('Glow') +
                 '<div class="hl-row"><span>Glowstick</span><div>' + off('data-stick', 'No glowstick') + GLOWS.map(([id, c]) =>
                     '<button type="button" class="hl-sw" data-stick="' + id + '" title="' + id + '" style="background:' + (c || RAINBOW_BG) + '"></button>').join('') + '</div></div>' +
                 '<div class="hl-row"><span>Aura</span><div class="hl-auras">' + off('data-aura', 'No aura') + AURAS.map(([id, icon, name]) =>
-                    id === 'petals' && nice < NICE_FOR_PETALS
-                        ? '<button type="button" class="btn hl-aura hl-locked" disabled title="Give people what you’re holding (click them → 🎁 Give) to earn nice points">🔒<small>' + nice + '/' + NICE_FOR_PETALS + ' nice</small></button>'
+                    !unlocked('aura', id)
+                        ? (r => '<button type="button" class="btn hl-aura hl-locked" disabled title="' + esc(name) + ': ' + HOW[r[0]] + '">🔒<small>' + pointsOf(r[0]) + '/' + r[1] + ' ' + POINTS[r[0]][1] + '</small></button>')(rewardFor('aura', id))
                         : '<button type="button" class="btn hl-aura" data-aura="' + id + '" title="' + name + '">' + icon + '<small>' + name + '</small></button>').join('') + '</div></div>' +
                 '<div class="hl-row"><span>Aura colour</span><div>' + Object.entries(A.AURA_COLORS).concat([['rainbow', RAINBOW_BG]]).map(([id, c]) =>
                     '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + id + '" style="background:' + c + '"></button>').join('') +
                     '<small class="hl-note">for Glow, Super, Charge and Halo rings</small></div></div>' +
+                sec('Points') +
+                ['nice', 'ebil'].map(k => {
+                    const n = pointsOf(k), next = REWARDS.find(r => r[0] === k && r[1] > n);
+                    return '<div class="hl-row"><span>' + POINTS[k][0] + ' ' + (k === 'nice' ? 'Nice' : 'Ebil') + '</span><div class="hl-pts"><b>' + n + '</b> ' +
+                        (next ? '<small>next: ' + esc(next[4]) + ' at ' + next[1] + '</small>' : '<small>everything unlocked!</small>') + '<small class="hl-how">' + HOW[k] + '</small></div></div>';
+                }).join('') +
                 sec('You') +
                 '<div class="hl-row"><span>Name</span><form class="hl-name"><input name="n" maxlength="32" value="' + esc(core.name || '') + '" placeholder="Your name">' +
                     '<button class="btn">Save</button></form></div>' +
@@ -2207,6 +2443,10 @@
                     '<small>(off: nobody can hit you, and you can’t hit anyone)</small></label></div>' +
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
             paintLook();
+        }
+        const HOW = { nice: 'give people what you’re holding (click them → 🎁 Give)', ebil: 'pass a lit 💣 on (hand someone a bomb to start hot potato)' };
+        function lockedBtn(r, name) {
+            return '<button type="button" class="btn hl-nm hl-locked" disabled title="' + esc(name) + ': ' + HOW[r[0]] + '">🔒 ' + esc(name) + ' <small>' + pointsOf(r[0]) + '/' + r[1] + ' ' + POINTS[r[0]][1] + '</small></button>';
         }
         function paintLook() {
             for (const b of lookEl.querySelectorAll('[data-k]')) b.classList.toggle('on', look[b.dataset.k] === +b.dataset.v);
