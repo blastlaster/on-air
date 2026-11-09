@@ -238,9 +238,12 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', star: !!p.star || !!(old && old.star), trail: [], atrail: [],
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', star: starTill(p.star) || (old ? old.star : 0), trail: [], atrail: [],
                 x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
+        // The gold star for surviving Burgertime: up for BT_STAR_MS (real time). Older engines send true.
+        const BT_STAR_MS = 15000;
+        function starTill(s) { return s === true ? performance.now() + BT_STAR_MS : s > 0 ? performance.now() + s : 0; }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
 
         /* ---------- joining ---------- */
@@ -1439,7 +1442,7 @@
             if (bt.state === 'zap') { btZapAt = t; if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[1] }, 'announce'); }
             if (bt.state === 'burp') {
                 btBurp = t;
-                for (const h of bt.stars) { const p = people.get(h); if (p) p.star = true; }
+                for (const h of bt.stars) { const p = people.get(h); if (p) p.star = starTill(true); }
                 if (!quiet) logLine({ text: '🍔 ' + (bt.stars.length ? bt.stars.map(nameOf).join(', ') + ' survived Burgertime! ⭐' : 'Daniel ate everybody.') + ' (Daniel: ' + bt.score + ')' }, 'announce');
                 if (bt.stars.includes(me) && !burgerLook) {
                     burgerLook = true;
@@ -2321,7 +2324,7 @@
                 heads.set(p.h, A.person(lc, p.l, po));
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
-                if (p.star) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
+                if (p.star > performance.now()) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
                 const back = btBack.get(p.h);
                 if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
             }
