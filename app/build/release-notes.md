@@ -1,6 +1,4 @@
-## What's new in 0.5.26
+## What's new in 0.5.27
 
-- **blug.dj/jej: Burgertime.** Daniel the hippo zaps everyone into burgers and chases them round the room. Survive and you get a gold star, and a secret look.
-- **Give things away.** Hand someone what you're holding (💩 included) for nice points; collect enough and the Petals aura is yours.
-- **Snappier fights.** Your bonks, slaps, snowballs and dodgeball throws start the moment you press, and hits and catches are judged by what your screen showed, so a hit that looked close counts.
-- **Voicemail files up to 50 MB.**
+- **blug.dj/jej: sprint.** Hold Shift (or the 💨 button) to run, with a bar for your breath. A tap still dashes.
+- **Burgertime gets wilder.** Daniel bursts in through the wall yelling, and in the last 10 seconds goes into a feeding frenzy. He also glides more smoothly, so he's easier to dodge.
