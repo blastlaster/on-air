@@ -1,5 +1,6 @@
-## What's new in 0.5.30
+## What's new in 0.5.31
 
-- **Fixed: Daniel's yell.** His Burgertime entrance was silent in the app (just the speech bubbles). Now you hear him.
-- **Duels: snowballs slow you in three levels** instead of freezing you solid. Only a bonk roots you to the spot now.
-- **Radioman walks out in gold slippers**, with a coffee on his desk instead of a mic.
+- **blug.dj/jej: hot potato.** Get the bomb and pass it on before it goes BOOM (and earn ebil points).
+- **Burger Smash.** Daniel slams down in Burgertime; dash or jump just before he lands to tech it.
+- **More rewards,** all the way to 999 points, including glowing eyes at 666.
+- **[s4s] beside the room** (you can hide it), and **no more teleporting**: people walk smoothly instead of jumping about.
