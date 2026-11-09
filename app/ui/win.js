@@ -387,13 +387,13 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 (f) => { if (core.checkIn(f.c.value, f.n.value)) UI.closeSheet(); });
         }
         function voicemail() {
-            const VM_MAX = 300, VM_BYTES = 25 * 1024 * 1024;
+            const VM_MAX = 300, VM_BYTES = 50 * 1024 * 1024;
             const canRecord = !!(window.MediaRecorder && navigator.mediaDevices);
             let rec = null, stream = null, chunks = [], blob = null, started = 0, tick = 0, resume = false, mode = canRecord ? 'rec' : 'file';
             const card = UI.sheet('<form><h2>Leave a voicemail</h2>' +
                 (canRecord ? '<div class="row seg"><button type="button" class="btn on" data-m="rec">Record here</button><button type="button" class="btn" data-m="file">Send a file</button></div>' : '') +
                 '<div class="vm-rec"' + (canRecord ? '' : ' hidden') + '><div class="row"><button type="button" class="btn go vm-btn">● Record</button><span class="vm-time dim">0:00 / ' + mmss(VM_MAX) + '</span></div><audio class="vm-play" controls hidden></audio></div>' +
-                '<div class="vm-file"' + (canRecord ? ' hidden' : '') + '><input type="file" name="f" accept="audio/*"><p class="hint">Up to 5 minutes and 25 MB — MP3, M4A, WAV, OGG, FLAC or WebM.</p></div>' +
+                '<div class="vm-file"' + (canRecord ? ' hidden' : '') + '><input type="file" name="f" accept="audio/*"><p class="hint">Up to 5 minutes and 50 MB — MP3, M4A, WAV, OGG, FLAC or WebM.</p></div>' +
                 '<input name="n" maxlength="40" placeholder="Your name (optional)" value="' + esc(core.name) + '">' +
                 '<input name="note" maxlength="200" placeholder="What is it about? (optional)">' +
                 '<label class="consent"><input type="checkbox" name="ok" required> It is OK to play this on air and keep it.</label>' +
@@ -433,7 +433,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 const file = mode === 'file' ? f.f.files[0] : blob;
                 if (!file) { UI.toast(mode === 'file' ? 'Choose an audio file first.' : 'Record your message first.'); return; }
                 if (mode === 'rec' && rec && rec.state === 'recording') { UI.toast('Stop recording first.'); return; }
-                if (file.size > VM_BYTES) { UI.toast('That file is over 25 MB. Try an MP3 or M4A.'); return; }
+                if (file.size > VM_BYTES) { UI.toast('That file is over 50 MB. Try an MP3 or M4A.'); return; }
                 if (f.n.value.trim()) core.setName(f.n.value);
                 const x = new XMLHttpRequest();
                 const look = core.hallLook && core.hallLook();
