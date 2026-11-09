@@ -34,10 +34,10 @@
     // Teching a snowball: dash or jump in the last moment before it lands (seconds after it's thrown; it lands at SNOW_S).
     const SNOW_S = 0.45, TECH_FROM = 0.2;
     // Duels (engine/hall-duel.js): slaps in a row are with a fish, a salmon, then a tuna (that one takes the round):
-    // [name, pop word, its colour, how big, a tint on the fish]. Snowballs slow you to DUEL_SLOW.
+    // [name, pop word, its colour, how big, a tint on the fish]. Snowballs slow you: DUEL_SLOW[level] (1–3, how many in a row).
     const DUEL_FISH = [['fish', 'SLAP!', '#7ee3ff', 1, ''], ['salmon', 'SALMON SLAP!!', '#ff9a7a', 1.35, 'hue-rotate(160deg) saturate(1.6)'],
         ['tuna', 'TUNA SLAP!!!', '#b9c6ff', 1.8, 'saturate(0.45) brightness(0.75)']];
-    const DUEL_SLOW = 0.45;
+    const DUEL_SLOW = [1, 0.75, 0.55, 0.35];
     // Glowsticks (engine/hall.js GLOWS); rainbow goes round the colours.
     const GLOWS = [['green', '#39ff14'], ['pink', '#ff2fd0'], ['cyan', '#00e5ff'], ['yellow', '#ffe600'], ['orange', '#ff7a00'], ['purple', '#b04fff'], ['rainbow', '']];
     const GLOW_COLOR = Object.fromEntries(GLOWS);
@@ -158,12 +158,12 @@
         const FIGHT = { ready: 1, fighting: 1, round: 1 };
         const duelOf = (h) => [...duels.values()].find(d => (d.a === h || d.b === h) && FIGHT[d.state]) || null;
         const foeOf = (d, h) => (d.a === h ? d.b : d.a);
-        /** Rooted to the spot: stunned or frozen, or waiting for a round to start. */
+        /** Rooted to the spot: stunned, or waiting for a round to start. */
         function held(h, t = now()) {
             const d = duelOf(h), s = d && d.st[h];
-            return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && (s.stun > t || s.frozen > t)));
+            return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
-        const slowOf = (h, t = now()) => { const d = duelOf(h), s = d && d.st[h]; return s && d.state === 'fighting' && s.slow > t ? DUEL_SLOW : 1; };
+        const slowOf = (h, t = now()) => { const d = duelOf(h), s = d && d.st[h]; return s && d.state === 'fighting' && s.slow > t ? DUEL_SLOW[Math.max(1, Math.min(3, s.lvl || 2))] : 1; };
         const flights = new Map();
         const DB_ZONE = { team: [[60, 470, 180, 1000], [530, 940, 180, 1000]], out: [[0, 45, 180, 1000], [955, 1000, 180, 1000]], side: [0, 1000, 0, 110] };
         // The ball rolls along the floor (in the floor's own pixels, F's size): the same sums as engine/hall-dodge.js (BALL, ballAt).
@@ -1388,7 +1388,7 @@
             if (m.state === 'declined' || m.state === 'expired' || m.state === 'gone') duels.delete(m.id);
             else {
                 const st = {};
-                for (const [h, x] of Object.entries(m.st || {})) st[h] = { slow: t + x.slow / 1000, frozen: t + x.frozen / 1000, stun: t + x.stun / 1000 };
+                for (const [h, x] of Object.entries(m.st || {})) st[h] = { slow: t + x.slow / 1000, lvl: x.lvl || 0, stun: t + x.stun / 1000 };
                 duels.set(m.id, { ...m, st, end: t + (m.until || 0) / 1000 });
             }
             const mineToo = m.a === me || m.b === me;
@@ -1429,7 +1429,7 @@
                     const s = d.st[me] || {}, ch = (d.chain || {})[me] || {}, theirs = (d.chain || {})[foe] || {};
                     let st = d.state === 'ready' ? 'Round ' + d.round + ' — get ready… ' + left
                         : d.state === 'round' ? (d.win === me ? 'You take round ' + d.round + '!' : d.win ? F_ + ' takes round ' + d.round + '.' : 'Time’s up — nobody takes it.')
-                        : s.frozen > t ? '🧊 <b>You’re frozen!</b>' : s.stun > t ? '💫 <b>You’re stunned!</b>' : s.slow > t ? '❄️ You’re slowed' : 'Round ' + d.round + ' — FIGHT!';
+                        : s.stun > t ? '💫 <b>You’re stunned!</b>' : s.slow > t ? '❄️'.repeat(s.lvl || 1) + ' You’re slowed' + (s.lvl >= 3 ? ' <b>a lot!</b>' : '') : 'Round ' + d.round + ' — FIGHT!';
                     if (d.state === 'fighting') {
                         if (ch.slap) st += ' · your slaps: ' + '🐟'.repeat(ch.slap);
                         if (ch.snow) st += ' · your snowballs: ' + '⛄'.repeat(ch.snow);
@@ -1437,8 +1437,8 @@
                     }
                     if (duelSay && duelSay.until > t) st += ' · <b class="hd-warn">' + esc(duelSay.text) + '</b>';
                     html = '<p>⚔ ' + score + '</p><p>' + st + '</p>' +
-                        (touch ? '<p class="hd-help">🔨 stuns · 🐟 three in a row takes the round · ⛄ slows, three freeze — tap the big buttons</p>'
-                            : '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, three freeze</p>') +
+                        (touch ? '<p class="hd-help">🔨 stuns · 🐟 three in a row takes the round · ⛄ slows, more each in a row — tap the big buttons</p>'
+                            : '<p class="hd-help">🔨 Bonk' + key('bonk') + ' stuns · 🐟 Slap' + key('slap') + ' — three in a row takes the round · ⛄ Snowball' + key('snowball') + ' slows, more each in a row</p>') +
                         '<div><button type="button" class="btn" data-dquit>Give up</button></div>';
                 }
             }
@@ -1454,7 +1454,7 @@
             padEl.hidden = !on;
             if (!on) return;
             const s = d.st[me] || {};
-            padEl.classList.toggle('wait', d.state !== 'fighting' || s.frozen > t || s.stun > t);
+            padEl.classList.toggle('wait', d.state !== 'fighting' || s.stun > t);
         }
         padEl.addEventListener('pointerdown', (e) => {
             const b = e.target.closest('[data-dhit]');
@@ -1481,7 +1481,7 @@
             if (MELEE[k] && !near(p, q)) { duelSay = { text: 'Get closer!', until: now() + 1.2 }; return paintDuel(); }
             sendHit(q, k);
         }
-        /** On the duellists: frozen in ice, stars when stunned, a snowflake when slowed, and the fish and snowballs in a row so far. */
+        /** On the duellists: stars when stunned, snowflakes when slowed (one a level, frost at 3), and the fish and snowballs in a row so far. */
         function drawDuels(t, u, heads) {
             const es = Math.max(10, Math.round(3.6 * u / dpr)) * dpr;
             for (const d of duels.values()) {
@@ -1490,17 +1490,20 @@
                     const p = people.get(h), s = d.st[h];
                     if (!p || !s || !heads.has(h)) continue;
                     const hy = heads.get(h), x = p.x * u;
-                    if (s.frozen > t) {
-                        ctx.fillStyle = 'rgba(170, 225, 255, 0.45)'; ctx.strokeStyle = '#e8f8ff'; ctx.lineWidth = Math.max(1, u / 2);
-                        const x0 = Math.round((p.x - 6) * u), y0 = Math.round((hy - 2) * u), w = Math.round(12 * u), hh = Math.round((p.y + 1 - hy + 2) * u);
-                        ctx.fillRect(x0, y0, w, hh); ctx.strokeRect(x0, y0, w, hh);
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x0 + Math.round(2 * u), y0 + Math.round(2 * u), Math.ceil(u), Math.round(hh * 0.4));
-                    } else if (s.stun > t) {
+                    if (s.stun > t) {
                         for (let k = 0; k < 3; k++) {
                             const a2 = t * 7 + k * 2.1;
                             popWord('*', x + Math.cos(a2) * 6 * u, (hy - 2) * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a');
                         }
-                    } else if (s.slow > t) emojiAt('❄️', x + 6 * u, (hy - 1) * u, es, 0);
+                    } else if (s.slow > t) {
+                        const lv = Math.max(1, Math.min(3, s.lvl || 1));
+                        if (lv >= 3) {
+                            // A lot: frost over them (not ice: they can still walk).
+                            ctx.fillStyle = 'rgba(170, 225, 255, 0.22)';
+                            ctx.fillRect(Math.round((p.x - 6) * u), Math.round((hy - 2) * u), Math.round(12 * u), Math.round((p.y + 1 - hy + 2) * u));
+                        }
+                        emojiAt('❄️'.repeat(lv), x + (4 + lv * 2) * u, (hy - 1) * u, es, 0);
+                    }
                     // What their opponent has going on them: 🐟🐟 (one more and that's the round), ⛄⛄.
                     const c = (d.chain || {})[foeOf(d, h)] || {};
                     const marks = '🐟'.repeat(c.slap || 0) + '⛄'.repeat(c.snow || 0);
