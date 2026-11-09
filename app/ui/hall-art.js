@@ -28,9 +28,9 @@
         { key: 'top', label: 'Top', names: ['Tee', 'Hoodie', 'Jacket', 'Tank', 'Suit', 'Dress'] },
         { key: 'shirt', label: 'Colour', colors: SHIRT.map(s => s[1]) },
         { key: 'pants', label: 'Pants', colors: PANTS },
-        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower'] }
+        { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower', 'Burger'] }
     ];
-    const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * (p.colors || p.names).length)]));
+    const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * ((p.colors || p.names).length - (p.key === 'extra' ? 1 : 0)))]));     // (never the secret burger)
 
     /* ---------- a tiny 3×5 pixel font (rows of 3 bits: 4 left, 2 middle, 1 right) ---------- */
     const FONT = {
@@ -825,6 +825,7 @@
         if (front) {
             if (kind === 'shadow') auraShadow(x, y, t, true);
             if (kind === 'charge') auraLightning(x, y, t);
+            if (kind === 'petals') auraPetals(x, y, t, true);
             return;
         }
         if (kind === 'glow') auraGlow(x, y, t, c, 1);
@@ -834,6 +835,21 @@
         else if (kind === 'rainbow') auraRainbow(x, y, t);
         else if (kind === 'shadow') auraShadow(x, y, t, false);
         else if (kind === 'ultra') auraUltra(x, y, t, look, o, trail);
+        else if (kind === 'petals') auraPetals(x, y, t, false);
+    }
+    /** Flower petals blowing past on the wind: some behind you, some in front (front), drifting and turning. */
+    function auraPetals(x, y, t, front) {
+        const COL = ['#ffb7d5', '#ff8fc0', '#fff0f6', '#ffd1e4', '#f7a1c4'];
+        for (let i = front ? 1 : 0; i < 20; i += 2) {
+            const k = ((t * (0.45 + (i % 3) * 0.12) + i * 0.137) % 1);           // how far across it's blown
+            const px = x - 16 + k * 34 + Math.sin(t * 2 + i) * 1.5;
+            const py = y - 20 + ((i * 7) % 18) + Math.sin(t * 3.1 + i * 1.7) * 3 + k * 4;
+            const a = Math.min(1, k * 5, (1 - k) * 5);
+            l.globalAlpha = a * (front ? 0.95 : 0.8);
+            const c = COL[i % COL.length], flip = Math.floor(t * 6 + i) % 3;
+            if (flip === 0) R(px, py, 2, 1, c); else if (flip === 1) { R(px, py, 1, 1, c); R(px + 1, py + 1, 1, 1, c); } else R(px, py, 1, 2, c);
+        }
+        l.globalAlpha = 1;
     }
 
     /* =========================================================
@@ -955,6 +971,9 @@
             case 8: R(x - 3, hy - 2, 1, 2, '#c0392b'); R(x - 4, hy - 3, 1, 1, '#c0392b'); R(x + 3, hy - 2, 1, 2, '#c0392b'); R(x + 4, hy - 3, 1, 1, '#c0392b'); break;   // horns
             case 9: R(x - 2, hy - 1, 5, 1, '#5aa0ff'); R(x - 1, hy - 3, 3, 2, '#ff6bd0'); R(x, hy - 4, 1, 1, '#ffd34a'); R(x, hy - 5, 1, 1, '#ffffff'); break;   // party hat
             case 10: R(x - 4, hy - 1, 3, 3, '#ff7ccc'); R(x - 3, hy, 1, 1, '#ffd34a'); break;                                                // flower
+            case 11:                                                                                                                         // the secret burger (Burgertime survivors)
+                R(x - 3, hy - 2, 7, 1, '#d9893a'); R(x - 3, hy - 3, 7, 1, '#6b3a1f'); R(x - 4, hy - 3, 1, 1, '#ffcc33'); R(x - 3, hy - 4, 7, 1, '#5fd14f');
+                R(x - 3, hy - 6, 7, 2, '#e89a45'); R(x - 2, hy - 7, 5, 1, '#e89a45'); R(x - 1, hy - 6, 1, 1, '#fff2c8'); R(x + 2, hy - 6, 1, 1, '#fff2c8'); break;
         }
         // Asleep: Zs floating up.
         if (e === 'sleep') {
@@ -975,12 +994,154 @@
         const e = Math.max(0, Math.min(1, k)), m = e * e * (3 - 2 * e), lerp = (a, b) => Math.round(a + (b - a) * m);
         return { x: lerp(SCREEN.x, CENTRE_TV.x), y: lerp(SCREEN.y, CENTRE_TV.y), w: lerp(SCREEN.w, CENTRE_TV.w), h: lerp(SCREEN.h, CENTRE_TV.h) };
     }
-    window.HallArt = { W, H, FLOOR, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
+    /* ---------- Burgertime (engine/hall-burger.js): Daniel, the burgers, the laser eyes, the mess ---------- */
+    const HIPPO = { body: '#8b4fd6', dark: '#5f2da8', light: '#b88cf2', belly: '#c8a6f7', mouth: '#ff6f9a', tooth: '#fffbe8' };
+    /**
+     * Daniel, a giant purple hippo up on his hind legs, standing at x with his feet on y (about 34 × 50).
+     * o: { face: ±1, mode: 'run' | 'dance' | 'chase' | 'lunge' | 'chomp' | 'burp' | 'zap', open: 0–1 (his mouth) }
+     * Returns where his eyes are (for the lasers).
+     */
+    function hippo(x, y, t, o) {
+        const f = o.face < 0 ? -1 : 1, m = o.mode || 'chase';
+        const crazy = m === 'dance', run = m === 'run' || m === 'chase' || m === 'lunge', lunge = m === 'lunge';
+        const step = Math.floor(t * (lunge ? 14 : crazy ? 6 : 8)) % 2;
+        const bob = run ? (step ? 2 : 0) : crazy ? Math.round(Math.abs(Math.sin(t * 9)) * 4) : 0;
+        const sx = crazy ? Math.round(Math.sin(t * 31) * 1.5) : 0;
+        const fy = Math.round(y);
+        x = Math.round(x + sx); y = Math.round(y - bob);
+        const X = (dx, w) => f > 0 ? x + dx : x - dx - w;              // mirrored when he faces left
+        const lean = lunge ? 3 : run ? 1 : 0;                           // leaning into the chase
+        R(x - 13, fy - 2, 26, 3, 'rgba(0,0,0,0.4)');
+        // Two stumpy legs: striding when he runs, hopping from foot to foot when he dances.
+        for (const [dx, k] of [[-8, 0], [2, 1]]) {
+            const up = (run || crazy) && step === k ? (crazy ? 3 : 2) : 0;
+            const fwd = run ? (step === k ? 2 : -1) : 0;
+            R(X(dx + fwd, 7), y - 10 - up, 7, 10 - Math.min(up, 2), HIPPO.dark);
+            R(X(dx + fwd - (f > 0 ? 0 : 1), 8), y - 2 - up, 8, 2, '#3d1a73');           // big flat feet
+            R(X(dx + fwd + 1, 1), y - 1 - up, 1, 1, HIPPO.tooth); R(X(dx + fwd + 4, 1), y - 1 - up, 1, 1, HIPPO.tooth);     // toenails
+        }
+        // A little tail, wagging, low at the back.
+        R(X(-14, 3), y - 13 + (Math.floor(t * 6) % 2), 3, 2, HIPPO.dark);
+        // The body: a big round barrel, standing up, with a pale belly.
+        R(X(-11 + lean, 22), y - 32, 22, 23, HIPPO.body);
+        R(X(-12 + lean, 24), y - 28, 24, 16, HIPPO.body);
+        R(X(-10 + lean, 20), y - 33, 20, 1, HIPPO.light);
+        R(X(-6 + lean, 14), y - 27, 14, 15, HIPPO.belly);
+        R(X(-4 + lean, 10), y - 29, 10, 2, HIPPO.belly);
+        R(X(0 + lean, 1), y - 18, 1, 1, HIPPO.dark);                    // belly button
+        // Arms: thrown up and waving when he dances, pumping when he runs, out front when he lunges.
+        const sh = y - 30, wave = Math.round(Math.sin(t * 14) * 3);
+        if (crazy) {
+            R(X(-15 + lean, 4), sh - 10 + wave, 4, 13, HIPPO.dark); R(X(11 + lean, 4), sh - 10 - wave, 4, 13, HIPPO.dark);
+            R(X(-16 + lean, 5), sh - 12 + wave, 5, 3, HIPPO.light); R(X(11 + lean, 5), sh - 12 - wave, 5, 3, HIPPO.light);
+        } else if (lunge) {
+            R(X(8 + lean, 12), sh + 2, 12, 4, HIPPO.dark); R(X(18 + lean, 3), sh + 1, 3, 6, HIPPO.light);       // grabbing
+        } else {
+            const sw = run ? (step ? 2 : -2) : 0;
+            R(X(-14 + lean, 4), sh + 1 - sw, 4, 11, HIPPO.dark); R(X(10 + lean, 4), sh + 1 + sw, 4, 11, HIPPO.dark);
+            R(X(-14 + lean, 4), sh + 11 - sw, 4, 2, HIPPO.light); R(X(10 + lean, 4), sh + 11 + sw, 4, 2, HIPPO.light);
+        }
+        // The head on top: a round crown, little ears, and the huge snout out front.
+        const hx = lean, hy = y - 50, open = Math.max(0, Math.min(1, o.open || 0)), jaw = Math.round(open * 6);
+        R(X(hx - 9, 16), hy + 3, 16, 13, HIPPO.body);
+        R(X(hx - 8, 14), hy + 2, 14, 1, HIPPO.light);
+        R(X(hx - 7, 3), hy - 1, 3, 4, HIPPO.dark); R(X(hx - 1, 3), hy - 1, 3, 4, HIPPO.dark);       // ears
+        R(X(hx - 6, 1), hy, 1, 2, HIPPO.mouth); R(X(hx, 1), hy, 1, 2, HIPPO.mouth);
+        R(X(hx + 1, 15), hy + 8, 15, 9, HIPPO.light);                   // the snout
+        R(X(hx + 2, 13), hy + 7, 13, 1, HIPPO.light);
+        R(X(hx + 12, 2), hy + 9, 2, 2, HIPPO.dark); R(X(hx + 8, 2), hy + 9, 2, 2, HIPPO.dark);      // nostrils
+        if (jaw) {
+            R(X(hx + 2, 14), hy + 17, 14, jaw, HIPPO.mouth);
+            R(X(hx + 3, 2), hy + 17, 2, 2, HIPPO.tooth); R(X(hx + 12, 2), hy + 17, 2, 2, HIPPO.tooth);
+            R(X(hx + 1, 15), hy + 17 + jaw, 15, 3, HIPPO.light);           // the jaw, dropped
+        } else R(X(hx + 3, 12), hy + 16, 12, 1, HIPPO.dark);
+        // Eyes: wide and wild; red and blazing for the lasers.
+        const zap = m === 'zap', ex = X(hx - 6, 4), ex2 = X(hx - 1, 4), ey = hy + 3;
+        for (const e of [ex, ex2]) {
+            R(e, ey, 4, 4, zap ? '#ff2a2a' : '#ffffff');
+            R(e + (f > 0 ? 2 : 0), ey + 1, 2, 2, zap ? '#fff3a0' : '#1a1028');
+        }
+        if (crazy && Math.floor(t * 5) % 2) {                          // sweat flying off
+            R(X(-16, 2), y - 50, 2, 2, '#9fe8ff'); R(X(16, 2), y - 54, 2, 2, '#9fe8ff');
+        }
+        return { x1: ex + 2, x2: ex2 + 2, y: ey + 2 };
+    }
+    /** The laser eyes: two beams from his eyes to (tx, ty), k 0–1 through the zap. */
+    function hippoLasers(eyes, tx, ty, t, k) {
+        const a = 1 - Math.abs(k * 2 - 1);
+        l.save();
+        l.globalAlpha = Math.max(0, Math.min(1, a * 1.6));
+        for (const [w, c] of [[4, 'rgba(255,40,40,0.55)'], [2, '#ff3b3b'], [1, '#fff6c0']]) {
+            l.strokeStyle = c; l.lineWidth = w;
+            for (const ex of [eyes.x1, eyes.x2]) { l.beginPath(); l.moveTo(ex, eyes.y); l.lineTo(tx + Math.sin(t * 60) * 0.6, ty); l.stroke(); }
+        }
+        for (let i = 0; i < 6; i++) { const r = (i + k * 10) % 6; R(tx + Math.cos(i * 1.7 + t * 20) * r, ty + Math.sin(i * 2.3 + t * 20) * r, 1, 1, i % 2 ? '#fff6c0' : '#ff3b3b'); }
+        l.restore();
+    }
+    /** A burger with legs where someone stood (feet on y): bun, lettuce, cheese, patty, bun, eyes; a gold star over it if it made it. */
+    function burger(x, y, t, o) {
+        x = Math.round(x); y = Math.round(y);
+        const step = o.walking ? Math.floor(t * 8) % 2 : 0, f = o.face < 0 ? -1 : 1;
+        R(x - 5, y - 1, 11, 2, 'rgba(0,0,0,0.45)');
+        R(x - 3, y - 4 - step, 1, 4, '#2b1a10'); R(x + 3, y - 4 - (1 - step) * (o.walking ? 1 : 0), 1, 4, '#2b1a10');
+        R(x - 4, y - 1, 3, 1, '#2b1a10'); R(x + 2, y - 1, 3, 1, '#2b1a10');
+        const b = y - 4 - (o.walking ? step : 0);
+        R(x - 6, b - 3, 13, 3, '#d9893a');                               // bottom bun
+        R(x - 7, b - 6, 15, 3, '#6b3a1f');                                // patty
+        R(x - 6, b - 7, 13, 1, '#ffcc33'); R(x - 7, b - 7, 2, 2, '#ffcc33'); R(x + 5, b - 7, 2, 2, '#ffcc33');      // cheese, dripping
+        R(x - 7, b - 8, 15, 1, '#5fd14f');                                // lettuce
+        R(x - 6, b - 13, 13, 5, '#e89a45'); R(x - 5, b - 14, 11, 1, '#e89a45'); R(x - 4, b - 14, 7, 1, '#f5b565');
+        R(x - 3, b - 12, 1, 1, '#fff2c8'); R(x + 1, b - 13, 1, 1, '#fff2c8'); R(x + 4, b - 11, 1, 1, '#fff2c8');      // sesame
+        R(x - 2 + f, b - 11, 2, 2, '#ffffff'); R(x + 2 + f, b - 11, 2, 2, '#ffffff');                               // eyes
+        R(x - 1 + f + (f > 0 ? 0 : -1), b - 10, 1, 1, '#1a1028'); R(x + 3 + f + (f > 0 ? 0 : -1), b - 10, 1, 1, '#1a1028');
+        if (o.star) star(x, b - 19, t);
+        return { x, y: b - 15 };
+    }
+    /** A gold star, gently bobbing. */
+    function star(x, y, t) {
+        y = Math.round(y + Math.sin(t * 3));
+        R(x, y - 3, 1, 1, '#ffe14d'); R(x - 1, y - 2, 3, 1, '#ffe14d'); R(x - 3, y - 1, 7, 1, '#ffd21a'); R(x - 2, y, 5, 1, '#ffd21a');
+        R(x - 2, y + 1, 2, 1, '#e8b400'); R(x + 1, y + 1, 2, 1, '#e8b400'); R(x - 3, y + 2, 1, 1, '#e8b400'); R(x + 3, y + 2, 1, 1, '#e8b400');
+    }
+    /** Bits of ceiling coming down, s seconds after he went through it. */
+    function rubble(s, seed) {
+        for (let i = 0; i < 26; i++) {
+            const r = Math.sin(i * 12.9898 + seed) * 43758.5453, rnd = r - Math.floor(r), r2 = (rnd * 7.31) % 1;
+            const st = s - rnd * 1.2;
+            if (st < 0) continue;
+            const x = 20 + rnd * 200, y = -6 + 90 * st * st + 30 * st, sz = 2 + Math.floor(r2 * 4), land = FLOOR.y0 + r2 * 70;
+            if (y > land) { R(x, land, sz + 1, 1, '#6b6378'); continue; }
+            R(x, y, sz, sz, i % 3 ? '#8d8698' : '#cfc8d8'); R(x, y, sz, 1, '#e8e2ef');
+        }
+        if (s < 1.5) { l.globalAlpha = Math.max(0, 0.5 - s / 3); for (let i = 0; i < 10; i++) puff(40 + i * 18, 8 + Math.sin(i) * 4, 12, 6, 1); l.globalAlpha = 1; }
+    }
+    /** The magic flash someone comes back in (k 0–1). */
+    function sparkle(x, y, k) {
+        l.save();
+        l.globalAlpha = Math.max(0, 1 - k);
+        const r = 3 + k * 16;
+        for (let i = 0; i < 8; i++) {
+            const a = i / 8 * Math.PI * 2 + k * 2;
+            R(x + Math.cos(a) * r, y - 8 + Math.sin(a) * r * 0.7, 2, 2, ['#ffffff', '#ffe14d', '#b88cf2', '#7ef0ff'][i % 4]);
+        }
+        l.globalAlpha = Math.max(0, 0.8 - k * 1.6);
+        R(x - 6, y - 18, 12, 18, '#ffffff');
+        l.restore();
+    }
+
+    const SECRET_BURGER = 11;               // extra 11: only for Burgertime survivors (app/ui/hall.js offers it)
+    window.HallArt = { W, H, FLOOR, SECRET_BURGER, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
         entrance: (ctx, t, left, secs, air, info) => { l = ctx; entrance(t, left, secs, air, info); },
         introOver: (ctx, t, left, secs) => { l = ctx; introOver(t, left, secs); },
         ENTRANCE,
         cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); },
-        speakerBox: (ctx, t, side, slot, k, talking, name, who, strip) => { l = ctx; const r = speakerBox(t, side, slot, k, talking, name, who, strip || '#d0302a'); l = ctx; return r; } };
+        speakerBox: (ctx, t, side, slot, k, talking, name, who, strip) => { l = ctx; const r = speakerBox(t, side, slot, k, talking, name, who, strip || '#d0302a'); l = ctx; return r; },
+        hippo: (ctx, x, y, t, o) => { l = ctx; return hippo(x, y, t, o || {}); },
+        hippoLasers: (ctx, eyes, tx, ty, t, k) => { l = ctx; hippoLasers(eyes, tx, ty, t, k); },
+        burger: (ctx, x, y, t, o) => { l = ctx; return burger(x, y, t, o || {}); },
+        star: (ctx, x, y, t) => { l = ctx; star(x, y, t); },
+        rubble: (ctx, s, seed) => { l = ctx; rubble(s, seed || 1); },
+        sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); } };
 })();

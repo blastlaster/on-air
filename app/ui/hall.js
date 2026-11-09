@@ -39,7 +39,9 @@
     const GLOW_COLOR = Object.fromEntries(GLOWS);
     // Auras (the same tab: one glow thing at a time). The first four take a colour.
     const AURAS = [['glow', '✨', 'Glow'], ['super', '🔥', 'Super'], ['charge', '⚡', 'Charge'], ['rings', '⭕', 'Halo rings'],
-        ['rainbow', '🌈', 'Rainbow'], ['shadow', '🌑', 'Shadow'], ['ultra', '💠', 'Ultra']];
+        ['rainbow', '🌈', 'Rainbow'], ['shadow', '🌑', 'Shadow'], ['ultra', '💠', 'Ultra'], ['petals', '🌸', 'Petals']];
+    // Petals: earned with nice points (giving people what you're holding; engine/hall.js NICE).
+    const NICE_FOR_PETALS = 11;
     const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };
     const RAINBOW_BG = 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)';
     const auraOf = (a) => (a ? ['aura', ...a.split(':')] : null);                      // ['aura', kind, colour?]
@@ -47,7 +49,7 @@
     const BURSTS = [['fire', '🔥', 'Fire on the stage'], ['confetti', '🎊', 'Confetti']];
     const BURST_LINE = { fire: '🔥 {n} set the stage on fire', confetti: '🎊 {n} threw confetti' };
     // The emoji picker: anything to say, and things to carry (the same list as engine/hall.js HOLDS).
-    const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️'.split(' ');
+    const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️ 💩'.split(' ');
     // Name colours (the same list as engine/hall.js NAME_COLORS); Settings → You uses it too.
     const NAME_COLORS = window.HallNameColors = ['#ff6b6b', '#ff9f43', '#ffd34a', '#7ee36b', '#4fe0c0', '#00e0ff', '#5aa0ff', '#9f80ff', '#ff7ccc', '#ff4fd8', '#ffffff', '#c0c0c0'];
     const SAY = '😂 🤣 😭 😎 🤔 😳 😡 🥺 😈 🤡 😱 🥴 🤠 😴 🙄 😏 😤 🤝 👀 🙏 👍 👎 👋 👏 🙌 💪 🤘 ✌️ 👉 🤙 💯 ❤️ 💔 ✨ 🎉 🎶 💤 💢 ❓ ❗ 🆗 🔞 💩 🗿 🦀 🐸 🍆 🍑 🍀 7️⃣'.split(' ');
@@ -189,7 +191,7 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', trail: [], atrail: [],
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', star: !!p.star || !!(old && old.star), trail: [], atrail: [],
                 x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         function notice(text) { msgEl.textContent = text || ''; msgEl.hidden = !text; }
@@ -200,7 +202,7 @@
             if (!core.state.engineUp) return notice('blug.dj/jej opens when the station’s PC is on.');
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
-            // 3 = can duel too (engine/hall-duel.js DUEL.roomV).
+            // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 3 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
@@ -227,8 +229,43 @@
                     for (const tb of m.tables || []) onTable(tb, true);
                     duels.clear();
                     for (const d of m.duels || []) onDuel(d, true);
+                    onBt(m.bt || { state: '' }, true);
                     notice('');
                     break;
+                case 'hall-bt': onBt(m); break;
+                case 'hall-give': {
+                    logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + m.o }, 'game');
+                    if (m.b === me) U.toast(nameOf(m.a) + ' gave you ' + m.o + '!');
+                    if (m.a === me && m.nice) {
+                        nice++;
+                        try { localStorage.setItem('ltl.hallNice', String(nice)); } catch { /* this time only */ }
+                        if (nice === NICE_FOR_PETALS) U.toast('🌸 ' + NICE_FOR_PETALS + ' nice points! The Petals aura is yours: 🎨 Look → Aura.');
+                        else U.toast('That was nice! +1 nice point (' + nice + (nice < NICE_FOR_PETALS ? ' of ' + NICE_FOR_PETALS + ' for something pretty' : '') + ')');
+                        if (!lookEl.hidden) openLook();
+                    }
+                    break;
+                }
+                case 'hall-bt-d': {
+                    const [x, y] = toPx(m.x, m.y), [tx, ty] = toPx(m.tx, m.ty);
+                    if (!btD || Math.hypot(btD.x - x, btD.y - y) > 14) btD = { x, y };          // far off: straight there
+                    Object.assign(btD, { tx, ty, v: (m.v || 0) * (F.x1 - F.x0) / 1000, lunge: !!m.lunge });
+                    break;
+                }
+                case 'hall-bt-zap': btZap.set(m.h, now()); break;
+                case 'hall-bt-eat': {
+                    btEat = { h: m.h, at: now() }; bt.score = m.score;
+                    if (!bt.eaten.includes(m.h)) bt.eaten.push(m.h);
+                    logLine({ text: '😋 Daniel ate ' + nameOf(m.h) + '! (+111)' }, 'announce');
+                    if (m.h === me) { keys.clear(); U.toast('Daniel ate you! You’ll be back when he’s gone.'); }
+                    break;
+                }
+                case 'hall-bt-back': {
+                    bt.eaten = bt.eaten.filter(h => h !== m.h);
+                    btBack.set(m.h, now());
+                    const p = people.get(m.h);
+                    if (p) { const [x, y] = toPx(m.x, m.y); Object.assign(p, { x, y, tx: x, ty: y, walking: false }); }
+                    break;
+                }
                 case 'hall-add': add(m.p); break;
                 case 'hall-del': people.delete(m.h); break;
                 case 'hall-at':
@@ -425,6 +462,7 @@
         let sentAt = 0, lastSent = '', padWas = [];
         function mine() { return people.get(me); }
         function sendGo(x, y) {
+            if (isEaten(me)) return;                  // inside Daniel till it's over
             const [u, v] = toU(x, y), k = u + ',' + v;
             if (k === lastSent) return;
             lastSent = k; sentAt = now();
@@ -806,7 +844,9 @@
         function openPop(q, e) {
             const sr = stage.getBoundingClientRect();
             const their = tableOf(q.h);
-            popEl.innerHTML = '<b>' + esc(q.n) + '</b><button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
+            const mineHeld = (mine() || {}).o;
+            popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">🎁 Give them your ' + mineHeld + '</button>' : '') +
+                '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
                     ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
                     : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
@@ -828,6 +868,8 @@
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
             const du = e.target.closest('[data-duel]');
             if (du) { popEl.hidden = true; return core.send({ t: 'hall-duel', to: du.dataset.duel }); }
+            const gv = e.target.closest('[data-give]');
+            if (gv) { popEl.hidden = true; return core.send({ t: 'hall-give', to: gv.dataset.give }); }
             const b = e.target.closest('[data-rps]');
             if (!b) return;
             core.send({ t: 'hall-rps', to: b.dataset.rps });
@@ -1181,6 +1223,103 @@
             if (e.target.closest('[data-nah]')) { const g = games.get(id); if (g) g.until = 0; paintRps(); }
             if (p) { myPick = p.dataset.pick; core.send({ t: 'hall-rps-pick', id, pick: myPick }); paintRps(); }
         });
+        /* ---------- Burgertime (engine/hall-burger.js) ---------- */
+        // bt: as the station last said (plus `at`, when on this clock); btD: Daniel (room pixels, heading for tx, ty);
+        // btZap / btBack: who was zapped / came back, when; btEat: his last mouthful.
+        let bt = { state: '', burgers: [], eaten: [], stars: [], score: 0 }, btD = null, btEat = null, btStart = 0, btBurp = 0, btZapAt = 0;
+        const btZap = new Map(), btBack = new Map();
+        const BT_YELLS = ['HEY EVERYBODY, IT’S ME, DANIEL!', 'IT’S BURGERTIME!'];
+        const btOn = () => !!bt.state;
+        const isBurger = (h) => btOn() && (bt.state === 'zap' || bt.state === 'chase' || bt.state === 'burp') && (bt.burgers.includes(h) || btZap.has(h)) && !bt.eaten.includes(h);
+        const isEaten = (h) => btOn() && bt.eaten.includes(h);
+        let nice = 0;                                 // nice points: things you've given people (11 unlock the petals aura)
+        try { nice = Number(localStorage.getItem('ltl.hallNice')) || 0; } catch { /* none yet */ }
+        let burgerLook = false;                       // the secret burger (extra 11): yours once you've survived
+        try { burgerLook = localStorage.getItem('ltl.hallBurger') === '1'; } catch { /* not yet */ }
+        function onBt(m, quiet) {
+            const t = now(), was = bt.state;
+            bt = { state: m.state || '', burgers: m.burgers || [], eaten: m.eaten || [], stars: m.stars || [], score: m.score || 0, until: t + (m.until || 0) / 1000 };
+            if (!bt.state) { btD = null; btZap.clear(); btEat = null; return; }
+            if (m.d && !btD) { const [x, y] = toPx(m.d[0], m.d[1]); btD = { x, y, tx: x, ty: y, v: 0 }; }
+            if (bt.state === was) return;
+            if (bt.state === 'enter') {
+                btStart = t; btZap.clear(); btBack.clear();
+                if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[0] }, 'announce');
+            }
+            if (bt.state === 'zap') { btZapAt = t; if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[1] }, 'announce'); }
+            if (bt.state === 'burp') {
+                btBurp = t;
+                for (const h of bt.stars) { const p = people.get(h); if (p) p.star = true; }
+                if (!quiet) logLine({ text: '🍔 ' + (bt.stars.length ? bt.stars.map(nameOf).join(', ') + ' survived Burgertime! ⭐' : 'Daniel ate everybody.') + ' (Daniel: ' + bt.score + ')' }, 'announce');
+                if (bt.stars.includes(me) && !burgerLook) {
+                    burgerLook = true;
+                    try { localStorage.setItem('ltl.hallBurger', '1'); } catch { /* this time only */ }
+                    if (!quiet) U.toast('You survived Burgertime! ⭐ The secret burger look is yours: 🎨 Look → Extra.');
+                }
+            }
+        }
+        /** Daniel on his way, between the station's word on where he is. */
+        function btStep(dt) {
+            if (!btD || !btD.v) return;
+            const dx = btD.tx - btD.x, dy = btD.ty - btD.y, n = Math.hypot(dx, dy), v = btD.v * dt;
+            if (n > 0.05) { const k = Math.min(1, v / n); btD.x += dx * k; btD.y += dy * k; btD.face = dx < 0 ? -1 : dx > 0 ? 1 : btD.face; }
+        }
+        /** Daniel himself (drawn among everyone, by how far forward he is), the lasers, the burp and the jump. */
+        function drawDaniel(t) {
+            if (!btD) return null;
+            const s = bt.state;
+            let mode = 'chase', open = 0, lift = 0;
+            if (s === 'enter') mode = Math.hypot(btD.tx - btD.x, btD.ty - btD.y) > 1 ? 'run' : 'dance';
+            else if (s === 'zap') mode = 'zap';
+            else if (s === 'chase') {
+                if (btEat && t - btEat.at < 1) { mode = 'chomp'; open = Math.abs(Math.sin((t - btEat.at) * 12)); }
+                else { mode = btD.lunge ? 'lunge' : 'chase'; open = btD.lunge ? 0.8 : 0.25; }
+            } else if (s === 'burp') {
+                const k = t - btBurp;
+                if (k < 2.2) { mode = 'burp'; open = 1; }
+                else if (k < 2.9) { mode = 'run'; lift = Math.pow((k - 2.2) / 0.7, 2) * 160; }      // up through the ceiling
+                else return null;
+            } else return null;
+            if (s === 'enter' && mode === 'dance') open = 0.5 + Math.sin(t * 10) * 0.5;
+            if (s === 'enter' && mode === 'dance') btD.face = Math.floor(t * 2) % 2 ? 1 : -1;
+            const eyes = A.hippo(lc, btD.x, btD.y - lift, t, { face: btD.face || -1, mode, open });
+            // The laser eyes: on whoever was just zapped.
+            if (s === 'zap' || s === 'chase') {
+                for (const [h, at] of btZap) {
+                    const k = (t - at) / 0.45, p = people.get(h);
+                    if (k < 0 || k > 1 || !p) continue;
+                    btD.face = p.x < btD.x ? -1 : 1;
+                    A.hippoLasers(lc, eyes, p.x, p.y - 7, t, k);
+                }
+            }
+            return { x: btD.x, y: btD.y - lift - 50 };
+        }
+        /** The words: his yells over his head, BURGERTIME!, BUUUURP!, his score. */
+        function drawBtWords(t, u, top) {
+            if (!btOn()) return;
+            const s = bt.state;
+            if (top && s === 'enter') bubble(t - btStart < 3.2 ? BT_YELLS[0] : BT_YELLS[1], top.x * u, top.y * u, u);
+            const big = (str, y, c) => {
+                const fs = Math.max(16, Math.round(9 * u / dpr)) * dpr;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#000'; ctx.fillText(str, cv.width / 2 + 2 * dpr, y + 2 * dpr);
+                ctx.fillStyle = c; ctx.fillText(str, cv.width / 2, y);
+            };
+            if (s === 'zap' && t - btZapAt < 2) big(BT_YELLS[1], cv.height * 0.3, '#ffcc33');
+            if (s === 'burp' && t - btBurp < 2.2) big('BUUUURP!', cv.height * 0.3 + Math.sin(t * 30) * 2 * dpr, '#b88cf2');
+            if (bt.score && (s === 'chase' || s === 'burp')) {
+                const fs = Math.max(11, Math.round(3.6 * u / dpr)) * dpr;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                ctx.fillStyle = '#000'; ctx.fillText('🦛 DANIEL ' + bt.score, 8 * dpr + dpr, 8 * dpr + dpr);
+                ctx.fillStyle = '#ffcc33'; ctx.fillText('🦛 DANIEL ' + bt.score, 8 * dpr, 8 * dpr);
+            }
+            if (s === 'chase' && btEat && t - btEat.at < 1.2 && btD) {
+                const fs = Math.max(11, Math.round(4 * u / dpr)) * dpr, k = t - btEat.at;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.globalAlpha = Math.max(0, 1 - k / 1.2); ctx.fillStyle = '#ffcc33'; ctx.fillText('+111', btD.x * u, (btD.y - 56 - k * 10) * u); ctx.globalAlpha = 1;
+            }
+        }
+
         /* ---------- duels (engine/hall-duel.js) ---------- */
         function onDuel(m, quiet) {
             const t = now(), old = duels.get(m.id);
@@ -1838,9 +1977,17 @@
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
             if (dbOn()) court();
-            const sorted = [...people.values()].sort((a, b) => a.y - b.y);
+            const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y);
             const heads = new Map(), fight = duelOf(me);
+            btStep(dt);
+            let danielTop = null, danielDrawn = !btD;
             for (const p of sorted) {
+                if (!danielDrawn && btD.y < p.y) { danielTop = drawDaniel(t); danielDrawn = true; }
+                if (isBurger(p.h)) {
+                    // Zapped: a burger on legs (with a gold star if it made it).
+                    heads.set(p.h, A.burger(lc, p.x, p.y, t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y);
+                    continue;
+                }
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
                 const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t };
@@ -1863,7 +2010,12 @@
                 heads.set(p.h, A.person(lc, p.l, po));
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
+                if (p.star) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
+                const back = btBack.get(p.h);
+                if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
             }
+            if (!danielDrawn) danielTop = drawDaniel(t);
+            if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) A.rubble(lc, t - btBurp - 2.2, 7);
             A.lights(lc, t, onAir, fx);
             if (intro != null) A.introOver(lc, t, intro, introSecs);
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
@@ -1871,7 +2023,7 @@
             const boothOn = speakerBoxes(dt, t, onAir);
             if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
             ctx.imageSmoothingEnabled = false;
-            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) ? cv.width / A.W * 2 : 0;
+            const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) ? cv.width / A.W * 2 : 0;
             ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
             if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
@@ -1893,6 +2045,7 @@
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
+            drawBtWords(t, u, danielTop);
             gameBadges(t, u, heads);
             tableBadges(u, heads, t);
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
@@ -1944,13 +2097,16 @@
                 sec('Look') +
                 A.PARTS.map(p => '<div class="hl-row"><span>' + p.label + '</span><div>' +
                     (p.colors ? p.colors.map((c, i) => '<button type="button" class="hl-sw" data-k="' + p.key + '" data-v="' + i + '" style="background:' + c + '" title="' + p.label + ' ' + (i + 1) + '"></button>').join('')
-                        : p.names.map((n, i) => '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + n + '</button>').join('')) +
+                        : p.names.map((n, i) => p.key === 'extra' && i === A.SECRET_BURGER && !burgerLook ? ''
+                            : '<button type="button" class="btn hl-nm" data-k="' + p.key + '" data-v="' + i + '">' + (p.key === 'extra' && i === A.SECRET_BURGER ? '🍔 ' : '') + n + '</button>').join('')) +
                     '</div></div>').join('') +
                 sec('Glow') +
                 '<div class="hl-row"><span>Glowstick</span><div>' + off('data-stick', 'No glowstick') + GLOWS.map(([id, c]) =>
                     '<button type="button" class="hl-sw" data-stick="' + id + '" title="' + id + '" style="background:' + (c || RAINBOW_BG) + '"></button>').join('') + '</div></div>' +
                 '<div class="hl-row"><span>Aura</span><div class="hl-auras">' + off('data-aura', 'No aura') + AURAS.map(([id, icon, name]) =>
-                    '<button type="button" class="btn hl-aura" data-aura="' + id + '" title="' + name + '">' + icon + '<small>' + name + '</small></button>').join('') + '</div></div>' +
+                    id === 'petals' && nice < NICE_FOR_PETALS
+                        ? '<button type="button" class="btn hl-aura hl-locked" disabled title="Give people what you’re holding (click them → 🎁 Give) to earn nice points">🔒<small>' + nice + '/' + NICE_FOR_PETALS + ' nice</small></button>'
+                        : '<button type="button" class="btn hl-aura" data-aura="' + id + '" title="' + name + '">' + icon + '<small>' + name + '</small></button>').join('') + '</div></div>' +
                 '<div class="hl-row"><span>Aura colour</span><div>' + Object.entries(A.AURA_COLORS).concat([['rainbow', RAINBOW_BG]]).map(([id, c]) =>
                     '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + id + '" style="background:' + c + '"></button>').join('') +
                     '<small class="hl-note">for Glow, Super, Charge and Halo rings</small></div></div>' +
