@@ -1,4 +1,3 @@
-## What's new in 0.5.27
+## What's new in 0.5.28
 
-- **blug.dj/jej: sprint.** Hold Shift (or the 💨 button) to run, with a bar for your breath. A tap still dashes.
-- **Burgertime gets wilder.** Daniel bursts in through the wall yelling, and in the last 10 seconds goes into a feeding frenzy. He also glides more smoothly, so he's easier to dodge.
+- **Fixed: Daniel's yell.** His Burgertime entrance was silent in the app (just the speech bubbles). Now you hear him.
