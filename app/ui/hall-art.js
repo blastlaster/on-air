@@ -24,7 +24,7 @@
         { key: 'skin', label: 'Skin', colors: SKIN },
         { key: 'hair', label: 'Hair', names: ['None', 'Short', 'Spiky', 'Long', 'Bowl', 'Mohawk', 'Bun'] },
         { key: 'hairColor', label: 'Hair colour', colors: HAIR_COLOR },
-        { key: 'face', label: 'Face', names: ['Plain', 'Beard', 'Moustache', 'Blush', 'Freckles'] },
+        { key: 'face', label: 'Face', names: ['Plain', 'Beard', 'Moustache', 'Blush', 'Freckles', 'Glowing eyes'] },
         { key: 'top', label: 'Top', names: ['Tee', 'Hoodie', 'Jacket', 'Tank', 'Suit', 'Dress'] },
         { key: 'shirt', label: 'Colour', colors: SHIRT.map(s => s[1]) },
         { key: 'pants', label: 'Pants', colors: PANTS },
@@ -33,7 +33,7 @@
         { key: 'back', label: 'Back', names: ['None', 'Angel wings', 'Fairy wings', 'Seraph wings', 'Devil tail', 'Bat wings', 'Villain cape'] }
     ];
     // Anyone can have these; the rest are earned (the secret burger, and what nice and ebil points unlock: app/ui/hall.js REWARDS).
-    const FREE = { extra: 11, back: 1 };
+    const FREE = { extra: 11, back: 1, face: 5 };
     const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * (FREE[p.key] || (p.colors || p.names).length))]));
 
     /* ---------- a tiny 3×5 pixel font (rows of 3 bits: 4 left, 2 middle, 1 right) ---------- */
@@ -1019,6 +1019,14 @@
                 }
                 R(x - 2, hy - 3, 5, 2, '#2a2a2a'); R(x - 2, hy - 4, 1, 1, '#2a2a2a'); R(x, hy - 4, 1, 1, '#2a2a2a'); R(x + 2, hy - 4, 1, 1, '#2a2a2a');
                 R(x, hy - 2, 1, 1, '#ff2a2a'); break;
+        }
+        // Glowing eyes (666 nice points): white-hot, a golden glow round them, over anything on the face. Shut when asleep.
+        if (L.face === 5 && e !== 'sleep') {
+            const p = 0.75 + 0.25 * Math.sin(t * 4);
+            l.save(); l.globalCompositeOperation = 'lighter';
+            for (const ey of ex) { l.globalAlpha = 0.5 * p; R(ey - 1, hy + 2, 1, 2, '#ffc020'); R(ey + 1, hy + 2, 1, 2, '#ffc020'); R(ey, hy + 1, 1, 1, '#ffc020'); R(ey, hy + 4, 1, 1, '#ffc020'); }
+            l.restore();
+            for (const ey of ex) { R(ey, hy + 2, 1, 2, '#ffe680'); R(ey, hy + 2, 1, 1, '#ffffff'); }
         }
         // Asleep: Zs floating up.
         if (e === 'sleep') {

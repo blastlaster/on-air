@@ -52,7 +52,7 @@
     const REWARDS = [
         ['nice', 11, 'aura', 'petals', 'the Petals aura'], ['nice', 33, 'extra', 12, 'the Flower crown'], ['nice', 66, 'aura', 'hearts', 'the Hearts aura'],
         ['nice', 111, 'back', 1, 'Angel wings'], ['nice', 222, 'aura', 'butterflies', 'the Butterflies aura'], ['nice', 333, 'extra', 13, 'the Tiara'],
-        ['nice', 555, 'back', 2, 'Fairy wings'], ['nice', 777, 'aura', 'twinkle', 'the Twinkle aura'], ['nice', 999, 'aura', 'heaven', 'the Heaven aura'],
+        ['nice', 555, 'back', 2, 'Fairy wings'], ['nice', 666, 'face', 5, 'Glowing eyes'], ['nice', 777, 'aura', 'twinkle', 'the Twinkle aura'], ['nice', 999, 'aura', 'heaven', 'the Heaven aura'],
         ['nice', 999, 'back', 3, 'Seraph wings'],
         ['ebil', 11, 'aura', 'fire', 'the Fire aura'], ['ebil', 33, 'back', 4, 'a Devil tail'], ['ebil', 66, 'extra', 14, 'the Skull mask'],
         ['ebil', 111, 'back', 5, 'Bat wings'], ['ebil', 222, 'aura', 'brimstone', 'the Brimstone aura'], ['ebil', 333, 'extra', 15, 'Demon horns'],
