@@ -265,7 +265,14 @@
                 case 'hall-duel-del': duels.delete(m.id); paintDuel(); paintActs(); break;
                 case 'hall-db': onDodge(m); break;
                 case 'hall-db-charge': if (m.on) chargeOf.set(m.h, now()); else chargeOf.delete(m.h); break;
-                case 'hall-db-ball': chargeOf.delete(m.a); flights.set(m.id, { a: m.a, x: m.x, y: m.y, vx: m.vx, vy: m.vy, at: now(), res: '', resAt: 0, perfect: !!m.perfect }); break;
+                case 'hall-db-ball': {
+                    // Your own throw has been flying on your screen since you let go: the station's takes over from there.
+                    chargeOf.delete(m.a);
+                    const own = m.a === me && flights.get('mine');
+                    flights.delete('mine');
+                    flights.set(m.id, { a: m.a, x: m.x, y: m.y, vx: m.vx, vy: m.vy, at: own ? own.at : now(), res: '', resAt: 0, perfect: !!m.perfect });
+                    break;
+                }
                 case 'hall-db-res': {
                     const f = flights.get(m.id) || { a: m.a, x: m.x, y: m.y, vx: 0, vy: 0, at: now() };
                     Object.assign(f, { res: m.k, resAt: now(), b: m.b || '', rx: m.x, ry: m.y }); flights.set(m.id, f);
@@ -595,8 +602,17 @@
             return true;
         }
         function throwAt(x, y, c) {
-            const [ax, ay] = toU(x, y);
-            core.send({ t: 'hall-db-throw', ax, ay, c: +c.toFixed(2) });
+            const p = mine();
+            if (!p) return;
+            const [ax, ay] = toU(x, y), [sx, sy] = toU(p.x, p.y);
+            core.send({ t: 'hall-db-throw', ax, ay, c: +c.toFixed(2), sx, sy });
+            // It leaves your hand now, on your screen (the same sums as engine/hall-dodge.js throwAt);
+            // the station's ball replaces it when it arrives, or it's gone if none does.
+            const fx = p.x - F.x0, fy = p.y - F.y0;
+            let dx = x - F.x0 - fx, dy = y - F.y0 - fy;
+            if (Math.hypot(dx, dy) < 1) { dx = dbTeam(me) ? -1 : 1; dy = 0; }
+            const ch = Math.max(0, Math.min(PERFECT, c)), v = BALL.v0 + (BALL.vMax - BALL.v0) * ch, n = Math.hypot(dx, dy);
+            flights.set('mine', { a: me, x: fx, y: fy, vx: dx / n * v, vy: dy / n * v, at: now(), res: '', resAt: 0, perfect: ch > 1, pred: true });
         }
         /* Holding the ball: press and hold (anywhere in the room) to wind up, let go to throw that way.
            A quick click still walks (or throws at whoever's under it). */
@@ -760,6 +776,7 @@
             for (const [id, f] of flights) {
                 const s = t - f.at;
                 if (f.res && t - f.resAt > 1.4) { flights.delete(id); continue; }
+                if (f.pred && s > 1.5) { flights.delete(id); continue; }                     // the station never took it
                 if (f.res === 'dead') continue;                                              // stopped: it's in someone's hand now
                 // On its way along the floor (its shadow on the floor, the ball a little above it); stopped where it got to.
                 const b = f.res ? { x: f.rx, y: f.ry } : ballPos(f, s);
@@ -820,6 +837,31 @@
         /* ---------- bonk, fish slap, snowball ---------- */
         let pendingHit = null;            // walking over to someone to bonk or slap them: { h, k, until }
         const near = (p, q) => Math.abs(p.x - q.x) <= 14 && Math.abs(p.y - q.y) <= 9;
+        /* Your swing starts on your screen the moment you press (`pred`); the station confirms it
+           (and says which fish), or it fades. Where you and they were on your screen goes with it:
+           the engine judges "close enough" by that, if it's believable (engine/hall.js seen()).
+           The pauses are the engine's own (FUN.hitEveryMs; in a duel DUEL.hitEveryMs, bonkEveryMs). */
+        let myHitAt = -9, myBonkAt = -9;
+        function sendHit(q, k) {
+            const p = mine(), t = now(), d = duelOf(me);
+            if (!p || !q) return;
+            const fight = !!d && d.state === 'fighting' && (q.h === d.a || q.h === d.b);
+            if (t - myHitAt < (fight ? 0.45 : 1.5) || (fight && k === 'bonk' && t - myBonkAt < 3)) return;
+            myHitAt = t;
+            if (fight && k === 'bonk') myBonkAt = t;
+            const [ax, ay] = toU(p.x, p.y), [bx, by] = toU(q.x, q.y);
+            core.send({ t: 'hall-hit', to: q.h, k, ax, ay, bx, by });
+            if (k !== 'snowball' || Math.abs(q.x - p.x) > 1) p.face = q.x < p.x ? -1 : 1;
+            // Only what the station will surely take plays early (not someone safe, or busy in someone else's duel).
+            if (safe || q.s || (!fight && (duelOf(q.h) || d))) return;
+            let n = 0;
+            if (fight && k === 'slap') {
+                const c = (d.chain || {})[me] || {};
+                n = Math.min(3, (c.slap || 0) + hits.filter(x => x.pred && x.a === me && x.k === 'slap').length + 1);
+            }
+            hits.push({ a: me, b: q.h, k, at: t, dir: q.x < p.x ? -1 : 1, n, pred: true });
+            while (hits.length > 30) hits.shift();
+        }
         function doHit(h, k) {
             const p = mine(), q = people.get(h);
             if (!p || !q || held(me)) return;
@@ -831,7 +873,7 @@
                 return;
             }
             pendingHit = null;
-            core.send({ t: 'hall-hit', to: h, k });
+            sendHit(q, k);
         }
         /** Got there: swing (called every frame while walking over). */
         function hitWhenClose() {
@@ -839,20 +881,24 @@
             const p = mine(), q = people.get(pendingHit.h);
             if (!p || !q || now() > pendingHit.until) { pendingHit = null; return; }
             if (!near(p, q)) return;
-            p.face = q.x < p.x ? -1 : 1;
-            core.send({ t: 'hall-hit', to: q.h, k: pendingHit.k });
+            sendHit(q, pendingHit.k);
             pendingHit = null;
         }
         function onHit(m) {
             const a = people.get(m.a), b = people.get(m.b);
             if (!a || !b) return;
-            if (m.k !== 'snowball' || Math.abs(b.x - a.x) > 1) a.face = b.x < a.x ? -1 : 1;
-            hits.push({ a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1, n: m.n || 0 });
-            while (hits.length > 30) hits.shift();
+            let x = m.a === me ? hits.find(h => h.pred && h.b === m.b && h.k === m.k) : null;
+            if (x) { x.pred = false; x.n = m.n || 0; }            // yours, already swinging: the station agrees (and says which fish)
+            else {
+                if (m.k !== 'snowball' || Math.abs(b.x - a.x) > 1) a.face = b.x < a.x ? -1 : 1;
+                x = { a: m.a, b: m.b, k: m.k, at: now(), dir: b.x < a.x ? -1 : 1, n: m.n || 0 };
+                hits.push(x);
+                while (hits.length > 30) hits.shift();
+            }
             if (m.to) {
                 // A duel's slap knocks them back a little; the tuna, in slow motion, throws them across the room.
                 const [kx, ky] = toPx(m.to[0], m.to[1]), tuna = m.n === 3;
-                if (tuna) { slowMo(1.8, 0.3); for (let i = hits.length - 2; i >= 0; i--) if (hits[i].b === m.b && hits[i].k === 'slap') hits.splice(i, 1); }     // just the tuna's words
+                if (tuna) { slowMo(1.8, 0.3); for (let i = hits.length - 1; i >= 0; i--) if (hits[i] !== x && hits[i].b === m.b && hits[i].k === 'slap') hits.splice(i, 1); }     // just the tuna's words
                 Object.assign(b, { knock: { x0: b.x, y0: b.y, x1: kx, y1: ky, at: now() + (tuna ? 0.15 : 0), dur: tuna ? 0.9 : 0.25, arc: tuna ? 26 : 0 }, tx: kx, ty: ky, pushed: false });
                 if (m.b === me) { lastSent = ''; pendingHit = null; }
             }
@@ -869,7 +915,7 @@
                 const mx = p.x - F.x0, my = p.y - F.y0;
                 for (let k = 0; k <= 80; k++) {
                     const b = ballPos(f, t - f.at + k * 0.01);
-                    if (Math.abs(b.x - mx) <= BALL.hitX + 1 && Math.abs(b.y - my) <= BALL.hitY + 1) { f.tried = true; core.send({ t: 'hall-db-catch', id }); break; }
+                    if (Math.abs(b.x - mx) <= BALL.hitX + 1 && Math.abs(b.y - my) <= BALL.hitY + 1) { f.tried = true; core.send({ t: 'hall-db-catch', id, s: +(t - f.at).toFixed(3) }); break; }      // s: when, on your screen
                     if (b.dead) break;
                 }
             }
@@ -925,7 +971,7 @@
             const es = Math.max(14, Math.round(6 * u / dpr)) * dpr;
             for (let i = hits.length - 1; i >= 0; i--) {
                 const x = hits[i], s = t - x.at;
-                if (s > 1.6) { hits.splice(i, 1); continue; }
+                if (s > 1.6 || (x.pred && s > 0.8)) { hits.splice(i, 1); continue; }         // (yours, and the station never took it)
                 const a = people.get(x.a), b = people.get(x.b);
                 if (!b || !heads.has(b.h)) continue;
                 const hx = b.x * u, hy = heads.get(b.h) * u, d = x.dir;
@@ -1232,8 +1278,7 @@
             const q = people.get(foeOf(d, me));
             if (!p || !q || d.state !== 'fighting' || held(me)) return;
             if (MELEE[k] && !near(p, q)) { duelSay = { text: 'Get closer!', until: now() + 1.2 }; return paintDuel(); }
-            if (k !== 'snowball' || Math.abs(q.x - p.x) > 1) p.face = q.x < p.x ? -1 : 1;
-            core.send({ t: 'hall-hit', to: q.h, k });
+            sendHit(q, k);
         }
         /** On the duellists: frozen in ice, stars when stunned, a snowflake when slowed, and the fish and snowballs in a row so far. */
         function drawDuels(t, u, heads) {
@@ -1638,7 +1683,9 @@
                     p.tx = p.x; p.ty = p.y; p.walking = true;
                     if (Math.abs(push[0]) > 0.2) p.face = push[0] < 0 ? -1 : 1;
                     // Tell the room where you'll be a moment from now, a few times a second.
-                    if (t - sentAt > 0.22) sendGo(clampX(p.x + push[0] * SPEED * 0.3), clampY(p.y + push[1] * SPEED * 0.2));
+                    // In a duel or dodgeball, more often and less far ahead (engine/hall.js sends these on at once).
+                    const game = !!duelOf(me) || (dbOn() && db.state !== 'over' && dbTeam(me) >= 0);
+                    if (t - sentAt > (game ? 0.09 : 0.22)) sendGo(clampX(p.x + push[0] * SPEED * (game ? 0.15 : 0.3)), clampY(p.y + push[1] * SPEED * (game ? 0.1 : 0.2)));
                     p.pushed = true;
                 } else if (p.pushed) { p.pushed = false; sendGo(p.x, p.y); }
             }
