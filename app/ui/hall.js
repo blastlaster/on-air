@@ -22,6 +22,8 @@
         ['cry', '😭', '💦'], ['smug', '😏', ''], ['cool', '😎', '✨'], ['confused', '😕', '❓'], ['sick', '🤢', '🤢']];
     const MOOD_BUBBLE = Object.fromEntries(MOODS.map(([id, , b]) => [id, b]));
     const JUMP_S = 0.6, DASH_S = 0.3, DASH_SPEED = 2.6;
+    // Holding the dash key sprints (engine/hall.js SPRINT, which keeps everyone's breath too): a tap still dashes.
+    const SPRINT = { mult: 1.7, maxS: 3, regen: 0.6, minS: 0.8 };
     const HANDS = { rock: '✊', paper: '✋', scissors: '✌️' };
     // Bonk and slap up close (you walk over first), a snowball from anywhere (engine/hall.js HITS).
     const HITS = [['bonk', '🔨', 'Bonk'], ['slap', '🐟', 'Fish slap'], ['snowball', '⛄', 'Snowball']];
@@ -247,8 +249,8 @@
                 }
                 case 'hall-bt-d': {
                     const [x, y] = toPx(m.x, m.y), [tx, ty] = toPx(m.tx, m.ty);
-                    if (!btD || Math.hypot(btD.x - x, btD.y - y) > 14) btD = { x, y };          // far off: straight there
-                    Object.assign(btD, { tx, ty, v: (m.v || 0) * (F.x1 - F.x0) / 1000, lunge: !!m.lunge });
+                    if (!btD || Math.hypot(btD.x - x, btD.y - y) > 30) btD = { x, y };          // far off: straight there
+                    Object.assign(btD, { sx: x, sy: y, sat: now(), tx, ty, v: (m.v || 0) * (F.x1 - F.x0) / 1000, lunge: !!m.lunge });
                     break;
                 }
                 case 'hall-bt-zap': btZap.set(m.h, now()); break;
@@ -273,6 +275,7 @@
                         const p = people.get(h);
                         if (!p || (h === me && !m.put)) continue;
                         [p.tx, p.ty] = toPx(xy[0], xy[1]);
+                        p.run = !!xy[2];                       // sprinting there
                         if (m.put) { p.x = p.tx; p.y = p.ty; p.pushed = false; if (h === me) lastSent = ''; continue; }     // put there (a game's places)
                         if (Math.hypot(p.tx - p.x, p.ty - p.y) > 120) { p.x = p.tx; p.y = p.ty; }     // too far behind: catch up
                         // (their pose carries on while they walk)
@@ -463,10 +466,21 @@
         function mine() { return people.get(me); }
         function sendGo(x, y) {
             if (isEaten(me)) return;                  // inside Daniel till it's over
-            const [u, v] = toU(x, y), k = u + ',' + v;
+            const [u, v] = toU(x, y), k = u + ',' + v + (running ? 'r' : '');
             if (k === lastSent) return;
             lastSent = k; sentAt = now();
-            core.send({ t: 'hall-go', x: u, y: v });
+            core.send({ t: 'hall-go', x: u, y: v, ...(running ? { r: 1 } : {}) });
+        }
+        /* Sprinting: your breath (seconds of it), used while you sprint and back while you don't.
+           Run right out and you need SPRINT.minS back before you can go again. */
+        let sprintKey = false, running = false, stam = SPRINT.maxS, tired = false;
+        function breathe(dt, moving) {
+            const was = running;
+            running = sprintKey && moving && !tired && stam > 0.05;
+            stam = Math.max(0, Math.min(SPRINT.maxS, stam + (running ? -dt : dt * SPRINT.regen)));
+            if (stam <= 0.05) { tired = true; running = false; }
+            if (tired && stam >= SPRINT.minS) tired = false;
+            return running !== was;
         }
         function emote(id) {
             const p = mine();
@@ -481,7 +495,7 @@
             const e = (mine() || {}).e || '';
             for (const b of actsEl.querySelectorAll('[data-act^="e:"]')) b.classList.toggle('on', b.dataset.act === 'e:' + e);
         }
-        /** Space: jump. Shift: dash (a burst of speed the way you're going). */
+        /** Space: jump. Shift: dash (a burst of speed the way you're going); held down, a sprint (see breathe). */
         let jumpReady = 0, dashReady = 0;
         function act(a) {
             const p = mine(), t = now();
@@ -1260,9 +1274,14 @@
         }
         /** Daniel on his way, between the station's word on where he is. */
         function btStep(dt) {
-            if (!btD || !btD.v) return;
-            const dx = btD.tx - btD.x, dy = btD.ty - btD.y, n = Math.hypot(dx, dy), v = btD.v * dt;
-            if (n > 0.05) { const k = Math.min(1, v / n); btD.x += dx * k; btD.y += dy * k; btD.face = dx < 0 ? -1 : dx > 0 ? 1 : btD.face; }
+            if (!btD || btD.sx == null) return;
+            // Where he must be by now: from where the station last had him, on towards where he's headed at his speed...
+            const ex = btD.tx - btD.sx, ey = btD.ty - btD.sy, en = Math.hypot(ex, ey), go = Math.min(en, (btD.v || 0) * (now() - btD.sat));
+            const px = en > 0.01 ? btD.sx + ex / en * go : btD.sx, py = en > 0.01 ? btD.sy + ey / en * go : btD.sy;
+            // ...and he glides there, rather than jumping.
+            const k = 1 - Math.exp(-dt * 12), dx = px - btD.x;
+            btD.x += dx * k; btD.y += (py - btD.y) * k;
+            if (Math.abs(ex) > 0.5) btD.face = ex < 0 ? -1 : 1;
         }
         /** Daniel himself (drawn among everyone, by how far forward he is), the lasers, the burp and the jump. */
         function drawDaniel(t) {
@@ -1687,18 +1706,19 @@
             if (editingKeys && waitKey) { actionKey(e); return; }
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
+            if (keymap.dash && keyNorm(e.key) === keymap.dash) { sprintKey = true; if (e.repeat) return; }
             if (actionKey(e)) return;
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); }
         });
-        listen('keyup', (e) => keys.delete(e.key.toLowerCase()));
-        listen('blur', () => keys.clear());
+        listen('keyup', (e) => { keys.delete(e.key.toLowerCase()); if (keymap.dash && keyNorm(e.key) === keymap.dash) sprintKey = false; });
+        listen('blur', () => { keys.clear(); sprintKey = false; });
 
         /* ---------- actions: in a panel beside the room (between it and the chat) or along the bottom,
            with keys you choose (⌨, then click one and press a key) ---------- */
         const ACTIONS = [
             ...EMOTES.map(([id, icon, name]) => ({ id: 'e:' + id, icon, name, run: () => emote(id) })),
             { id: 'jump', icon: '⏫', name: 'Jump', run: () => act('jump') },
-            { id: 'dash', icon: '💨', name: 'Dash', run: () => act('dash') },
+            { id: 'dash', icon: '💨', name: 'Dash (hold to sprint)', run: () => act('dash') },
             ...HITS.map(([k, icon, name]) => ({ id: 'duel:' + k, icon, name: name + ' your opponent', duel: true, run: () => duelHit(k) })),
             ...BURSTS.map(([k, icon, name]) => ({ id: 'burst:' + k, icon, name, run: () => burst(k) })),
             { id: 'emoji', icon: '😀', name: 'Emoji, things to hold, feelings and glowsticks', run: () => toggleEmoji() },
@@ -1736,6 +1756,9 @@
             actsEl.classList.toggle('editing', editingKeys);
             paintPoses(); paintBursts(); paintCool();
         }
+        // The dash button held down sprints too (a phone has no Shift).
+        actsEl.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-act="dash"]')) sprintKey = true; });
+        for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) actsEl.addEventListener(ev, () => { sprintKey = false; });
         actsEl.addEventListener('click', (e) => {
             e.stopPropagation();
             const b = e.target.closest('button');
@@ -1812,11 +1835,13 @@
             const t = now(), p = mine();
             if (p) {
                 const push = pushing();
+                // Sprinting starts or stops: the room's told (a walk to a clicked spot carries on, faster or slower).
+                if (breathe(dt, !!push || p.walking) && !push && p.walking && !held(me, t)) { lastSent = ''; sendGo(p.tx, p.ty); }
                 if (push && held(me, t)) { if (p.pushed) { p.pushed = false; sendGo(p.x, p.y); } }
                 else if (push) {
                     pendingHit = null;
                     lookAway();
-                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : 1) * (charging ? 0.5 : 1) * slowOf(me, t);       // winding up a throw (or snowed on): slower
+                    const sp = SPEED * (p.dashUntil > t ? DASH_SPEED : running ? SPRINT.mult : 1) * (charging ? 0.5 : 1) * slowOf(me, t);       // winding up a throw (or snowed on): slower
                     p.x = clampX(p.x + push[0] * sp * dt);
                     p.y = clampY(p.y + push[1] * sp * 0.7 * dt);
                     p.tx = p.x; p.ty = p.y; p.walking = true;
@@ -1824,7 +1849,8 @@
                     // Tell the room where you'll be a moment from now, a few times a second.
                     // In a duel or dodgeball, more often and less far ahead (engine/hall.js sends these on at once).
                     const game = !!duelOf(me) || (dbOn() && db.state !== 'over' && dbTeam(me) >= 0);
-                    if (t - sentAt > (game ? 0.09 : 0.22)) sendGo(clampX(p.x + push[0] * SPEED * (game ? 0.15 : 0.3)), clampY(p.y + push[1] * SPEED * (game ? 0.1 : 0.2)));
+                    const ahead = SPEED * (running ? SPRINT.mult : 1);
+                    if (t - sentAt > (game ? 0.09 : 0.22)) sendGo(clampX(p.x + push[0] * ahead * (game ? 0.15 : 0.3)), clampY(p.y + push[1] * ahead * (game ? 0.1 : 0.2)));
                     p.pushed = true;
                 } else if (p.pushed) { p.pushed = false; sendGo(p.x, p.y); }
             }
@@ -1841,13 +1867,25 @@
                 q.walking = d > 0.6;
                 if (q.walking) {
                     if (held(q.h, t)) { q.walking = false; continue; }
-                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : 1) * (q.h === me && charging ? 0.5 : 1) * slowOf(q.h, t) * dt);
+                    const fast = q.h === me ? running : q.run;
+                    const s = Math.min(d, SPEED * (q.dashUntil > t ? DASH_SPEED : fast ? SPRINT.mult : 1) * (q.h === me && charging ? 0.5 : 1) * slowOf(q.h, t) * dt);
                     q.x += dx / d * s; q.y += dy / d * s;
                     if (Math.abs(dx) > 0.5) q.face = dx < 0 ? -1 : 1;
                 }
                 if (ONE_SHOT[q.e] && t - q.et > ONE_SHOT[q.e]) q.e = '';
             }
             hitWhenClose();
+        }
+
+        /** Your breath for sprinting, under your name: only while it's not full. */
+        function sprintBar(u) {
+            const p = mine();
+            if (!p || isEaten(me) || (stam >= SPRINT.maxS && !running)) return;
+            const w = Math.round(14 * u), h = Math.max(2 * dpr, Math.round(u * 0.9)), x = Math.round(p.x * u - w / 2), y = Math.round((p.y + 1.5) * u + Math.max(10, 2.6 * u / dpr) * dpr * 1.25 + 3 * dpr);
+            const k = stam / SPRINT.maxS;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - dpr, y - dpr, w + 2 * dpr, h + 2 * dpr);
+            ctx.fillStyle = tired ? '#ff5a5a' : k > 0.5 ? '#5ee8a0' : k > 0.25 ? '#ffd34a' : '#ff9a3c';
+            ctx.fillRect(x, y, Math.round(w * k), h);
         }
 
         /* ---------- drawing ---------- */
@@ -2038,6 +2076,7 @@
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
             ctx.globalAlpha = 1;
+            sprintBar(u);
             drawGlows(sorted, heads, u, t);
             drawHeld(sorted, heads, u);
             if (duels.size) drawDuels(t, u, heads);
