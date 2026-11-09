@@ -250,7 +250,8 @@
                 case 'hall-bt-d': {
                     const [x, y] = toPx(m.x, m.y), [tx, ty] = toPx(m.tx, m.ty);
                     if (!btD || Math.hypot(btD.x - x, btD.y - y) > 30) btD = { x, y };          // far off: straight there
-                    Object.assign(btD, { sx: x, sy: y, sat: now(), tx, ty, v: (m.v || 0) * (F.x1 - F.x0) / 1000, lunge: !!m.lunge });
+                    Object.assign(btD, { sx: x, sy: y, sat: now(), tx, ty, v: (m.v || 0) * (F.x1 - F.x0) / 1000, lunge: !!m.lunge, f: m.f || 0 });
+                    if (m.f && !btFrenzy && bt.state === 'chase') { btFrenzy = now(); logLine({ text: '🦛 Daniel goes into a FEEDING FRENZY!' }, 'announce'); }
                     break;
                 }
                 case 'hall-bt-zap': btZap.set(m.h, now()); break;
@@ -1240,7 +1241,7 @@
         /* ---------- Burgertime (engine/hall-burger.js) ---------- */
         // bt: as the station last said (plus `at`, when on this clock); btD: Daniel (room pixels, heading for tx, ty);
         // btZap / btBack: who was zapped / came back, when; btEat: his last mouthful.
-        let bt = { state: '', burgers: [], eaten: [], stars: [], score: 0 }, btD = null, btEat = null, btStart = 0, btBurp = 0, btZapAt = 0;
+        let bt = { state: '', burgers: [], eaten: [], stars: [], score: 0 }, btD = null, btEat = null, btStart = 0, btBurp = 0, btZapAt = 0, btFrenzy = 0;
         const btZap = new Map(), btBack = new Map();
         const BT_YELLS = ['HEY EVERYBODY, IT’S ME, DANIEL!', 'IT’S BURGERTIME!'];
         const btOn = () => !!bt.state;
@@ -1253,11 +1254,11 @@
         function onBt(m, quiet) {
             const t = now(), was = bt.state;
             bt = { state: m.state || '', burgers: m.burgers || [], eaten: m.eaten || [], stars: m.stars || [], score: m.score || 0, until: t + (m.until || 0) / 1000 };
-            if (!bt.state) { btD = null; btZap.clear(); btEat = null; return; }
+            if (!bt.state) { btD = null; btZap.clear(); btEat = null; btFrenzy = 0; return; }
             if (m.d && !btD) { const [x, y] = toPx(m.d[0], m.d[1]); btD = { x, y, tx: x, ty: y, v: 0 }; }
             if (bt.state === was) return;
             if (bt.state === 'enter') {
-                btStart = t; btZap.clear(); btBack.clear();
+                btStart = t; btZap.clear(); btBack.clear(); btFrenzy = 0;
                 if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[0] }, 'announce');
             }
             if (bt.state === 'zap') { btZapAt = t; if (!quiet) logLine({ text: '🦛 Daniel: ' + BT_YELLS[1] }, 'announce'); }
@@ -1292,6 +1293,7 @@
             else if (s === 'zap') mode = 'zap';
             else if (s === 'chase') {
                 if (btEat && t - btEat.at < 1) { mode = 'chomp'; open = Math.abs(Math.sin((t - btEat.at) * 12)); }
+                else if (btD.f) { mode = 'frenzy'; open = Math.abs(Math.sin(t * (14 + btD.f * 10))); }        // chomping at the air
                 else { mode = btD.lunge ? 'lunge' : 'chase'; open = btD.lunge ? 0.8 : 0.25; }
             } else if (s === 'burp') {
                 const k = t - btBurp;
@@ -1301,7 +1303,7 @@
             } else return null;
             if (s === 'enter' && mode === 'dance') open = 0.5 + Math.sin(t * 10) * 0.5;
             if (s === 'enter' && mode === 'dance') btD.face = Math.floor(t * 2) % 2 ? 1 : -1;
-            const eyes = A.hippo(lc, btD.x, btD.y - lift, t, { face: btD.face || -1, mode, open });
+            const eyes = A.hippo(lc, btD.x, btD.y - lift, t, { face: btD.face || -1, mode, open, f: btD.f || 0 });
             // The laser eyes: on whoever was just zapped.
             if (s === 'zap' || s === 'chase') {
                 for (const [h, at] of btZap) {
@@ -1325,6 +1327,14 @@
                 ctx.fillStyle = c; ctx.fillText(str, cv.width / 2, y);
             };
             if (s === 'zap' && t - btZapAt < 2) big(BT_YELLS[1], cv.height * 0.3, '#ffcc33');
+            if (s === 'chase' && btFrenzy) {
+                // The frenzy: a red pulse round the edges (faster as it goes on), and the words when it starts.
+                const f = (btD && btD.f) || 0, pulse = 0.5 + 0.5 * Math.sin(t * (6 + f * 10));
+                const gr = ctx.createRadialGradient(cv.width / 2, cv.height / 2, Math.min(cv.width, cv.height) * 0.35, cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * 0.7);
+                gr.addColorStop(0, 'rgba(255,0,40,0)'); gr.addColorStop(1, 'rgba(255,0,40,' + (0.12 + 0.2 * f) * pulse + ')');
+                ctx.fillStyle = gr; ctx.fillRect(0, 0, cv.width, cv.height);
+                if (t - btFrenzy < 2.2) big('FEEDING FRENZY!', cv.height * 0.3 + Math.sin(t * 40) * 3 * dpr, '#ff3b5c');
+            }
             if (s === 'burp' && t - btBurp < 2.2) big('BUUUURP!', cv.height * 0.3 + Math.sin(t * 30) * 2 * dpr, '#b88cf2');
             if (bt.score && (s === 'chase' || s === 'burp')) {
                 const fs = Math.max(11, Math.round(3.6 * u / dpr)) * dpr;

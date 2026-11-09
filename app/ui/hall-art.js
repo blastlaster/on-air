@@ -998,15 +998,16 @@
     const HIPPO = { body: '#8b4fd6', dark: '#5f2da8', light: '#b88cf2', belly: '#c8a6f7', mouth: '#ff6f9a', tooth: '#fffbe8' };
     /**
      * Daniel, a giant purple hippo up on his hind legs, standing at x with his feet on y (about 34 × 50).
-     * o: { face: ±1, mode: 'run' | 'dance' | 'chase' | 'lunge' | 'chomp' | 'burp' | 'zap', open: 0–1 (his mouth) }
+     * o: { face: ±1, mode: 'run' | 'dance' | 'chase' | 'lunge' | 'chomp' | 'burp' | 'zap' | 'frenzy', open: 0–1 (his mouth), f: 0–1 (how wild) }
      * Returns where his eyes are (for the lasers).
      */
     function hippo(x, y, t, o) {
         const f = o.face < 0 ? -1 : 1, m = o.mode || 'chase';
-        const crazy = m === 'dance', run = m === 'run' || m === 'chase' || m === 'lunge', lunge = m === 'lunge';
-        const step = Math.floor(t * (lunge ? 14 : crazy ? 6 : 8)) % 2;
+        const frenzy = m === 'frenzy', fk = frenzy ? Math.max(0.3, o.f || 0) : 0;
+        const crazy = m === 'dance', run = m === 'run' || m === 'chase' || m === 'lunge' || frenzy, lunge = m === 'lunge';
+        const step = Math.floor(t * (lunge ? 14 : frenzy ? 12 + fk * 8 : crazy ? 6 : 8)) % 2;
         const bob = run ? (step ? 2 : 0) : crazy ? Math.round(Math.abs(Math.sin(t * 9)) * 4) : 0;
-        const sx = crazy ? Math.round(Math.sin(t * 31) * 1.5) : 0;
+        const sx = crazy ? Math.round(Math.sin(t * 31) * 1.5) : frenzy ? Math.round(Math.sin(t * 47) * (1 + fk * 1.5)) : 0;
         const fy = Math.round(y);
         x = Math.round(x + sx); y = Math.round(y - bob);
         const X = (dx, w) => f > 0 ? x + dx : x - dx - w;              // mirrored when he faces left
@@ -1055,11 +1056,19 @@
             R(X(hx + 3, 2), hy + 17, 2, 2, HIPPO.tooth); R(X(hx + 12, 2), hy + 17, 2, 2, HIPPO.tooth);
             R(X(hx + 1, 15), hy + 17 + jaw, 15, 3, HIPPO.light);           // the jaw, dropped
         } else R(X(hx + 3, 12), hy + 16, 12, 1, HIPPO.dark);
-        // Eyes: wide and wild; red and blazing for the lasers.
+        // Eyes: wide and wild; red and blazing for the lasers; bloodshot and rolling in the frenzy.
         const zap = m === 'zap', ex = X(hx - 6, 4), ex2 = X(hx - 1, 4), ey = hy + 3;
-        for (const e of [ex, ex2]) {
-            R(e, ey, 4, 4, zap ? '#ff2a2a' : '#ffffff');
-            R(e + (f > 0 ? 2 : 0), ey + 1, 2, 2, zap ? '#fff3a0' : '#1a1028');
+        for (const [i, e] of [ex, ex2].entries()) {
+            R(e, ey, 4, 4, zap ? '#ff2a2a' : frenzy ? '#ffd6d6' : '#ffffff');
+            const roll = frenzy ? Math.floor(t * 9 + i * 2) % 4 : -1;
+            const px = roll < 0 ? (f > 0 ? 2 : 0) : [0, 2, 2, 0][roll], py = roll < 0 ? 1 : [0, 0, 2, 2][roll];
+            R(e + px, ey + py, 2, 2, zap ? '#fff3a0' : frenzy ? '#c2001a' : '#1a1028');
+        }
+        if (frenzy) {
+            // Drool flying off his chops, and his brows down.
+            R(X(hx - 7, 5), ey - 1, 5, 1, HIPPO.dark); R(X(hx - 2, 5), ey - 1, 5, 1, HIPPO.dark);
+            const dk = (t * 2.2) % 1;
+            R(X(hx + 4, 1), hy + 18 + dk * 14, 1, 2, '#bff3ff'); R(X(hx + 11, 1), hy + 19 + ((dk + 0.5) % 1) * 12, 1, 2, '#bff3ff');
         }
         if (crazy && Math.floor(t * 5) % 2) {                          // sweat flying off
             R(X(-16, 2), y - 50, 2, 2, '#9fe8ff'); R(X(16, 2), y - 54, 2, 2, '#9fe8ff');
