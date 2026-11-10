@@ -67,7 +67,26 @@
     const BURSTS = [['fire', '🔥', 'Fire on the stage'], ['confetti', '🎊', 'Confetti']];
     const BURST_LINE = { fire: '🔥 {n} set the stage on fire', confetti: '🎊 {n} threw confetti' };
     // The emoji picker: anything to say, and things to carry (the same list as engine/hall.js HOLDS).
-    const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️ 💩'.split(' ');
+    // 🧴 is a bottle of water: drawn by hand (there's no water-bottle emoji before Unicode 13; Windows 10 would show a box).
+    const WATER = '🧴', HOLD_NAME = { [WATER]: 'a bottle of water' };
+    const holdName = (o) => HOLD_NAME[o] || o;
+    /** The bottle of water, (cx, cy) its middle, px a pixel: clear plastic, water two-thirds up, a blue cap and label. */
+    function waterBottle(ctx, cx, cy, px) {
+        const rows = ['  cc  ', '  cc  ', ' nnnn ', 'bbbbbb', 'bhbbbb', 'bhbbbb', 'wwwwww', 'LLLLLL', 'LLLLLL', 'whwwww', 'wwwwww', 'wwwwww', ' wwww '];
+        const C = { c: '#1f5fc8', n: '#d8f0ff', b: '#cfeaff', h: '#ffffff', w: '#4aa8ec', L: '#2f7fe0' };
+        const x0 = Math.round(cx - 3 * px), y0 = Math.round(cy - 6.5 * px);
+        ctx.save();
+        ctx.fillStyle = 'rgba(10,30,60,0.55)';                         // an outline so it reads on any floor
+        ctx.fillRect(x0 - px, y0 + 2 * px, 8 * px, 11 * px); ctx.fillRect(x0 + px, y0 - px, 4 * px, 3 * px);
+        rows.forEach((r, j) => [...r].forEach((k, i) => { if (C[k]) { ctx.fillStyle = C[k]; ctx.fillRect(x0 + i * px, y0 + j * px, px, px); } }));
+        ctx.restore();
+    }
+    let waterPic = '';
+    const waterImg = () => {
+        if (!waterPic) { const c = document.createElement('canvas'); c.width = 24; c.height = 24; waterBottle(c.getContext('2d'), 12, 12, 1.6); waterPic = c.toDataURL(); }
+        return '<img src="' + waterPic + '" alt="Bottle of water" width="22" height="22" style="image-rendering:pixelated;vertical-align:middle">';
+    };
+    const HOLDS = '🔪 🗡️ 🪓 🔨 🔫 🍳 🥖 🧹 🏹 💣 🏏 🎸 🎤 🥁 🎺 📻 📢 🍕 🍔 🌭 🍩 🍌 🐟 🍺 🥤 ☕ 🧴 🌹 💐 🎈 🎁 🏆 💰 💎 🔦 🕯️ 🎊 ⚽ 🏀 🎮 📱 🧸 🐸 🐈 👻 💀 🔥 ⭐ 🚩 📌 🛡️ 💩'.split(' ');
     // Name colours (the same list as engine/hall.js NAME_COLORS); Settings → You uses it too.
     const NAME_COLORS = window.HallNameColors = ['#ff6b6b', '#ff9f43', '#ffd34a', '#7ee36b', '#4fe0c0', '#00e0ff', '#5aa0ff', '#9f80ff', '#ff7ccc', '#ff4fd8', '#ffffff', '#c0c0c0'];
     const SAY = '😂 🤣 😭 😎 🤔 😳 😡 🥺 😈 🤡 😱 🥴 🤠 😴 🙄 😏 😤 🤝 👀 🙏 👍 👎 👋 👏 🙌 💪 🤘 ✌️ 👉 🤙 💯 ❤️ 💔 ✨ 🎉 🎶 💤 💢 ❓ ❗ 🆗 🔞 💩 🗿 🦀 🐸 🍆 🍑 🍀 7️⃣'.split(' ');
@@ -286,8 +305,8 @@
                     break;
                 case 'hall-bt': onBt(m); break;
                 case 'hall-give': {
-                    logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + m.o }, 'game');
-                    if (m.b === me) U.toast(nameOf(m.a) + ' gave you ' + m.o + '!');
+                    logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + holdName(m.o) }, 'game');
+                    if (m.b === me) U.toast(nameOf(m.a) + ' gave you ' + holdName(m.o) + '!');
                     if (m.a === me && m.nice) gotPoint('nice');
                     break;
                 }
@@ -598,9 +617,9 @@
             const feel = (mine() || {}).f || '';
             const pics = stationEmotes();
             const tab = (id, label) => '<button type="button" class="btn' + (emojiTab === id ? ' on' : '') + '" data-tab="' + id + '">' + label + '</button>';
-            const emo = (e, on) => '<button type="button" class="he-e' + (on ? ' on' : '') + '" data-em="' + e + '">' + e + '</button>';
+            const emo = (e, on) => '<button type="button" class="he-e' + (on ? ' on' : '') + '" data-em="' + e + '"' + (e === WATER ? ' title="Bottle of water">' + waterImg() : '>' + e) + '</button>';
             emojiEl.innerHTML = '<div class="he-tabs">' + tab('say', '😀 Emote') + tab('hold', '✋ Hold') + tab('feel', '😊 Feel') +
-                (held ? '<button type="button" class="btn" data-drop>Drop ' + held + '</button>' : '') +
+                (held ? '<button type="button" class="btn" data-drop>Drop ' + (held === WATER ? waterImg() : held) + '</button>' : '') +
                 '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
                 '<div class="he-grid">' + (emojiTab === 'feel'
@@ -608,7 +627,7 @@
                     : emojiTab === 'hold' ? HOLDS.map(e => emo(e, e === held)).join('')
                     // Emote: the station's own pictures first, then the emoji.
                     : (pics.length ? '<div class="he-sub">Memeoji</div>' + pics.map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('') +
-                        '<div class="he-sub">Emoji</div>' : '') + SAY.concat(HOLDS).map(e => emo(e, false)).join('')) + '</div>';
+                        '<div class="he-sub">Emoji</div>' : '') + SAY.concat(HOLDS.filter(e => e !== WATER)).map(e => emo(e, false)).join('')) + '</div>';
         }
         const stationEmotes = () => Object.keys((window.LT && LT.EMOTES) || {});
         let auraColor = 'yellow';
@@ -681,7 +700,8 @@
                 ctx.save();
                 ctx.translate(Math.round(x), Math.round(y));
                 ctx.scale(-f, 1);                     // emoji face left; turn them the way their holder faces
-                ctx.fillText(p.o, 0, 0);
+                if (p.o === WATER) waterBottle(ctx, 0, 0, Math.max(1, Math.round(fs / 13)));
+                else ctx.fillText(p.o, 0, 0);
                 if (red) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ff1a1a'; ctx.beginPath(); ctx.arc(0, fs * 0.08, fs * 0.36, 0, Math.PI * 2); ctx.fill(); }
                 if (lit) { ctx.globalAlpha = 1; ctx.fillStyle = Math.floor(now() * 20) % 2 ? '#fff3a0' : '#ff9a20'; ctx.fillRect(Math.round(fs * 0.22), Math.round(-fs * 0.5), Math.max(2, Math.round(fs / 7)), Math.max(2, Math.round(fs / 7))); }
                 ctx.restore();
