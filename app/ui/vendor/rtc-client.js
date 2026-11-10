@@ -164,7 +164,9 @@
     Call.prototype.connect = function () {
         var self = this;
         if (this.pc) return;
-        var pc = this.pc = new RTCPeerConnection({ iceServers: ICE });
+        // this.ice: the station's call relay (the engine sends it with the call), for networks
+        // where the phone and the studio can't reach each other directly.
+        var pc = this.pc = new RTCPeerConnection({ iceServers: ICE.concat(this.ice || []) });
         this.stream.getTracks().forEach(function (t) { pc.addTrack(t, self.stream); });
 
         pc.onicecandidate = function (e) {
@@ -500,6 +502,9 @@
         var pics = false;
         try { pics = localStorage.getItem('ltl.rqPics') === '1'; } catch (e) {}
         var album = null, opts = [], sel = -1, open = -1, done = {};
+        // On a phone, focusing a box pops the keyboard over the list: the next tap then only
+        // closes it (Request had to be tapped twice), and it hides the rest of the form.
+        var touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
         box.innerHTML = '<div class="rq rq-pick"><div class="rq-top">' +
             '<input class="rq-q" type="search" maxlength="80" placeholder="Search by title, artist or album…" autocomplete="off" aria-label="Search the station’s music">' +
             '<button type="button" class="' + quiet + ' rq-pics" title="Show cover pictures">🖼</button></div>' +
@@ -572,8 +577,9 @@
             open = open === x.t.id ? -1 : x.t.id;
             sel = i;
             draw();
-            var f = list.querySelector('.rq-form input');
-            if (f) f.focus();
+            var f = list.querySelector('.rq-form');
+            if (f && touch) f.parentNode.scrollIntoView({ block: 'nearest' });
+            else if (f) f.querySelector('input').focus();
         }
         input.oninput = function () { album = null; sel = input.value.trim() ? 0 : -1; open = -1; draw(); list.scrollTop = 0; };
         input.onkeydown = function (e) {
@@ -592,6 +598,11 @@
         };
         picsBtn.classList.toggle('on', pics);
         box.addEventListener('error', function (e) { if (e.target && e.target.tagName === 'IMG') e.target.parentNode.removeChild(e.target); }, true);
+        // Typing in the form on a phone: once the keyboard is up, keep the whole form (message, Send) in sight.
+        box.addEventListener('focusin', function (e) {
+            var f = touch && e.target.closest && e.target.closest('.rq-form');
+            if (f) setTimeout(function () { f.scrollIntoView({ block: 'nearest' }); }, 350);
+        });
         box.onclick = function (e) {
             if (e.target.closest('.rq-back')) { album = null; draw(); input.focus(); return; }
             if (e.target.closest('[data-cancel]')) { open = -1; draw(); return; }
@@ -612,6 +623,6 @@
             }, function (msg) { btn.disabled = false; btn.textContent = 'Send request'; if (o.toast) o.toast(msg); });
         };
         draw();
-        setTimeout(function () { try { input.focus(); } catch (er) {} }, 30);
+        if (!touch) setTimeout(function () { try { input.focus(); } catch (er) {} }, 30);
     };
 })();

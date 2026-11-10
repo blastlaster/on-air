@@ -526,6 +526,7 @@
         if (!call) return;
         if (m.state === 'ended' || m.state === 'closed') { endCall(m.reason); return; }
         if (m.token) call.token = m.token;
+        if (m.ice) call.ice = m.ice;
         if (!call.pc) { call.connect(); call.setVolume(player.volume); }
         const text = {
             queued: m.position ? 'You are number ' + m.position + ' in line. You can hear the show — hang tight.' : 'You are in line.',
