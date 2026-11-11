@@ -24,6 +24,7 @@ app/tmp-userdata/
 # Moved in from the old "live tool" folder (2026-11-03); never in this repository:
 /funpostfm-signing/
 /funpostfm-android/
+/funpostfm-host/
 /_android-tools/
 /esfores/
 /status images/
