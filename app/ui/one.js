@@ -97,6 +97,8 @@
             if (show.mid === 'board') frame('board', 'board');
             if (show.mid === 'hall') frame('hall', 'hall'); else drop('hall');
             if (frames.board) frames.board.hidden = show.mid !== 'board';
+            $('[data-slot="board"]').hidden = show.mid !== 'board';
+            $('[data-slot="hall"]').hidden = show.mid !== 'hall';
             // Columns: Now Playing, the middle, and the video over the chat. Whatever is missing, the rest share.
             const cols = [], r1 = [], r2 = [];
             const add = (w, a, b) => { cols.push(w); r1.push(a); r2.push(b); };
