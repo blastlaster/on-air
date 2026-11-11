@@ -4,11 +4,12 @@
 
 The radio on your desktop. A small player is the main window; everything else
 the station offers is its own window that you open from the radio's buttons
-and arrange however suits you. Built for FunpostFM.
+and arrange however suits you. Rather have it all together? **Settings → Layout →
+One window** lays it all out in one window, like the station's site. Built for FunpostFM.
 
 <img src="images/radio.png" alt="The radio" width="480">
 
-**Contents:** [Install](#install) · [The radio](#the-radio) · [The windows](#the-windows) · [Moving things around](#moving-things-around) ·
+**Contents:** [Install](#install) · [The radio](#the-radio) · [The windows](#the-windows) · [Moving things around](#moving-things-around) · [One window](#one-window) ·
 [Looks](#looks-text-size-and-effects) · [Live alerts and pings](#live-alerts-and-pings) · [The board](#the-board-and-its-scripts) ·
 [Albums](#albums) · [Settings](#settings) · [The tray](#the-tray) · [Updates](#updates) · [For stations: extras.json](#for-stations-extrasjson) ·
 [Privacy](#privacy-and-safety) · [Trouble?](#trouble)
@@ -73,6 +74,24 @@ reopen with the app. **Minimising the radio tucks them all away**, and
 restoring it brings them back; **bringing the radio forward brings them all
 forward** with it. Lost one off a screen that's gone? Tray → **Put the windows
 back on screen**.
+
+## One window
+
+**Settings → Layout → One window** (or back with **Separate windows**) turns the
+radio into one big window laid out like the station's site:
+
+- Along the top: the station, the live light, a **tab for each part**, and the LED sign.
+- **Now Playing** on the left, with *Call in*, *Request* and *blug.dj/jej* under the
+  player, and the playlist under that.
+- The **board** or **blug.dj/jej** in the middle (their tabs swap them), the **video**
+  and the **chat** on the right.
+- **Albums**, **Request**, **Call in**, **Links** and **Settings** open over the page;
+  ✕, a click beside it or Esc closes them.
+
+Each tab shows or hides its part, and the rest share the room. The window
+resizes from its edges and maximises (double-click the top bar, or ▢); ⧉ goes
+back to separate windows. It remembers which parts were showing (not the
+video, which stops the radio while it plays).
 
 ## Looks, text size and effects
 
@@ -191,6 +210,7 @@ folder, or asks each time.
 | **Look** | The app's look (each window can have its own). |
 | **Effects** | Simple, Mid, Advanced. |
 | **Text size** | Small to Larger. |
+| **Layout** | Separate windows (the radio and a window for each part) or [one window](#one-window), like the station's site. |
 | **Windows** | Which windows exist at all (switched off, its button leaves the radio); new windows on top of other programs; minimising the radio tucks the others away; the LED sign in the radio; buttons on the left; the board's 18+ warning. |
 | **Updates** | Get new versions by themselves; *Check now*; *Restart to update* when one is ready; release notes. |
 | **Alerts** | Live alerts and pings; start with the computer, quietly in the tray. |

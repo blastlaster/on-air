@@ -1,0 +1,239 @@
+/* =============================================================
+   THE ONE WINDOW — the radio grown into one big window, laid out
+   like the station's site: a top bar with the tabs and the LED
+   sign, Now Playing on the left, the board or blug.dj/jej in the
+   middle, the video and the chat on the right. Request, Albums,
+   Call in, Links and Settings open over the page.
+
+   Each part is the same page its own window would be
+   (win.html?w=chat), in a frame here: window.parent.core is the
+   station, and the app knows each frame by its part.
+   Settings → Layout switches between this and the separate windows.
+   ============================================================= */
+(function () {
+    'use strict';
+    const PANELS = ['np', 'mid', 'tv', 'chat'];
+    const FLY = { request: 560, albums: 640, studio: 480, links: 520, settings: 600, interface: 1100 };
+
+    window.OneWindow = function ({ app, core, $, esc }) {
+        const saved = (UI.info.ui && UI.info.ui.full) || {};
+        // Which panels show (the video never comes back by itself: it stops the radio).
+        const show = { np: saved.np !== false, chat: saved.chat !== false, tv: false, mid: saved.mid === 'board' || saved.mid === 'hall' ? saved.mid : '' };
+        const frames = {};             // id → its <iframe>
+        let fly = '', s = core.state, list = [];
+
+        const markup =
+            '<div class="one">' +
+            '<header class="one-head">' +
+              '<div class="one-brand"><span class="one-name"></span>' +
+                '<span class="one-pill" title="Red when someone is live, blue for AutoDJ"><span class="light"></span><span class="state">Tuning in…</span><span class="count dim"></span></span></div>' +
+              '<nav class="one-tabs"></nav>' +
+              '<div class="one-win">' +
+                '<button type="button" data-w="layout" title="Separate windows: the little radio, each part in its own window">⧉</button>' +
+                '<button type="button" data-w="menu" title="Window options">≡</button>' +
+                '<button type="button" data-w="tuck" title="Minimise">–</button>' +
+                '<button type="button" data-w="max" title="Maximise">▢</button>' +
+                '<button type="button" class="x" data-w="close" title="Close to the tray">✕</button></div>' +
+              '<div class="led" data-bg="transparent" data-off="rgba(255,255,255,0.10)" hidden></div>' +
+            '</header>' +
+            '<main class="one-grid">' +
+              '<section class="one-panel one-np" data-p="np">' +
+                '<div class="one-h">🎶 Now Playing</div>' +
+                '<div class="one-np-in">' +
+                  '<div class="np"><img class="art" alt="" hidden><div class="np-text">' +
+                    '<div class="np-main ell">&nbsp;</div><div class="np-sub ell dim"></div>' +
+                    '<div class="prog" hidden><b><i></i></b><span></span></div></div></div>' +
+                  '<div class="controls">' +
+                    '<button class="play" type="button" title="Play"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg></button>' +
+                    '<input class="vol" type="range" min="0" max="1" step="0.02" title="Volume" aria-label="Volume">' +
+                    '<span class="vote" hidden><button type="button" data-v="like" title="I like this one">👍</button><button type="button" data-v="dislike" title="Not for me">👎</button></span>' +
+                    '<button type="button" class="skipb" title="Vote to skip this song (more than half of the listeners skips it)" hidden>⏭</button>' +
+                  '</div>' +
+                  '<div class="skipbar" hidden><span class="sk-t"></span><b><i></i></b></div>' +
+                  '<div class="extra"></div>' +
+                  '<nav class="one-acts"></nav>' +
+                '</div>' +
+                '<div class="one-slot" data-slot="playlist"></div>' +
+              '</section>' +
+              '<section class="one-panel" data-p="mid"><div class="one-slot" data-slot="board"></div><div class="one-slot" data-slot="hall"></div></section>' +
+              '<section class="one-panel one-tv" data-p="tv"><div class="one-slot" data-slot="tv"></div></section>' +
+              '<section class="one-panel" data-p="chat"><div class="one-slot" data-slot="chat"></div></section>' +
+              '<div class="one-empty" hidden>👀 Everything is hidden. Pick a tab above to bring something back.</div>' +
+            '</main>' +
+            '<div class="one-fly" hidden><div class="one-fly-card"><button type="button" class="one-fly-x" title="Close (Esc)">✕ Close</button><div class="one-slot" data-slot="fly"></div></div></div>' +
+            '</div>';
+
+        /** A part, in its frame (made the first time it is wanted). */
+        function frame(id, slot) {
+            if (frames[id]) return frames[id];
+            const f = document.createElement('iframe');
+            f.className = 'one-frame';
+            f.dataset.id = id;
+            f.src = 'win.html?w=' + id + '&panel=1';
+            f.setAttribute('allow', 'autoplay; fullscreen; microphone');
+            f.addEventListener('load', () => {
+                f.dataset.ready = '1';
+                // Esc closes what's open over the page, from inside it too (once its own dialog is closed).
+                if (slot === 'fly') f.contentWindow.addEventListener('keydown', (e) => {
+                    const sh = f.contentDocument.querySelector('.sheet');
+                    if (e.key === 'Escape' && fly === id && (!sh || sh.hidden)) closeFly();
+                });
+            });
+            $('[data-slot="' + (slot || id) + '"]').appendChild(f);
+            return (frames[id] = f);
+        }
+        /** The video and blug.dj/jej leave when they are hidden (the video gives the radio back; you leave the room). */
+        function drop(id) { const f = frames[id]; if (f) { f.remove(); delete frames[id]; } }
+
+        /* ---------- the panels, laid out like the site ---------- */
+        function layout() {
+            const g = $('.one-grid');
+            const np = show.np, mid = !!show.mid, tv = show.tv, chat = show.chat, side = tv || chat;
+            for (const p of PANELS) $('[data-p="' + p + '"]', g).hidden = !(p === 'mid' ? mid : show[p]);
+            $('.one-empty').hidden = np || mid || side;
+            if (np) frame('playlist');
+            if (chat) frame('chat');
+            if (tv) frame('tv'); else drop('tv');
+            if (show.mid === 'board') frame('board', 'board');
+            if (show.mid === 'hall') frame('hall', 'hall'); else drop('hall');
+            if (frames.board) frames.board.hidden = show.mid !== 'board';
+            // Columns: Now Playing, the middle, and the video over the chat. Whatever is missing, the rest share.
+            const cols = [], r1 = [], r2 = [];
+            const add = (w, a, b) => { cols.push(w); r1.push(a); r2.push(b); };
+            if (np) add('var(--np-w)', 'np', 'np');
+            if (mid) add('minmax(0, 1fr)', 'mid', 'mid');
+            if (side) add(mid ? 'var(--side-w)' : 'minmax(0, 1fr)', tv ? 'tv' : 'chat', chat ? 'chat' : 'tv');
+            if (!mid && !side && np) cols[0] = 'minmax(0, var(--np-max))';
+            const two = tv && chat;
+            g.style.gridTemplateColumns = cols.join(' ') || '1fr';
+            g.style.gridTemplateAreas = !cols.length ? 'none' : two ? '"' + r1.join(' ') + '" "' + r2.join(' ') + '"' : '"' + r1.join(' ') + '"';
+            g.style.gridTemplateRows = two ? 'auto minmax(0, 1fr)' : 'minmax(0, 1fr)';
+            g.classList.toggle('np-only', np && !mid && !side);
+            sizeTv();
+            tabs();
+            moved();
+        }
+        // The video keeps to 16:9 (plus its heading) when it sits over the chat.
+        const tvBox = () => $('[data-p="tv"]');
+        function sizeTv() {
+            const p = tvBox();
+            p.style.height = show.tv && show.chat ? Math.round(p.clientWidth * 9 / 16 + 31) + 'px' : '';
+        }
+        /** Tell the board where its panel went (its view is laid over the window, not drawn in the page). */
+        function moved() {
+            // Only once its page is in: touching a frame's window before that keeps the app's bridge out of it.
+            requestAnimationFrame(() => { const f = frames.board; if (f && f.dataset.ready) f.contentWindow.dispatchEvent(new Event('panel-moved')); });
+        }
+        window.addEventListener('resize', moved);
+        function save() { app.setUi({ full: { np: show.np, chat: show.chat, mid: show.mid } }); }
+
+        /* ---------- over the page: Request, Albums, Call in, Links, Settings ---------- */
+        function openFly(id) {
+            if (fly && fly !== id && frames[fly]) frames[fly].hidden = true;
+            fly = id;
+            const f = frame(id, 'fly');
+            f.hidden = false;
+            $('.one-fly-card').style.width = 'min(94vw, ' + (FLY[id] || 560) + 'px)';
+            $('.one-fly').hidden = false;
+            document.body.classList.add('fly-open');
+            f.focus();
+            tabs(); moved();
+        }
+        function closeFly() {
+            if (!fly) return;
+            if (frames[fly]) frames[fly].hidden = true;
+            fly = '';
+            $('.one-fly').hidden = true;
+            document.body.classList.remove('fly-open');
+            tabs(); moved();
+        }
+
+        /* ---------- what a tab, a button or the tray asks for ---------- */
+        function open(id) {
+            if (id === 'np' || id === 'playlist' || id === 'banner') { if (!show.np) { show.np = true; layout(); save(); } return; }
+            if (id === 'chat') { if (!show.chat) { show.chat = true; layout(); save(); } return; }
+            if (id === 'board' || id === 'hall') { if (show.mid !== id) { show.mid = id; layout(); save(); } return; }
+            if (id === 'tv') {
+                // Off the air the TV button is the station's channel, in the browser.
+                if (!(s.tv && s.tv.live)) { const c = s.extras && s.extras.tv && s.extras.tv.channel; if (c) app.openExternal(c); return; }
+                if (!show.tv) { show.tv = true; layout(); }
+                return;
+            }
+            if (FLY[id]) openFly(id);
+        }
+        function hide(id) {
+            if (id === 'board' || id === 'hall') { if (show.mid === id) show.mid = ''; }
+            else if (id in show) show[id] = false;
+            else if (id === fly) return closeFly();
+            layout(); save();
+        }
+        function toggle(id) {
+            if (FLY[id]) return fly === id ? closeFly() : openFly(id);
+            const on = id === 'board' || id === 'hall' ? show.mid === id : show[id];
+            if (on) hide(id); else open(id);
+        }
+        // For the parts in their frames: "take me back" hides the panel; the board asks if anything covers it.
+        window.onairOne = { close: (id) => (FLY[id] ? closeFly() : hide(id)), covered: () => !!fly || document.body.classList.contains('tv-full') };
+
+        /* ---------- the tabs (the site's top bar) and Now Playing's buttons ---------- */
+        const TABS = ['tv', 'np', 'albums', 'board', 'hall', 'chat', 'interface', 'links', 'settings'];
+        const ICON = { np: '🎶', hall: '🕺' }, NAME = { np: 'Radio', hall: 'blug.dj/jej' };
+        let lastTabs = '';
+        function tabs() {
+            const have = new Set(list.map(el => el.id));
+            if (have.has('chat')) have.add('hall');
+            have.add('np');
+            const els = TABS.filter(id => have.has(id)).map(id => ELEMENTS.find(e => e.id === id) || { id });
+            const label = (el) => NAME[el.id] || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
+            const key = els.map(el => el.id + ':' + label(el)).join(',');
+            const nav = $('.one-tabs');
+            if (key !== lastTabs) {
+                lastTabs = key;
+                nav.innerHTML = els.map(el => '<button type="button" data-el="' + el.id + '" title="' + esc(el.about || label(el)) + '"><span class="e">' + (ICON[el.id] || el.icon) + '</span><span class="l">' + esc(label(el)) + '</span>' +
+                    (el.nsfw ? '<span class="nsfw-tag">NSFW</span>' : '') + '</button>').join('');
+            }
+            for (const b of nav.children) {
+                const id = b.dataset.el;
+                b.classList.toggle('open', id === 'board' || id === 'hall' ? show.mid === id : id in show ? !!show[id] : fly === id);
+                if (id === 'tv') b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !show.tv);
+                if (id === 'chat' && show.chat) b.classList.remove('new');
+            }
+            // Now Playing's own buttons, as on the site.
+            const acts = [['studio', '📞 Call in'], ['request', '🎵 Request'], ['hall', '🕺 blug.dj/jej']].filter(([id]) => have.has(id));
+            const ak = acts.map(a => a[0]).join(',');
+            const box = $('.one-acts');
+            if (box.dataset.k !== ak) { box.dataset.k = ak; box.innerHTML = acts.map(([id, t]) => '<button type="button" class="btn" data-el="' + id + '">' + t + '</button>').join(''); }
+        }
+        function onClick(e) {
+            const b = e.target.closest('button[data-el]');
+            if (b) toggle(b.dataset.el);
+        }
+
+        function mount() {
+            $('.one-tabs').onclick = onClick;
+            $('.one-acts').onclick = (e) => { const b = e.target.closest('button[data-el]'); if (b) open(b.dataset.el); };
+            $('.one-win').onclick = (e) => {
+                const b = e.target.closest('button[data-w]');
+                if (!b) return;
+                if (b.dataset.w === 'layout') app.setUi({ layout: 'windows' });
+                else app.winCmd(b.dataset.w);
+            };
+            $('.one-fly').onclick = (e) => { if (e.target === $('.one-fly') || e.target.closest('.one-fly-x')) closeFly(); };
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && fly) closeFly(); });
+            // The video, full screen: it fills the window (and the window the screen).
+            if (app.onPanelFull) app.onPanelFull((id) => { document.body.classList.toggle('tv-full', id === 'tv'); moved(); });
+            const paintMax = (w) => { const m = $('.one-win [data-w="max"]'); m.textContent = w && w.max ? '🗗' : '▢'; m.title = w && w.max ? 'Restore' : 'Maximise'; document.body.classList.toggle('maxed', !!(w && w.max)); };
+            paintMax(UI.me); app.onWin(paintMax);
+            new ResizeObserver(sizeTv).observe(tvBox());
+            layout();
+        }
+
+        return {
+            markup, mount, open, toggle,
+            /** The station changed: its name, and which tabs it offers. */
+            update(st, available) { s = st; list = available; $('.one-name').textContent = st.name || (UI.info.station && UI.info.station.name) || 'On Air'; tabs(); },
+            /** A new chat line while the chat is hidden: a dot on its tab. */
+            chatNew() { if (!show.chat) { const b = $('.one-tabs [data-el="chat"]'); if (b) b.classList.add('new'); } }
+        };
+    };
+})();

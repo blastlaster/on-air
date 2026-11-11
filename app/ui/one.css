@@ -1,0 +1,94 @@
+/* The one window (one.js): the station's site, as one window of the app.
+   Its own top bar stands in for the window's title bar; the parts are panels. */
+body.one-on .frame > .bar, body.one-on .frame > .grip { display: none; }
+body.one-on .frame { border-radius: 0; border: 0; background: var(--sk-bg, var(--sk-panel-bg)); }
+body.one-on .body { padding: 0; display: block; overflow: hidden; }
+body.one-on .sheet { inset: 0; }
+.one {
+    --np-w: clamp(270px, 23vw, 350px); --side-w: clamp(320px, 28vw, 480px); --np-max: 520px; --gap: 10px;
+    height: 100%; display: flex; flex-direction: column; min-height: 0;
+}
+
+/* ---------- the top bar: the station, the tabs, the sign ---------- */
+.one-head {
+    flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 14px;
+    padding: 6px 6px 6px 14px; background: var(--sk-head-bg); color: var(--sk-head-text);
+    box-shadow: var(--sk-head-shadow, none); -webkit-app-region: drag; user-select: none;
+}
+.one-head button, .one-head .led { -webkit-app-region: no-drag; }
+.one-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.one-name { font-family: var(--sk-title-font); font-weight: bold; font-size: 1.25em; white-space: nowrap; text-shadow: var(--sk-glow, none); }
+.one-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); font-size: 0.8em; white-space: nowrap; }
+.one-pill .count:not(:empty)::before { content: '· '; }
+.one-tabs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; min-width: 0; }
+.one-tabs button {
+    position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; cursor: pointer;
+    font: inherit; font-size: 0.86em; background: var(--sk-btn-bg); color: var(--sk-btn-text);
+    border: var(--sk-btn-border); border-radius: var(--sk-btn-radius, 6px); box-shadow: var(--sk-btn-shadow, none);
+}
+.one-tabs button:hover { filter: brightness(1.15); }
+.one-tabs button.open { background: var(--sk-btn-active); color: var(--sk-btn-active-text, var(--sk-btn-text)); }
+.one-tabs button.new::after, .one-tabs button.pulse::after { content: ''; position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: #ff3d6e; }
+.one-tabs .nsfw-tag { font-size: 0.7em; font-weight: bold; padding: 0 4px; border-radius: 3px; background: #d10032; color: #fff; }
+.one-win { display: flex; gap: 2px; align-self: start; }
+.one-win button {
+    width: 30px; height: 26px; padding: 0; border: 0; border-radius: 5px; cursor: pointer;
+    background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 1; opacity: 0.85;
+}
+.one-win button:hover { background: rgba(255, 255, 255, 0.22); opacity: 1; }
+.one-win button.x:hover { background: #e81123; color: #fff; }
+.one-head .led { grid-column: 1 / -1; height: 30px; border-radius: 4px; overflow: hidden; background: var(--sk-led-bg); position: relative; }
+@media (max-width: 1100px) { .one-tabs .l { display: none; } .one-tabs button { padding: 4px 8px; } }
+@media (max-width: 860px) { .one-pill .count { display: none; } }
+
+/* ---------- the panels ---------- */
+.one-grid { flex: 1; min-height: 0; display: grid; gap: var(--gap); padding: var(--gap); box-sizing: border-box; }
+.one-grid.np-only { justify-content: center; }
+.one-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.one-panel[data-p="np"] { grid-area: np; }
+.one-panel[data-p="mid"] { grid-area: mid; }
+.one-panel[data-p="tv"] { grid-area: tv; }
+.one-panel[data-p="chat"] { grid-area: chat; }
+.one-panel[hidden] { display: none !important; }
+.one-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.one-slot:empty { display: none; }
+.one-frame { flex: 1; min-height: 0; width: 100%; border: 0; display: block; background: transparent; color-scheme: normal; }
+.one-frame[hidden] { display: none; }
+
+/* Now Playing: a card like the other panels, with the playlist under it */
+.one-np {
+    background: var(--sk-panel-bg); color: var(--sk-panel-text); border: var(--sk-panel-border);
+    border-radius: var(--sk-radius); box-shadow: var(--sk-panel-shadow); overflow: hidden;
+}
+.one-h {
+    flex: none; height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+    background: var(--bar-bg); color: var(--bar-text); font-family: var(--sk-title-font); font-weight: bold; font-size: 13px;
+}
+.one-np-in { flex: none; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.one-np .np { flex-direction: column; align-items: stretch; text-align: center; }
+.one-np .art { width: min(100%, 220px); height: auto; aspect-ratio: 1; align-self: center; }
+.one-np .np-main { font-size: 1.15em; }
+.one-np .controls .vol { min-width: 60px; }
+.one-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.one-acts:empty { display: none; }
+.one-acts .btn { flex: 1 1 auto; font-weight: bold; }
+.one-np .one-slot { border-top: var(--sk-card-border); min-height: 160px; }
+/* The playlist's own heading reads as a section of Now Playing */
+.one-np .one-frame { min-height: 160px; }
+
+/* The video over the chat keeps to 16:9 (one.js sets its height); full screen, it fills the window */
+.one-tv { flex: none; }
+body.tv-full .one-panel[data-p="tv"] { position: fixed; inset: 0; z-index: 30; height: auto !important; }
+body.tv-full .one-head { visibility: hidden; }
+
+.one-empty { grid-column: 1 / -1; align-self: center; text-align: center; color: var(--sk-dim); font-size: 1.1em; }
+
+/* ---------- over the page: Request, Albums, Call in, Links, Settings ---------- */
+.one-fly { position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; }
+.one-fly[hidden] { display: none; }
+.one-fly-card { position: relative; height: min(88vh, 900px); display: flex; flex-direction: column; }
+.one-fly-x {
+    position: absolute; top: -12px; right: -8px; z-index: 2; cursor: pointer; font: inherit; font-size: 0.85em; font-weight: bold; padding: 4px 10px;
+    background: var(--sk-btn-active); color: var(--sk-btn-active-text, #fff); border: var(--sk-btn-border); border-radius: 999px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.one-fly .one-slot { flex: 1; }

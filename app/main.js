@@ -69,6 +69,8 @@ const UI_DEFAULTS = {
     holidaySkip: '', holidayTold: '',   // the day you picked your own look instead; the day the radio said so
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)
     travelOn: false,            // the Studio-on-a-server field in Settings → Station (type "mysterioustraveller" on the radio)
+    layout: 'windows',          // 'windows': the radio and its own windows; 'one': one big window laid out like the station's site
+    full: {},                   // the one window: which panels are showing ({ np, chat, tv, mid: 'board' | 'hall' | '' })
     ifaceServer: '',            // green threads server, if not the station's
     ifaceToken: '', ifaceTokenFor: ''   // the station's moderator token, and the server it is for (never sent to the pages)
 };
@@ -228,9 +230,10 @@ async function ensureIcons() {
 // Sizes a window starts at; where it goes after that, it remembers.
 const SIZES = {
     radio: [480, 250], chat: [360, 520], request: [430, 560], playlist: [360, 440], studio: [360, 400],
-    banner: [760, 74], albums: [440, 560], board: [920, 720], tv: [640, 400], links: [380, 520], settings: [470, 620], interface: [940, 760], hall: [900, 640]
+    banner: [760, 74], albums: [440, 560], board: [920, 720], tv: [640, 400], links: [380, 520], settings: [470, 620], interface: [940, 760], hall: [900, 640],
+    full: [1280, 800]
 };
-const MIN = { radio: [300, 150], banner: [240, 44] };
+const MIN = { radio: [300, 150], banner: [240, 44], full: [760, 480] };
 const WEB_PREFS = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false };
 const elWins = new Map();             // element id → BrowserWindow
 let reloading = false, tuckedWithRadio = [], radioReady = false;
@@ -238,6 +241,22 @@ let reloading = false, tuckedWithRadio = [], radioReady = false;
 const prefs = (id) => (cfg.windows[id] = cfg.windows[id] || {});
 const isOurs = (url) => typeof url === 'string' && url.startsWith(APP);
 const allWindows = () => [win, ...elWins.values()].filter(w => w && !w.isDestroyed());
+const oneWin = () => cfg.ui.layout === 'one';
+/* One window: each panel is the same page as its own window would be (win.html?w=chat),
+   in a frame of the main window. It asks, and is answered, as itself. */
+const PANEL_URL = /\/win\.html\?(?:[^#]*&)?w=([a-z]+)/;
+const ourFrames = (wc) => { try { return wc.mainFrame.framesInSubtree.filter(f => isOurs(f.url)); } catch { return []; } };
+const frameOf = (id) => (win && !win.isDestroyed() ? ourFrames(win.webContents).find(f => f !== win.webContents.mainFrame && PANEL_URL.exec(f.url)?.[1] === id) : null) || null;
+const panelOf = (e) => (win && !win.isDestroyed() && e.sender === win.webContents && e.senderFrame && e.senderFrame !== win.webContents.mainFrame ? PANEL_URL.exec(e.senderFrame.url || '')?.[1] || '' : '');
+/** Send to a window by its id: its own window, or its panel in the one window. */
+function sendTo(id, ch, ...a) {
+    const w = elWins.get(id);
+    if (w && !w.isDestroyed()) return w.webContents.send(ch, ...a);
+    const f = frameOf(id);
+    if (f) f.send(ch, ...a);
+}
+/** …and to every page in a window, panels included. */
+const sendAll = (w, ch, ...a) => { for (const f of ourFrames(w.webContents)) f.send(ch, ...a); };
 
 /** Somewhere on a screen that still exists (monitors come and go). */
 function placed(id) {
@@ -296,9 +315,11 @@ function track(id, w) {
 function createWindow(show = true) {
     if (!station()) return showStations();
     if (win) { if (show) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } return win; }
-    win = new BrowserWindow(frameOptions('radio'));
+    const one = oneWin();
+    const w = win = new BrowserWindow(one ? fullOptions() : frameOptions('radio'));
     win.removeMenu();
-    track('radio', win);
+    track(one ? 'full' : 'radio', win);
+    if (one && prefs('full').max) win.maximize();
     const wc = win.webContents;
     guard(wc, true);
     keys(wc);
@@ -312,7 +333,8 @@ function createWindow(show = true) {
         reloading = false;
     });
     radioReady = false;
-    wc.on('did-start-loading', () => { radioReady = false; });
+    // (the main page starting again; the one window's panels load in frames of their own)
+    wc.on('did-start-navigation', (d) => { if (d.isMainFrame && !d.isSameDocument) radioReady = false; });
     wc.on('did-finish-load', () => { radioReady = true; });
     win.loadURL(APP + 'radio.html');
     win.once('ready-to-show', () => { if (show) win.show(); });
@@ -329,8 +351,40 @@ function createWindow(show = true) {
             tip('On Air is still running', 'It keeps playing and watches for live shows. Quit from the tray icon.');
         }
     });
-    win.on('closed', () => { win = null; pageState = null; refreshTray(); });
+    if (one) {
+        const max = () => { prefs('full').max = w.isMaximized(); saveSoon(); sendAll(w, 'win', winInfo('radio')); };
+        w.on('maximize', max); w.on('unmaximize', max);
+    }
+    win.on('closed', () => { if (win === w) { win = null; pageState = null; refreshTray(); } });
     return win;
+}
+
+/** The one window: an ordinary window (its edges resize it), laid out like the station's site. */
+function fullOptions() {
+    const [mw, mh] = MIN.full;
+    return {
+        ...placed('full'), minWidth: mw, minHeight: mh,
+        frame: false, backgroundColor: '#160530', resizable: true, maximizable: true, fullscreenable: true, minimizable: true,
+        show: false, alwaysOnTop: !!(prefs('radio').onTop ?? cfg.ui.onTop),
+        title: (station() && station().name) || 'On Air', icon: iconPath(), autoHideMenuBar: true,
+        webPreferences: { ...WEB_PREFS, nodeIntegrationInSubFrames: true }
+    };
+}
+
+/** Switching between the radio with its windows and the one window: the main window starts again. */
+function relayout() {
+    const old = win;
+    if (!old || old.isDestroyed()) return;
+    const wasPlaying = !!(pageState && pageState.playing), shown = old.isVisible();
+    reloading = true;
+    for (const x of elWins.values()) if (!x.isDestroyed()) x.destroy();
+    elWins.clear();
+    reloading = false;
+    if (boardView) { try { boardView.webContents.close(); } catch { /* gone */ } boardView = null; }
+    win = null;
+    old.destroy();
+    const nw = createWindow(shown);
+    if (nw && wasPlaying) nw.webContents.once('did-finish-load', () => setTimeout(() => { if (win === nw) nw.webContents.send('play'); }, 1200));
 }
 
 /** The radio opened one of its windows (window.open, so it shares the radio's process). */
@@ -401,6 +455,8 @@ const idOf = (wc) => {
     for (const [id, w] of elWins) if (!w.isDestroyed() && w.webContents === wc) return id;
     return '';
 };
+/** Who is asking: a window, or a panel of the one window. */
+const who = (e) => panelOf(e) || idOf(e.sender);
 const winOf = (id) => (id === 'radio' ? win : elWins.get(id));
 
 /** Show or tuck a window (it keeps its place, and whatever it was doing). */
@@ -419,7 +475,7 @@ function setWinPref(id, patch) {
     if ('font' in patch) p.font = patch.font == null ? undefined : String(patch.font);
     if ('rolled' in patch && w) { p.rolled = !!patch.rolled; roll(w, id, p.rolled); }
     saveSoon();
-    if (w && !w.isDestroyed()) w.webContents.send('win', winInfo(id));
+    if (w && !w.isDestroyed()) { if (id === 'radio') sendAll(w, 'win', winInfo(id)); else w.webContents.send('win', winInfo(id)); }
 }
 /** Rolled up: just the title bar (EverQuest-style); unrolled: back to its size. */
 const BAR_H = 32;
@@ -430,17 +486,18 @@ function roll(w, id, up) {
 }
 /** The video, full screen and back to the window exactly as it was. */
 const wasBounds = new WeakMap();
-function fullScreen(w) {
+function fullScreen(w, panel) {
+    const tell = (on) => { if (panel) { sendTo(panel, 'fullscreen', on); w.webContents.send('panel-full', on ? panel : ''); } else w.webContents.send('fullscreen', on); };
     if (wasBounds.has(w)) {
         const b = wasBounds.get(w);
         wasBounds.delete(w);
         w.setFullScreen(false);
-        w.setBounds(b);
-        w.webContents.send('fullscreen', false);
+        if (!panel) w.setBounds(b);
+        tell(false);
     } else {
         wasBounds.set(w, w.getBounds());
         w.setFullScreen(true);
-        w.webContents.send('fullscreen', true);
+        tell(true);
     }
 }
 /* =============================================================
@@ -501,7 +558,7 @@ function openBoard(w, url) {
 /** Right-click in the board: pictures (save, copy, search), links, and text editing. */
 async function boardMenu(w, wc, p) {
     const items = [];
-    const say = (m) => { const iw = winOf('board'); if (iw && !iw.isDestroyed()) iw.webContents.send('toast', m); };
+    const say = (m) => sendTo('board', 'toast', m);
     const save = (u, name) => saveImage(w, u, name, (x, o) => wc.session.fetch(x, o)).then((f) => f && say('Saved ' + f + '.'), (err) => say(err.message));
     if (p.mediaType === 'image' || p.mediaType === 'video') {
         // A 4chan thumbnail links to the full picture; save that, under the name it was posted with.
@@ -573,8 +630,7 @@ function boardPostSent(d) {
                 if (mine.length === 1) {
                     boardPosted.push({ board, thread, no: mine[0].no, at: Date.now() });
                     if (boardPosted.length > 20) boardPosted.shift();
-                    const w = winOf('interface');
-                    if (w && !w.isDestroyed()) w.webContents.send('board-posted');
+                    sendTo('interface', 'board-posted');
                     return;
                 }
             } catch { /* try again */ }
@@ -592,8 +648,8 @@ async function applyBoardTint() {
     if (boardTint) tintKey = await wc.insertCSS('html { filter: ' + boardTint.replace(/[;{}<>]/g, '') + ' !important; }').catch(() => null);
 }
 ipcMain.on('board', (e, cmd, arg) => {
-    if (!(e.senderFrame && isOurs(e.senderFrame.url)) || idOf(e.sender) !== 'board') return;
-    const w = winOf('board');
+    if (!(e.senderFrame && isOurs(e.senderFrame.url)) || who(e) !== 'board') return;
+    const w = oneWin() ? win : winOf('board');
     if (cmd === 'open') return openBoard(w, String(arg || ''));
     if (!boardView) return;
     const wc = boardView.webContents;
@@ -609,10 +665,10 @@ ipcMain.on('board', (e, cmd, arg) => {
 // The listener's userscripts for the board (Tampermonkey-style).
 app.whenReady().then(() => {
     require('./userscripts').setup({ dir: path.join(app.getPath('userData'), 'userscripts'), getView: () => boardView, boardSite })
-        .handlers((e) => !!(e.senderFrame && isOurs(e.senderFrame.url)) && idOf(e.sender) === 'board');
+        .handlers((e) => !!(e.senderFrame && isOurs(e.senderFrame.url)) && who(e) === 'board');
 });
 
-const winInfo = (id) => ({ id, ...prefs(id), onTop: !!(prefs(id).onTop ?? cfg.ui.onTop) });
+const winInfo = (id) => ({ id, ...prefs(id), onTop: !!(prefs(id).onTop ?? cfg.ui.onTop), ...(id === 'radio' && oneWin() ? { one: true, max: !!(win && !win.isDestroyed() && win.isMaximized()) } : {}) });
 
 /** The window menu: right-click a title bar, or its ≡ button. */
 const SKIN_NAMES = () => { try { return JSON.parse(fs.readFileSync(path.join(UI_DIR, 'look-data.js'), 'utf8').replace(/^[\s\S]*?window\.LOOKS = /, '').replace(/;\s*$/, '')).skins; } catch { return []; } };
@@ -1084,7 +1140,7 @@ async function downloadAlbum(sender, job) {
     const st = station();
     let base = cfg.ui.downloads || path.join(app.getPath('music'), safeName(st ? st.name : 'On Air'));
     if (cfg.ui.askWhere) {
-        const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(sender), { title: 'Where should the album go?', defaultPath: base, properties: ['openDirectory', 'createDirectory'] });
+        const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(sender.wc), { title: 'Where should the album go?', defaultPath: base, properties: ['openDirectory', 'createDirectory'] });
         if (r.canceled || !r.filePaths[0]) return { cancelled: true };
         base = r.filePaths[0];
     }
@@ -1131,13 +1187,19 @@ async function downloadAlbum(sender, job) {
    WHAT THE APP'S PAGES MAY ASK
    ============================================================= */
 const fromApp = (e) => !!(e.senderFrame && isOurs(e.senderFrame.url));
+/** Answer later to the page that asked (in the one window, a panel is a frame, not a window of its own). */
+const replyTo = (e) => {
+    const f = e.senderFrame, wc = e.sender;
+    const gone = () => wc.isDestroyed() || !f || (typeof f.isDestroyed === 'function' ? f.isDestroyed() : !!f.detached);
+    return { wc, isDestroyed: gone, send: (...a) => { if (!gone()) f.send(...a); } };
+};
 const handle = (ch, fn) => ipcMain.handle(ch, (e, ...a) => { if (!fromApp(e)) throw new Error('Not allowed.'); return fn(e, ...a); });
 const on = (ch, fn) => ipcMain.on(ch, (e, ...a) => { if (fromApp(e)) fn(e, ...a); });
 
 /* ---------- the Interface window: green posts and green threads ---------- */
 const FUNPOSTERS = 'https://funposters.club/interface/';
 handle('iface-req', async (e, r) => {
-    if (idOf(e.sender) !== 'interface' || !r || typeof r !== 'object') throw new Error('Not allowed.');
+    if (who(e) !== 'interface' || !r || typeof r !== 'object') throw new Error('Not allowed.');
     let url;
     const headers = {};
     if (r.to === 'fp') {
@@ -1194,7 +1256,7 @@ async function stationEngine() {
     return engineSeen.url;
 }
 handle('iface-token', (e, server, token, forStation) => {
-    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    if (who(e) !== 'interface') throw new Error('Not allowed.');
     token = String(token || '').trim();
     cfg.ui.ifaceToken = token;
     cfg.ui.ifaceTokenFor = token ? (forStation ? 'station' : new URL(String(server)).origin) : '';
@@ -1213,7 +1275,7 @@ handle('skip-vote', async (e, musicId) => {
 });
 
 handle('board-posts', (e) => {
-    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    if (who(e) !== 'interface') throw new Error('Not allowed.');
     const fresh = boardPosted.filter(p => Date.now() - p.at < 3600e3);
     boardPosted.length = 0;
     return fresh;
@@ -1246,12 +1308,11 @@ function setHidden(board, ops, from) {
     for (const k of ['t', 'r']) { const ids = Object.keys(b[k]); if (ids.length > HIDE_MAX) for (const id of ids.sort((x, y) => b[k][x] - b[k][y]).slice(0, ids.length - HIDE_MAX)) delete b[k][id]; }
     if (!done.length) return;
     saveSoon();
-    const iw = winOf('interface');
-    if (iw && !iw.isDestroyed() && from !== 'interface') iw.webContents.send('board-hidden', board, b);
+    if (from !== 'interface') sendTo('interface', 'board-hidden', board, b);
     if (boardView && !boardView.webContents.isDestroyed() && from !== 'board') boardView.webContents.send('board-hidden', board, done);
 }
 handle('board-hidden', (e, board, ops) => {
-    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    if (who(e) !== 'interface') throw new Error('Not allowed.');
     if (ops) setHidden(String(board), ops, 'interface');
     return hiddenOf(String(board));
 });
@@ -1277,14 +1338,14 @@ async function saveImage(w, url, name, fetcher = net.fetch) {
     return path.basename(r.filePath);
 }
 handle('save-image', (e, url, name) => {
-    if (idOf(e.sender) !== 'interface') throw new Error('Not allowed.');
+    if (who(e) !== 'interface') throw new Error('Not allowed.');
     return saveImage(BrowserWindow.fromWebContents(e.sender), url, name);
 });
 on('image-menu', (e, url, name) => {
-    if (idOf(e.sender) !== 'interface') return;
+    if (who(e) !== 'interface') return;
     let u; try { u = imageUrlOf(url); } catch { return; }
     const w = BrowserWindow.fromWebContents(e.sender);
-    const say = (m) => { if (!e.sender.isDestroyed()) e.sender.send('toast', m); };
+    const r = replyTo(e), say = (m) => r.send('toast', m);
     Menu.buildFromTemplate([
         { label: 'Save picture as…', click: () => saveImage(w, u.href, name).then((f) => f && say('Saved ' + f + '.'), (err) => say(err.message)) },
         { label: 'Copy picture address', click: () => clipboard.writeText(u.href) },
@@ -1300,12 +1361,11 @@ on('image-menu', (e, url, name) => {
 
 ipcMain.on('board-blocked', (e) => {
     if (!boardView || e.sender !== boardView.webContents) return;
-    const w = winOf('board');
-    if (w && !w.isDestroyed()) w.webContents.send('board-blocked');
+    sendTo('board', 'board-blocked');
 });
 /** A 4chan link the listener copied (from 4chan's verification e-mail), or '' — nothing else is read out. */
 handle('board-clip', (e, anyLink) => {
-    if (idOf(e.sender) !== 'board') throw new Error('Not allowed.');
+    if (who(e) !== 'board') throw new Error('Not allowed.');
     const t = String(clipboard.readText() || '').trim();
     if (t.length > 2000) return '';
     // Watching: only a 4chan link. The paste box (opened by the listener) also shows any other web link, so they see what they copied.
@@ -1313,7 +1373,7 @@ handle('board-clip', (e, anyLink) => {
 });
 
 on('board-goto', (e, url) => {
-    if (idOf(e.sender) !== 'interface') return;
+    if (who(e) !== 'interface') return;
     url = String(url || '');
     if (!/^https:\/\/boards\.4chan(nel)?\.org\//.test(url)) return;
     if (boardView && !boardView.webContents.isDestroyed()) { boardView.webContents.loadURL(url); setVisible('board', true); }
@@ -1330,9 +1390,9 @@ function uiInfo() {
         downloads: cfg.ui.downloads || path.join(app.getPath('music'), safeName(st ? st.name : 'On Air'))
     };
 }
-function broadcastUi() { const u = uiInfo(); for (const w of allWindows()) w.webContents.send('ui', u); }
+function broadcastUi() { const u = uiInfo(); for (const w of allWindows()) sendAll(w, 'ui', u); }
 
-handle('ui', (e) => ({ ...uiInfo(), win: winInfo(idOf(e.sender) || 'radio'), windows: Object.fromEntries(Object.entries(cfg.windows).map(([k, v]) => [k, { open: !!v.open, hidden: !!v.hidden }])) }));
+handle('ui', (e) => ({ ...uiInfo(), win: panelOf(e) ? { ...winInfo('radio'), id: panelOf(e), panel: true, rolled: false } : winInfo(who(e) || 'radio'), windows: Object.fromEntries(Object.entries(cfg.windows).map(([k, v]) => [k, { open: !!v.open, hidden: !!v.hidden }])) }));
 handle('ui-set', (e, patch) => {
     for (const k of Object.keys(patch || {})) {
         if (k === 'alerts') cfg.alerts = !!patch.alerts;
@@ -1340,6 +1400,8 @@ handle('ui-set', (e, patch) => {
         else if (k === 'updates') { cfg.updates = !!patch.updates; if (cfg.updates && updates) updates.check(); }
         else if (k === 'ifaceToken' || k === 'ifaceTokenFor') continue;          // only through iface-token
         else if (k === 'studioSsh') cfg.studioSsh = cleanSsh(patch.studioSsh);
+        else if (k === 'layout') { const l = patch.layout === 'one' ? 'one' : 'windows'; if (l !== cfg.ui.layout) { cfg.ui.layout = l; setTimeout(relayout, 60); } }
+        else if (k === 'full') { const f = patch.full || {}; cfg.ui.full = { np: f.np !== false, chat: f.chat !== false, tv: !!f.tv, mid: ['board', 'hall'].includes(f.mid) ? f.mid : '' }; }
         else if (k in UI_DEFAULTS) cfg.ui[k] = patch[k];
     }
     if ('onTop' in patch) for (const w of allWindows()) { const id = idOf(w.webContents); if (prefs(id).onTop === undefined) w.setAlwaysOnTop(!!cfg.ui.onTop, 'floating'); }
@@ -1354,13 +1416,21 @@ handle('pick-folder', async (e) => {
     cfg.ui.downloads = r.filePaths[0]; save(); broadcastUi();
     return uiInfo();
 });
-on('win-set', (e, patch) => { const id = idOf(e.sender); if (id) setWinPref(id, patch || {}); });
+on('win-set', (e, patch) => { const id = who(e); if (id && !panelOf(e)) setWinPref(id, patch || {}); });
 on('win-cmd', (e, cmd, arg) => {
-    const id = idOf(e.sender), w = winOf(id);
+    const panel = panelOf(e);
+    if (panel) {
+        // A panel of the one window: its menu is the window's; the TV takes the window full screen.
+        if (cmd === 'menu') windowMenu(win, 'radio');
+        else if (cmd === 'fullscreen' && panel === 'tv') fullScreen(win, 'tv');
+        return;
+    }
+    const id = who(e), w = winOf(id);
     if (!id || !w || w.isDestroyed()) return;
     if (cmd === 'menu') windowMenu(w, id);
     else if (cmd === 'tuck') { if (id === 'radio') w.minimize(); else setVisible(id, false); }
     else if (cmd === 'close') w.close();
+    else if (cmd === 'max' && id === 'radio' && oneWin()) { if (w.isMaximized()) w.unmaximize(); else w.maximize(); }
     else if (cmd === 'resize' && arg) {
         const [mw, mh] = MIN[id] || [220, 120];
         const b = w.getBounds();
@@ -1373,7 +1443,7 @@ on('win-cmd', (e, cmd, arg) => {
 });
 // From the radio: show or tuck one of its windows.
 on('open-el', (e, elId) => { if (SIZES[elId] && elId !== 'radio') toPage('open-element', elId); });
-on('element', (e, elId, show) => { if (idOf(e.sender) === 'radio' && SIZES[elId]) setVisible(elId, !!show); });
+on('element', (e, elId, show) => { if (who(e) === 'radio' && SIZES[elId]) setVisible(elId, !!show); });
 handle('get-json', async (e, url) => {
     if (!/^https?:\/\//i.test(String(url))) throw new Error('Not a web address.');
     // Test runs: a station's extras.json from a file, before it is published.
@@ -1385,13 +1455,13 @@ handle('get-json', async (e, url) => {
     // The host's clock too: song times are by the station's clock, not this computer's.
     return { json: JSON.parse(text), date: Date.parse(r.headers.get('date') || '') || 0 };
 });
-handle('download-album', (e, job) => downloadAlbum(e.sender, job || {}));
+handle('download-album', (e, job) => downloadAlbum(replyTo(e), job || {}));
 handle('download-stop', (e, key) => { const d = downloads.get(key); if (d) d.stop(); return !!d; });
 handle('show-folder', (e, dir) => { if (madeFolders.has(dir) || dir === uiInfo().downloads) { fs.mkdirSync(dir, { recursive: true }); return shell.openPath(dir); } return 'Not allowed.'; });
 on('open-external', (e, url) => { if (/^(https?|mailto):/i.test(String(url))) shell.openExternal(String(url)); });
-on('ping', (e, p) => { if (idOf(e.sender) === 'radio' && p && typeof p === 'object') alertPing({ id: String(p.id || ''), at: Number(p.at) || 0, title: p.title, body: p.body }); });
+on('ping', (e, p) => { if (who(e) === 'radio' && p && typeof p === 'object') alertPing({ id: String(p.id || ''), at: Number(p.at) || 0, title: p.title, body: p.body }); });
 on('page-status', (e, s) => {
-    if (idOf(e.sender) !== 'radio') return;
+    if (who(e) !== 'radio') return;
     pageState = s; refreshTray();
     if (win) win.setTitle((s.live ? '● ' : '') + ((station() && station().name) || 'On Air'));
     if (process.env.ONAIR_SMOKE) console.log('[page]', JSON.stringify(s));
@@ -1584,7 +1654,7 @@ function smoke() {
             fs.writeFileSync(f, img.toPNG());
             console.log('[shot]', f, JSON.stringify(w.getBounds()));
         }
-        if (boardView) { const img = await boardView.webContents.capturePage().catch(() => null); if (img) { const f = path.join(E.ONAIR_SMOKE_SHOT, 'board-view.png'); fs.writeFileSync(f, img.toPNG()); console.log('[shot]', f, JSON.stringify(boardView.getBounds())); } }
+        if (boardView) { const img = await boardView.webContents.capturePage().catch(() => null); if (img) { const f = path.join(E.ONAIR_SMOKE_SHOT, 'board-view.png'); fs.writeFileSync(f, img.toPNG()); console.log('[shot]', f, JSON.stringify(boardView.getBounds()), 'visible:', boardView.getVisible()); } }
     }, Number(E.ONAIR_SMOKE_SHOT_AT) || 14000);
     setTimeout(() => { quitting = true; app.quit(); }, Number(E.ONAIR_SMOKE) || 20000);
 }

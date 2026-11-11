@@ -46,17 +46,20 @@
     }
     let lookNow, lookFns = [];
 
-    /** Build the window: a frame with a title bar, a body, and a grip. */
+    /** Build the window: a frame with a title bar, a body, and a grip.
+        A panel of the one window (opts.panel) gets just its heading: the one window moves and closes it. */
     async function init(opts) {
         me = { id: opts.id };
+        const panel = !!opts.panel;
+        if (panel) document.body.classList.add('panel');
         document.body.insertAdjacentHTML('afterbegin',
             '<div class="frame"><div class="bar"><span class="ic"></span><span class="t"></span>' +
-            (opts.barExtra || '') +
+            (opts.barExtra || '') + (panel ? '</div><div class="body"></div></div>' :
             '<button type="button" data-cmd="menu" title="Window options (or right-click the title)">≡</button>' +
             (opts.id === 'radio' ? '' : '<button type="button" data-cmd="roll" title="Roll up to the title bar">▴</button>') +
             '<button type="button" data-cmd="tuck" title="' + (opts.id === 'radio' ? 'Minimise' : 'Tuck into the radio') + '">–</button>' +
             '<button type="button" class="x" data-cmd="close" title="' + (opts.id === 'radio' ? 'Close to the tray' : 'Close') + '">✕</button>' +
-            '</div><div class="body"></div><div class="grip" title="Drag to resize"></div></div>' +
+            '</div><div class="body"></div><div class="grip" title="Drag to resize"></div></div>') +
             '<div class="sheet" hidden><div class="sheet-card"></div></div><div class="toast" role="status"></div>');
         setTitle(opts.title, opts.icon);
         $('.bar').addEventListener('click', (e) => {
@@ -67,7 +70,7 @@
             else app.winCmd(c);
         });
         $('.body').addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, a')) { e.preventDefault(); app.winCmd('menu'); } });
-        grip($('.grip'));
+        if (!panel) grip($('.grip'));
         $('.sheet').addEventListener('click', (e) => { if (e.target === $('.sheet') || e.target.hasAttribute('data-close')) closeSheet(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('.sheet').hidden) closeSheet(); });
 

@@ -7,12 +7,16 @@
     'use strict';
     const app = window.onairApp, { $, esc, clock, mmss } = UI;
     const id = new URLSearchParams(location.search).get('w') || '';
-    const core = window.opener && window.opener.core;
+    // A panel of the one window is a frame in it: the station is its parent's.
+    const panel = window.parent !== window && /[?&]panel=1/.test(location.search);
+    const core = panel ? window.parent.core : window.opener && window.opener.core;
+    // A view that closes itself ("Take me back") hides its panel instead.
+    if (panel) window.close = () => { try { window.parent.onairOne.close(id); } catch { /* not ready */ } };
     const VIEWS = { chat, request, playlist, studio, banner, albums, board, tv, links, settings, interface: (box) => window.IfaceView(box, { app, core }), hall: (box) => window.HallView(box, { app, core }) };
     if (!core || !VIEWS[id]) { window.close(); return; }
     const meta = ELEMENTS.find(e => e.id === id) || { label: id, icon: '' };
     document.body.classList.add('el-' + id);
-    await UI.init({ id, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>'
+    await UI.init({ id, panel, title: meta.label, icon: meta.icon, barExtra: id === 'tv' ? '<button type="button" data-tv="full" title="Fullscreen">⛶</button>'
         : id === 'chat' ? '<button type="button" data-sound></button><button type="button" data-hall title="blug.dj/jej: walk around, dance, and talk out of your character’s mouth">🕺</button>' : '' });
     if (id === 'chat') {
         $('.bar [data-hall]').onclick = () => app.openElement('hall');
@@ -665,10 +669,19 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             const slot = $('.bd', box);
             const place = () => {
                 const r = slot.getBoundingClientRect();
+                // In the one window the view is laid over the whole window, so: where this panel sits in it,
+                // and out of the way while the panel is hidden or something is open over it.
+                let dx = 0, dy = 0, away = false;
+                if (panel) {
+                    const f = window.frameElement, o = f && f.getBoundingClientRect();
+                    if (o) { dx = o.left; dy = o.top; }
+                    away = !o || !o.width || !!(window.parent.onairOne && window.parent.onairOne.covered());
+                }
                 // The view sits above this page, so it steps aside while a sheet (Scripts, the window menu) is open.
-                app.board('bounds', UI.me.rolled || !$('.sheet').hidden ? null : { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) });
+                app.board('bounds', away || UI.me.rolled || !$('.sheet').hidden || !r.width ? null : { x: Math.round(r.left + dx), y: Math.round(r.top + dy), width: Math.round(r.width), height: Math.round(r.height) });
             };
             new ResizeObserver(place).observe(slot);
+            window.addEventListener('panel-moved', place);          // the one window moved its panels about
             new MutationObserver(place).observe($('.sheet'), { attributes: true, attributeFilter: ['hidden'] });
             app.onWin(() => setTimeout(place, 50));
             app.board('open', url);
@@ -869,6 +882,8 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             '<section><h3>Effects</h3><div class="row seg" data-set="fx"><button type="button" class="btn" data-v="simple">Simple</button><button type="button" class="btn" data-v="mid">Mid</button><button type="button" class="btn" data-v="advanced">Advanced</button></div>' +
             '<p class="hint">Simple has no animation at all — best for older computers. Mid adds a little motion; Advanced adds backdrops.</p></section>' +
             '<section><h3>Text size</h3><div class="row seg" data-set="font"><button type="button" class="btn" data-v="small">Small</button><button type="button" class="btn" data-v="normal">Normal</button><button type="button" class="btn" data-v="large">Large</button><button type="button" class="btn" data-v="huge">Larger</button></div></section>' +
+            '<section><h3>Layout</h3><div class="row seg" data-set="layout"><button type="button" class="btn" data-v="windows">Separate windows</button><button type="button" class="btn" data-v="one">One window</button></div>' +
+                '<p class="hint">Separate windows: the little radio, and each part in its own window. One window: everything together, laid out like the station’s site.</p></section>' +
             '<section><h3>Windows</h3><p class="hint">Switch off what you don’t use — its button leaves the radio.</p><div class="els">' +
                 els.map(e => '<label><input type="checkbox" data-el="' + e.id + '"> ' + e.icon + ' ' + esc(e.label) + ' <span class="dim">— ' + esc(e.about) + '</span></label>').join('') + '</div>' +
                 '<label><input type="checkbox" data-ui="onTop"> New windows stay on top of other programs</label>' +

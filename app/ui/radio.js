@@ -8,8 +8,12 @@
     'use strict';
     const app = window.onairApp, core = window.core, { $, esc, mmss } = UI;
     const info = await UI.init({ id: 'radio', title: 'On Air', icon: '' });
+    // Settings → Layout → One window: the same radio, laid out like the station's site with the other parts in it (one.js).
+    const one = info.ui.layout === 'one' ? window.OneWindow({ app, core, $, esc }) : null;
+    document.body.classList.toggle('one-on', !!one);
 
-    $('.body').innerHTML =
+    if (one) $('.body').innerHTML = one.markup;
+    else $('.body').innerHTML =
         '<div class="radio"><div class="main">' +
           '<div class="np"><img class="art" alt="" hidden><div class="np-text">' +
             '<div class="live-line"><span class="light"></span><span class="state">Tuning in…</span><span class="count dim"></span></div>' +
@@ -96,7 +100,7 @@
             '<button type="button" data-c="mute">' + (st.call.muted ? 'Unmute' : 'Mute') + '</button><button type="button" data-c="hang">Hang up</button></div>');
         $('.extra').innerHTML = ex.join('');
         // The LED sign
-        const want = !!(info.ui.bannerInRadio && st.banner && st.banner.on && !(elState.banner === 'open'));
+        const want = !!(st.banner && st.banner.on && (one || (UI.info.ui.bannerInRadio && !(elState.banner === 'open'))));
         if (want && !sign && LT.LedBanner) sign = LT.LedBanner($('.led'));
         if (sign) sign.set(want ? st.banner : { on: false, items: [] });
         tick();
@@ -130,8 +134,8 @@
     const wins = {};                    // id → the Window we opened
     let elState = {};                   // id → 'open' | 'tucked'
     const available = (el) => {
-        if (info.ui.off.includes(el.id) && !el.always) return false;
-        if (el.secret && !info.ui.ifaceOn) return false;
+        if (UI.info.ui.off.includes(el.id) && !el.always) return false;
+        if (el.secret && !UI.info.ui.ifaceOn) return false;
         if (el.hidden) return false;                     // opened from another window (the Hall: from Chat)
         const x = s.extras || {};
         switch (el.needs) {
@@ -146,6 +150,7 @@
     let lastButtons = '', lastFit = '';
     function buttons() {
         const list = ELEMENTS.filter(available);
+        if (one) return one.update(s, list);
         const label = (el) => (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
         const key = list.map(el => el.id + ':' + label(el)).join(',');
         if (key !== lastButtons) {
@@ -161,9 +166,10 @@
             if (elState[id] === 'open' && id === 'chat') b.classList.remove('new');
         }
     }
-    $('.side').onclick = (e) => { const b = e.target.closest('button[data-el]'); if (b) toggle(b.dataset.el); };
+    if (!one) $('.side').onclick = (e) => { const b = e.target.closest('button[data-el]'); if (b) toggle(b.dataset.el); };
 
     function open(id) {
+        if (one) return one.open(id);
         const w = wins[id];
         if (w && !w.closed) { app.element(id, true); return; }
         // Off the air the TV button is the station's channel, in the browser.
@@ -171,6 +177,7 @@
         wins[id] = window.open('win.html?w=' + id, 'el-' + id);
     }
     function toggle(id) {
+        if (one) return one.toggle(id);
         const w = wins[id];
         if (!w || w.closed) return open(id);
         app.element(id, elState[id] !== 'open');
@@ -179,7 +186,7 @@
     app.onOpenElement((id) => open(id));
 
     // New chat while the chat window is away: a dot on its button.
-    core.on('chat', (c) => { if (c.add && elState.chat !== 'open') { const b = $('.side [data-el="chat"]'); if (b) b.classList.add('new'); } });
+    core.on('chat', (c) => { if (!c.add) return; if (one) return one.chatNew(); if (elState.chat !== 'open') { const b = $('.side [data-el="chat"]'); if (b) b.classList.add('new'); } });
     // …and a chime, if it's switched on (only for other people's messages; the radio plays it for every window).
     core.on('chat', (c) => { if (c.add && UI.info.ui.chatSound && c.add.role !== 'system' && c.add.name !== core.name && window.LT && LT.chime) LT.chime(); });
     core.on('toast', (m) => UI.toast(m));
@@ -197,13 +204,13 @@
         typed = (typed + e.key.toLowerCase()).slice(-19);
         if (typed.endsWith('mysterioustraveller')) {
             typed = '';
-            const on = !info.ui.travelOn;
+            const on = !UI.info.ui.travelOn;
             app.setUi({ travelOn: on });
             return UI.toast(on ? '👻 It is a mystery' : '👻 Gone again');
         }
         if (!typed.endsWith('interface')) return;
         typed = '';
-        const on = !info.ui.ifaceOn;
+        const on = !UI.info.ui.ifaceOn;
         app.setUi({ ifaceOn: on });
         UI.toast(on ? '🟩 Interface unlocked' : 'Interface hidden');
         if (on) setTimeout(() => open('interface'), 300);
@@ -212,6 +219,7 @@
     // Small radios drop the button labels, short ones shrink the cover.
     const BTN_MIN = 24;
     const fit = () => {
+        if (one) return;
         document.body.classList.toggle('narrow', window.innerWidth < 330);
         document.body.classList.toggle('short', window.innerHeight < 210);
         // As many buttons to a column as the radio is tall; the rest start a new column.
@@ -232,11 +240,14 @@
     };
     window.addEventListener('resize', fit); fit();
     // …and again whenever the room changes: the sign coming and going, the look's font arriving, a new look.
-    new ResizeObserver(() => fit()).observe($('.radio'));
+    if (!one) new ResizeObserver(() => fit()).observe($('.radio'));
     if (document.fonts) document.fonts.ready.then(fit);
     UI.onLook(() => requestAnimationFrame(fit));
 
+    if (one) one.mount();
     paint(core.state);
+    // The one window brings back its own panels (one.js).
+    if (one) return;
     // The windows that were open last time, back where they were. Not Settings: it was open
     // for a moment's change (or to restart for an update), and nobody needs it back.
     setTimeout(() => {

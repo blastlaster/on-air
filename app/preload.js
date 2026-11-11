@@ -15,6 +15,8 @@ const listen = (ch) => (fn) => {
     return () => ipcRenderer.removeListener(ch, h);
 };
 
+// In the one window the panels are frames, and this runs in every frame (a video or a chat room from the web
+// inside them too): the app answers only its own pages (fromApp in main.js), so the bridge is no use to them.
 contextBridge.exposeInMainWorld('onairApp', {
     isApp: true,
     // Settings, for the whole app and for this window
@@ -24,6 +26,7 @@ contextBridge.exposeInMainWorld('onairApp', {
     setWin: (patch) => ipcRenderer.send('win-set', patch),
     onWin: listen('win'),
     onFullscreen: listen('fullscreen'),
+    onPanelFull: listen('panel-full'),      // the one window: a panel (the video) went full screen
     board: (cmd, arg) => ipcRenderer.send('board', cmd, arg),
     iface: (req) => ipcRenderer.invoke('iface-req', req),
     ifaceToken: (server, token, station) => ipcRenderer.invoke('iface-token', server, token, station),
