@@ -61,7 +61,10 @@
         ['ayy', 5, 'ride', 1, 'the UFO']                // abductions (engine/hall-ayy.js): riding one, you can't be taken
     ];
     const rewardFor = (what, which) => REWARDS.find(r => r[2] === what && r[3] === which) || null;
-    const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };
+    const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };     // these are only a colour: never 'natural'
+    /* The aura colour (every aura takes one; 'natural': each its own, yellow for the ones that are only a colour)
+       goes out with the aura, aura:colour (engine/hall.js AURAS), so everyone sees it. Rainbow is rainbow. */
+    const withColor = (kind, col) => (!kind || kind === 'rainbow' ? kind : col === 'natural' ? (AURA_TINTED[kind] ? kind + ':yellow' : kind) : kind + ':' + col);
     const RAINBOW_BG = 'linear-gradient(90deg,#ff3b6b,#ffe600,#39ff14,#00e5ff,#d14fff)';
     const auraOf = (a) => (a ? ['aura', ...a.split(':')] : null);                      // ['aura', kind, colour?]
     // Stage effects anyone can set off, when the host allows it (engine/hall.js CROWD_BURSTS).
@@ -707,8 +710,8 @@
             hold(v); emojiEl.hidden = true;
         }
         let auraColor = 'yellow';
-        try { auraColor = localStorage.getItem('ltl.hallAuraColor') || 'yellow'; } catch { /* default */ }
-        if (!A.AURA_COLORS[auraColor] && auraColor !== 'rainbow') auraColor = 'yellow';
+        try { auraColor = localStorage.getItem('ltl.hallAuraColor') || 'natural'; } catch { /* default */ }
+        if (!A.AURA_COLORS[auraColor] && auraColor !== 'rainbow' && auraColor !== 'natural') auraColor = 'natural';
         /** Your glowstick (a colour, or '' for none) and your aura ('super:pink', 'ultra', or ''): the room sees both. */
         function setStick(g) {
             glow = g;
@@ -2732,9 +2735,9 @@
                     !unlocked('aura', id)
                         ? (r => '<button type="button" class="btn hl-aura hl-locked" disabled title="' + esc(name) + ': ' + HOW[r[0]] + '">🔒<small>' + pointsOf(r[0]) + '/' + r[1] + ' ' + POINTS[r[0]][1] + '</small></button>')(rewardFor('aura', id))
                         : '<button type="button" class="btn hl-aura" data-aura="' + id + '" title="' + name + '">' + icon + '<small>' + name + '</small></button>').join('') + '</div></div>' +
-                '<div class="hl-row"><span>Aura colour</span><div>' + Object.entries(A.AURA_COLORS).concat([['rainbow', RAINBOW_BG]]).map(([id, c]) =>
-                    '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + id + '" style="background:' + c + '"></button>').join('') +
-                    '<small class="hl-note">for Glow, Super, Charge and Halo rings</small></div></div>' +
+                '<div class="hl-row"><span>Aura colour</span><div>' + [['natural', 'conic-gradient(#ff8fc0 0 25%, #ffb020 0 50%, #5ad0ff 0 75%, #ffffff 0)']].concat(Object.entries(A.AURA_COLORS), [['rainbow', RAINBOW_BG]]).map(([id, c]) =>
+                    '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + (id === 'natural' ? 'Natural (each aura’s own colours)' : id) + '" style="background:' + c + '"></button>').join('') +
+                    '<small class="hl-note">for every aura — Natural keeps each one’s own colours</small></div></div>' +
                 sec('Points') +
                 ['nice', 'ebil', 'ayy'].map(k => {
                     const n = pointsOf(k), next = REWARDS.find(r => r[0] === k && r[1] > n);
@@ -2786,15 +2789,15 @@
             if (st) { setStick(st.dataset.stick); return paintLook(); }
             if (au) {
                 const id = au.dataset.aura;
-                setAura(!id || aura.split(':')[0] === id ? '' : id + (AURA_TINTED[id] ? ':' + auraColor : ''));
+                setAura(!id || aura.split(':')[0] === id ? '' : withColor(id, auraColor));
                 return paintLook();
             }
             if (ac) {
-                // The colour for the auras that take one (and the one you have on, if it does).
+                // The aura colour: for the one you have on now, and the next you pick.
                 auraColor = ac.dataset.auracolor;
                 try { localStorage.setItem('ltl.hallAuraColor', auraColor); } catch { /* full */ }
                 const kind = aura.split(':')[0];
-                if (kind && AURA_TINTED[kind]) setAura(kind + ':' + auraColor);
+                if (kind) setAura(withColor(kind, auraColor));
                 return paintLook();
             }
             const b = e.target.closest('[data-k]'), nc = e.target.closest('[data-nc]');

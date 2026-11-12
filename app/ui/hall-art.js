@@ -717,6 +717,35 @@
        ========================================================= */
     const AURA_COLORS = { yellow: '#ffd34a', green: '#39ff14', pink: '#ff2fd0', cyan: '#00e5ff', orange: '#ff7a00', purple: '#b04fff' };
     const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
+    /* The auras with colours of their own (petals, hearts, fire…) take a colour too: each of theirs moved to its hue
+       (aura() sets shiftHue; null: their own). Whites and greys stay as they are. */
+    let shiftHue = null;
+    const tinted = new Map();
+    function hexHsl(hex) {
+        const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), lt = (mx + mn) / 2, d = mx - mn;
+        if (!d) return [0, 0, lt];
+        const sat = d / (1 - Math.abs(2 * lt - 1));
+        const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return [h * 60, sat, lt];
+    }
+    function hslHexOf(h, sat, lt) {
+        const a = sat * Math.min(lt, 1 - lt), f = (n) => { const k = (n + h / 30) % 12; return Math.round((lt - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255).toString(16).padStart(2, '0'); };
+        return '#' + f(0) + f(8) + f(4);
+    }
+    function P(hex) {
+        if (shiftHue == null) return hex;
+        const key = Math.round(shiftHue) + hex;
+        let out = tinted.get(key);
+        if (!out) {
+            const [, sat, lt] = hexHsl(hex);
+            out = sat < 0.12 ? hex : hslHexOf(shiftHue, Math.max(sat, 0.6), Math.min(lt, 0.8));      // (pale ones a little deeper, to show it)
+            if (tinted.size > 4000) tinted.clear();
+            tinted.set(key, out);
+        }
+        return out;
+    }
+    const PA = (hex, a) => rgba(P(hex), a);
     function auraGlow(x, y, t, c, k) {
         const cy = y - 10, p = 0.8 + 0.2 * Math.sin(t * 3);
         const g = l.createRadialGradient(x, cy, 1, x, cy, 14 * k);
@@ -783,12 +812,12 @@
     }
     /** Dark smoke curling up off you, and a dark pool at your feet (some of the smoke goes in front). */
     function auraShadow(x, y, t, front) {
-        if (!front) { l.fillStyle = 'rgba(20,0,35,0.45)'; l.beginPath(); l.ellipse(x, y, 10, 3, 0, 0, Math.PI * 2); l.fill(); }
+        if (!front) { l.fillStyle = PA('#140023', 0.45); l.beginPath(); l.ellipse(x, y, 10, 3, 0, 0, Math.PI * 2); l.fill(); }
         const n = front ? 6 : 14;
         for (let i = 0; i < n; i++) {
             const s = (t * 0.5 + hash(i + (front ? 40 : 0))) % 1;
             const sx = x + (hash(i + (front ? 9 : 5)) - 0.5) * (front ? 12 : 16) + Math.sin(t * 2 + i) * 3, sy = y - (front ? 4 : 2) - s * (front ? 22 : 30);
-            l.fillStyle = i % 3 || front ? 'rgba(30,5,50,' + (0.6 * (1 - s)) + ')' : 'rgba(140,50,200,' + (0.45 * (1 - s)) + ')';
+            l.fillStyle = i % 3 || front ? PA('#1e0532', (0.6 * (1 - s))) : PA('#8c32c8', (0.45 * (1 - s)));
             l.beginPath(); l.ellipse(sx, sy, 2 + s * 3, 1.5 + s * 2, 0, 0, Math.PI * 2); l.fill();
         }
     }
@@ -814,7 +843,7 @@
     function auraUltra(x, y, t, look, o, trail) {
         // Afterimages first (oldest, faintest), then the edge right round you.
         if (trail && trail.length) {
-            const ghost = silhouette(look, o, '#9cc8ff', 0);
+            const ghost = silhouette(look, o, P('#9cc8ff'), 0);
             l.save(); l.globalCompositeOperation = 'lighter';
             for (const [gx, gy, at] of trail) {
                 const a = 1 - (t - at) / 0.35;
@@ -825,14 +854,14 @@
         }
         const flick = 0.75 + 0.25 * Math.sin(t * 17) * Math.sin(t * 5.3);
         l.save();
-        l.globalAlpha = 0.35 * flick; l.drawImage(silhouette(look, o, '#6aa8ff', 3), Math.round(x - 24), Math.round(y - 40));
-        l.globalAlpha = 0.95 * flick; l.drawImage(silhouette(look, o, '#e8f4ff', 1), Math.round(x - 24), Math.round(y - 40));
+        l.globalAlpha = 0.35 * flick; l.drawImage(silhouette(look, o, P('#6aa8ff'), 3), Math.round(x - 24), Math.round(y - 40));
+        l.globalAlpha = 0.95 * flick; l.drawImage(silhouette(look, o, P('#e8f4ff'), 1), Math.round(x - 24), Math.round(y - 40));
         // A few silver flecks drifting up off you.
         l.globalCompositeOperation = 'lighter';
         for (let i = 0; i < 5; i++) {
             const s = (t * 0.8 + hash(i + 70)) % 1;
             l.globalAlpha = 0.9 * (1 - s);
-            R(x + (hash(i + 71) - 0.5) * 12, y - 6 - s * 20, 1, 1, i % 2 ? '#ffffff' : '#9cc8ff');
+            R(x + (hash(i + 71) - 0.5) * 12, y - 6 - s * 20, 1, 1, i % 2 ? '#ffffff' : P('#9cc8ff'));
         }
         l.restore();
     }
@@ -842,6 +871,7 @@
     function aura(ctx, kind, color, x, y, t, front, look, o, trail) {
         l = ctx;
         const c = color === 'rainbow' ? hslHex((t * 120) % 360) : AURA_COLORS[color] || AURA_COLORS.yellow;
+        shiftHue = color === 'rainbow' ? (t * 120) % 360 : AURA_COLORS[color] ? hexHsl(AURA_COLORS[color])[0] : null;
         if (front) {
             if (kind === 'shadow') auraShadow(x, y, t, true);
             if (kind === 'charge') auraLightning(x, y, t);
@@ -861,7 +891,7 @@
     }
     /** Flower petals blowing past on the wind: some behind you, some in front (front), drifting and turning. */
     function auraPetals(x, y, t, front) {
-        const COL = ['#ffb7d5', '#ff8fc0', '#fff0f6', '#ffd1e4', '#f7a1c4'];
+        const COL = [P('#ffb7d5'), P('#ff8fc0'), P('#fff0f6'), P('#ffd1e4'), P('#f7a1c4')];
         for (let i = front ? 1 : 0; i < 20; i += 2) {
             const k = ((t * (0.45 + (i % 3) * 0.12) + i * 0.137) % 1);           // how far across it's blown
             const px = x - 16 + k * 34 + Math.sin(t * 2 + i) * 1.5;
@@ -1165,7 +1195,7 @@
             const e = Math.cos(dx / (W2 + 1) * Math.PI / 2), hh = (front ? 6 : H2) * e * (0.6 + 0.4 * hash(dx * 3 + tick));
             for (let i = 0; i < hh; i++) {
                 const k = i / Math.max(1, hh);
-                l.fillStyle = k < 0.2 ? 'rgba(255,244,160,0.55)' : k < 0.5 ? 'rgba(255,170,30,0.5)' : k < 0.8 ? 'rgba(255,70,16,0.42)' : 'rgba(160,16,16,0.3)';
+                l.fillStyle = k < 0.2 ? PA('#fff4a0', 0.55) : k < 0.5 ? PA('#ffaa1e', 0.5) : k < 0.8 ? PA('#ff4610', 0.42) : PA('#a01010', 0.3);
                 l.fillRect(Math.round(x + dx + Math.sin(t * 9 + i * 0.5 + dx) * k * 1.5), Math.round(y - 1 - i), 1, 1);
             }
         }
@@ -1173,7 +1203,7 @@
         if (front) return;
         for (let i = 0; i < (big ? 14 : 8); i++) {                                                // embers, then smoke
             const s = (t * 0.9 + hash(i + 5)) % 1;
-            l.globalAlpha = 1 - s; R(x + (hash(i + 9) - 0.5) * W2 * 2.4 + Math.sin(t * 3 + i) * 2, y - 8 - s * H2 * 1.3, 1, 1, i % 2 ? '#ffd040' : '#ff6020');
+            l.globalAlpha = 1 - s; R(x + (hash(i + 9) - 0.5) * W2 * 2.4 + Math.sin(t * 3 + i) * 2, y - 8 - s * H2 * 1.3, 1, 1, i % 2 ? P('#ffd040') : P('#ff6020'));
         }
         l.fillStyle = '#2a2024';
         for (let i = 0; i < 3; i++) { const s = (t * 0.4 + i / 3) % 1; puff(x + Math.sin(t + i * 2) * 4, y - H2 - s * 14, 4 + s * 4, 2 + s * 2, 0.35 * (1 - s)); }
@@ -1185,13 +1215,13 @@
         for (let i = front ? 1 : 0; i < 10; i += 2) {
             const s = (t * 0.5 + hash(i + 20)) % 1;
             l.globalAlpha = Math.min(1, s * 4, (1 - s) * 2);
-            heart(Math.round(x - 10 + hash(i + 21) * 18 + Math.sin(t * 2 + i) * 2), Math.round(y - 4 - s * 26), ['#ff3d6e', '#ff7ca8', '#ffb3c8'][i % 3]);
+            heart(Math.round(x - 10 + hash(i + 21) * 18 + Math.sin(t * 2 + i) * 2), Math.round(y - 4 - s * 26), [P('#ff3d6e'), P('#ff7ca8'), P('#ffb3c8')][i % 3]);
         }
         l.globalAlpha = 1;
     }
     /** Butterflies flitting round you, wings opening and shutting. */
     function auraButterflies(x, y, t, front) {
-        const COL = [['#ffb020', '#ff7a00'], ['#5ad0ff', '#2a7cff'], ['#ff7ccc', '#d14fff']];
+        const COL = [[P('#ffb020'), P('#ff7a00')], [P('#5ad0ff'), P('#2a7cff')], [P('#ff7ccc'), P('#d14fff')]];
         for (let i = 0; i < 3; i++) {
             const a = t * (0.9 + i * 0.2) + i * 2.1, bx = x + Math.cos(a) * 11, by = y - 12 + Math.sin(a * 1.7) * 7;
             if ((Math.sin(a) > 0) !== front) continue;                                      // the near side of the circle in front
@@ -1208,14 +1238,14 @@
             const s = (t * 0.8 + hash(i + 40)) % 1, k = Math.sin(s * Math.PI);
             const sx = x - 12 + hash(i + 41) * 24, sy = y - 26 + hash(i + 42) * 26;
             l.globalAlpha = k; R(sx, sy, 1, 1, '#ffffff');
-            if (k > 0.6) { R(sx - 1, sy, 1, 1, '#fff3a0'); R(sx + 1, sy, 1, 1, '#fff3a0'); R(sx, sy - 1, 1, 1, '#fff3a0'); R(sx, sy + 1, 1, 1, '#fff3a0'); }
+            if (k > 0.6) { R(sx - 1, sy, 1, 1, P('#fff3a0')); R(sx + 1, sy, 1, 1, P('#fff3a0')); R(sx, sy - 1, 1, 1, P('#fff3a0')); R(sx, sy + 1, 1, 1, P('#fff3a0')); }
         }
         l.restore();
         for (let i = 0; i < 2; i++) {
             const a = t * 2 + i * Math.PI;
             if ((Math.sin(a) > 0) !== front) continue;
             const sx = x + Math.cos(a) * 10, sy = y - 10 + Math.sin(a) * 3;
-            R(sx, sy - 1, 1, 3, '#ffd34a'); R(sx - 1, sy, 3, 1, '#ffd34a');
+            R(sx, sy - 1, 1, 3, P('#ffd34a')); R(sx - 1, sy, 3, 1, P('#ffd34a'));
         }
         l.globalAlpha = 1;
     }
@@ -1224,15 +1254,15 @@
         if (!front) {
             const g = l.createLinearGradient(0, 0, 0, y);
             const p = 0.8 + 0.2 * Math.sin(t * 2);
-            g.addColorStop(0, 'rgba(255,248,200,0)'); g.addColorStop(0.6, 'rgba(255,248,200,' + 0.16 * p + ')'); g.addColorStop(1, 'rgba(255,248,200,' + 0.34 * p + ')');
+            g.addColorStop(0, PA('#fff8c8', 0)); g.addColorStop(0.6, PA('#fff8c8', 0.16 * p)); g.addColorStop(1, PA('#fff8c8', 0.34 * p));
             l.save(); l.globalCompositeOperation = 'lighter'; l.fillStyle = g;
             l.beginPath(); l.moveTo(x - 6, 0); l.lineTo(x + 6, 0); l.lineTo(x + 11, y); l.lineTo(x - 11, y); l.fill(); l.restore();
-            auraGlow(x, y, t, '#fff3b0', 1);
+            auraGlow(x, y, t, P('#fff3b0'), 1);
         }
         for (let i = front ? 1 : 0; i < 8; i += 2) {
             const s = (t * 0.25 + hash(i + 60)) % 1, fx = x - 12 + hash(i + 61) * 24 + Math.sin(t * 2 + i) * 3, fy = y - 34 + s * 34;
             l.globalAlpha = Math.min(1, s * 5, (1 - s) * 5);
-            R(fx, fy, 2, 1, '#ffffff'); R(fx + (Math.floor(t * 2 + i) % 2 ? 2 : -1), fy + 1, 1, 1, '#e0e4f5');
+            R(fx, fy, 2, 1, '#ffffff'); R(fx + (Math.floor(t * 2 + i) % 2 ? 2 : -1), fy + 1, 1, 1, P('#e0e4f5'));
         }
         l.globalAlpha = 1;
     }
@@ -1242,14 +1272,14 @@
             const p = 0.6 + 0.4 * Math.sin(t * 4);
             for (let i = 0; i < 14; i++) {
                 const a = i / 14 * Math.PI * 2, r = 8 + hash(i + 80) * 4;
-                l.globalAlpha = p; R(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.3, 2, 1, i % 3 ? '#ff4a10' : '#ffb020');
+                l.globalAlpha = p; R(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.3, 2, 1, i % 3 ? P('#ff4a10') : P('#ffb020'));
             }
-            l.fillStyle = '#5a1010';
+            l.fillStyle = P('#5a1010');
             for (let i = 0; i < 5; i++) { const s = (t * 0.45 + hash(i + 82)) % 1; puff(x + (hash(i + 83) - 0.5) * 16 + Math.sin(t + i) * 3, y - 2 - s * 24, 1.5 + s * 3, 1 + s * 2, 0.3 * (1 - s)); }
         }
         for (let i = front ? 1 : 0; i < 10; i += 2) {
             const s = (t * 1.1 + hash(i + 85)) % 1;
-            l.globalAlpha = 1 - s; R(x + (hash(i + 86) - 0.5) * 18, y - 2 - s * 26, 1, 1, i % 4 ? '#ff6020' : '#ffd040');
+            l.globalAlpha = 1 - s; R(x + (hash(i + 86) - 0.5) * 18, y - 2 - s * 26, 1, 1, i % 4 ? P('#ff6020') : P('#ffd040'));
         }
         l.globalAlpha = 1;
     }
@@ -1259,7 +1289,7 @@
             for (let i = 0; i < 22; i++) {
                 const a = i / 22 * Math.PI * 2;
                 l.globalAlpha = 0.7 + 0.3 * Math.sin(t * 6 + i);
-                R(x + Math.cos(a) * 13, y + Math.sin(a) * 4, 2, 1, i % 2 ? '#ff3a00' : '#ffc030');
+                R(x + Math.cos(a) * 13, y + Math.sin(a) * 4, 2, 1, i % 2 ? P('#ff3a00') : P('#ffc030'));
             }
             l.globalAlpha = 1;
         }
@@ -1273,12 +1303,12 @@
                 const seed = Math.floor(t * 6);
                 let px = x + (hash(seed) - 0.5) * 10, py = cy + 3;
                 l.globalAlpha = 0.95;
-                while (py < y) { R(px, py, 1, 3, '#ff3040'); R(px + 1, py, 1, 1, '#ffd0d0'); px += Math.round(hash(seed + py) * 2 - 1) * 2; py += 3; }
+                while (py < y) { R(px, py, 1, 3, P('#ff3040')); R(px + 1, py, 1, 1, P('#ffd0d0')); px += Math.round(hash(seed + py) * 2 - 1) * 2; py += 3; }
                 l.globalAlpha = 1;
             }
             return;
         }
-        for (let i = 0; i < 9; i++) { const s = (t * 2 + hash(i + 90)) % 1; l.globalAlpha = 0.6; R(x - 9 + hash(i + 91) * 18, cy + 3 + s * (y - cy - 3), 1, 2, '#8fb0d8'); }
+        for (let i = 0; i < 9; i++) { const s = (t * 2 + hash(i + 90)) % 1; l.globalAlpha = 0.6; R(x - 9 + hash(i + 91) * 18, cy + 3 + s * (y - cy - 3), 1, 2, P('#8fb0d8')); }
         l.globalAlpha = 1;
         // The cloud: dark, lit a little on top, rumbling.
         const r = Math.round(Math.sin(t * 9));
