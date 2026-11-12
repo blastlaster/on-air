@@ -69,14 +69,14 @@ listener page, blug.dj/jej). Only you see the answers, unless it says otherwise.
 |---|---|
 | `/nick name` | Your new name (the app keeps it). |
 | `/afk why` · `/brb` | Away: a flag over you in blug.dj/jej, and anyone who mentions you hears so. Saying anything brings you back, and so does `/back`. Ten idle minutes in the room marks you away too. |
-| `/me does a thing` | An action, in italics. |
+| `/me does a thing` | An action everyone sees, in italics. |
 | `/np` | What's playing, and who asked for it. |
 | `/request` | Opens the Request window. |
 | `/who` | Who's here, and who's in blug.dj/jej. |
 | `/ignore name` · `/unignore name` | Hides someone's lines from you (the app remembers the list). |
 | `/wave` `/dance` `/cheer` … | An emote in blug.dj/jej. |
 | `/roll` · `/roll 100` · `/roll 5-10` | A number everyone sees, in bold; dubs and better get cheered. |
-| `/fortune` | Your fortune, the old way, in its colour. |
+| `/fortune` | Your fortune, the old way, in its colour (everyone sees it too). |
 | `/help` | The list. |
 
 ## blug.dj/jej

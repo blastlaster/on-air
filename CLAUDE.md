@@ -218,7 +218,7 @@ JSON messages, one per frame. Field `t` is the type.
 |---|---|---|
 | `welcome` | `id`, `role`, `name`, `chat: [msg]`, `pins: [pin]` | On connect (and again after a guest code: `role: "cohost"`). |
 | `status` | *the whole §4.1 object* | On connect and on every change (push; the app doesn't poll while connected). |
-| `chat` | `msg: { id, name, text, role, color, at, hid?, me?, dice?, tint?, mine? }` | `role`: `listener`, `host`, `cohost`, `request`, `system`. `hid`: a blug.dj/jej speaker; `me`: a `/me` action (italics); `dice`: a `/roll` or `/fortune` line (bold, in `tint` when given); `mine`: a command's answer for this person only (never saved). |
+| `chat` | `msg: { id, name, text, role, color, ts, hid?, me?, dice?, tint?, mine? }` | `role`: `listener`, `host`, `cohost`, `request`, `system`. `hid`: a blug.dj/jej speaker; `me`: a `/me` action (italics); `dice`: a `/roll` or `/fortune` line (bold, in `tint` when given); `mine`: a command's answer for this person only (never saved). |
 | `chat-hide` | `id` | Remove a message. |
 | `chat-pins` | `pins: [{ id, name, text, at }]` | Up to 5 pinned notes (simple `**bold**`, `*italic*`, `[link](https://…)`). |
 | `named` | `name`, `role`, `nick?` | Name accepted. `nick`: it came from `/nick`, so the app keeps it as its name. |
@@ -319,11 +319,13 @@ the rest. Chat is the station's own `chat` — tag a Hall member's message with
 
 | app → engine | engine → app |
 |---|---|
-| `hall-join {look}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer clap point spin headbang sleep` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n, c}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
+| `hall-join {look, v}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer clap point spin headbang sleep` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n, c}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
 
 `look` = `{ skin 0–12, hair 0–6, hairColor 0–8, shirt 0–9, pants 0–5, extra 0–16, top 0–5, face 0–5, back 0–6, ride 0–1 }`
-(`back`: wings, tails, capes; `ride`: the UFO); a person is `{ h, n, c, l, x, y, e, o, f, s, g, a, afk }`
-(name colour, what they hold, feeling, safe from hits, glowstick, aura, away). `air.talking`: someone is talking on air
+(`back`: wings, tails, capes; `ride`: the UFO); a person is `{ h, n, c, l, x, y, e, o, f, s, g, a, star, afk }`
+(name colour, what they hold, feeling, safe from hits, glowstick, aura, ms left of the Burgertime winner's star, away).
+`v` in `hall-join` is the app's room version: the engine leaves older rooms out of what they can't show
+(Dodgeball from 2, Burgertime from 4, duels from 3, the UFO taking you from 5). `air.talking`: someone is talking on air
 (the studio's voice meter); `air.music`: music is playing. Guards: a cap on
 people (40), walking sent in one batch a few times a second and only when
 someone moved, per-person limits on moves, emotes and looks, and all of it
@@ -333,7 +335,7 @@ Rock paper scissors, watched by the whole room: `hall-rps {to}` challenges,
 `hall-rps-answer {id, ok}`, `hall-rps-pick {id, pick}` (`rock paper scissors`);
 the engine sends everyone `hall-rps {id, a, b, state}` (`asked`, `picking`, then
 `done` with `picks` and `win` — the winner's id, `''` for a draw — or `declined`,
-`expired`, `gone`), and lists games in progress in `hall-welcome.games`. Keep picks
+`expired`, `gone`; `hall-rps-again {id}` asks for a rematch, sent on to everyone as `{id, h}`), and lists games in progress in `hall-welcome.games`. Keep picks
 secret until both are in. One game per person, 20 s to answer, 15 s to pick, a few
 seconds between challenges, a cap on games at once.
 
@@ -348,7 +350,7 @@ The rest is optional, and the app hides what a station doesn't send:
 | Duels, best of three | `hall-duel {to}` · `hall-duel-answer {id, ok}` · `hall-duel-quit {id}` | `hall-duel {…}` · `hall-duel-del {id}` |
 | Board games at tables | `hall-table-new {g, n}` · `-sit` · `-stand` · `-move {id, m}` · `-again` | `hall-table {table}` · `hall-table-del {id}` |
 | Hot potato (giving a 💣 lights it; a pass is a give) | `hall-give` | `hall-bomb {h, from, left, n}`, then `{boom}` or `{fizzle}` |
-| "ayy lmao" in chat: alien heads, sometimes a UFO | — | `hall-ayy {rain, ufo?}` · `hall-ayy {back, x, y}` |
+| "ayy lmao" in chat: alien heads, sometimes a UFO | — | `hall-ayy {rain, ufo?: {h, x, y}}` (`h` is taken; five times unlocks `ride` 1, whose riders it never takes) · `hall-ayy {back, x, y}` |
 | Stage effects and bursts | `hall-fx {k}` | `hall-fx {k, h}` (and `air.fx`) |
 | Who's on the line (the speaker boxes) | — | `hall-booth {host, calls, vm}` |
 | Host events: Dodgeball, Burgertime | `hall-db-*` · `hall-bt-tech` | `hall-db*` · `hall-bt*` |
