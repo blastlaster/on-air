@@ -24,6 +24,7 @@
     /** Your look in the Hall, if you've been there: it goes with a call or a voicemail, for the speaker box. */
     const hallLook = () => { try { const l = JSON.parse(pref('hallLook', 'null')); return l && typeof l === 'object' ? l : null; } catch { return null; } };
     const trim = (s) => String(s || '').trim();
+    const REQ_CMD = /^\/(request|req|r)(\s|$)/i;
     /** Whose messages you've hidden (/ignore), lower case. */
     const ignored = () => { try { const a = JSON.parse(pref('ignore', '[]')); return Array.isArray(a) ? a : []; } catch { return []; } };
     /** A chat line's words as HTML: /me in italics; /roll and /fortune (the station's own) in bold, in their colour. */
@@ -665,7 +666,14 @@
         play, stop, streamLag, toggle: () => (player.playing ? stop() : album.now && !album.audio.paused ? album.toggle() : play()), setVolume,
         vote, hasVoted,
         send, setName,
-        chatSend(text) { return send({ t: 'chat', text }); },
+        chatSend(text) {
+            if (REQ_CMD.test(text)) {                     // /request: the request window (engine/chat-commands.js)
+                if (!requestMode()) toast('Requests are closed right now.');
+                else if (app && app.openElement) app.openElement('request');
+                return true;
+            }
+            return send({ t: 'chat', text });
+        },
         request(o) { return send({ t: 'request', ...o }); },
         startCall, endCall, mute, checkIn, level: () => (call ? call.level() : 0),
         album: {
