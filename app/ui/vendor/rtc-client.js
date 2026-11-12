@@ -280,7 +280,7 @@
     };
     /** Chat text as HTML: links clickable, and a line starting with > in green (4chan's greentext; >>quotes stay as they are). */
     LT.chatHtml = function (raw) {
-        var html = LT.emoteHtml(LT.linkText(raw));
+        var html = LT.emoteHtml(LT.linkText(LT.emojiCodes(raw)));      // codes sent as typed (an older app) show too
         return /^\s*>(?!>)/.test(String(raw || '')) ? '<span style="color:#8cc63f">' + html + '</span>' : html;
     };
 
@@ -300,7 +300,7 @@
         cat: '🐈', dog: '🐕', pig: '🐖', monkey: '🐒', see_no_evil: '🙈', snake: '🐍', rocket: '🚀', boom: '💥', bomb: '💣', money: '💰',
         gem: '💎', crown: '👑', trophy: '🏆', guitar: '🎸', mic: '🎤', radio: '📻', tv: '📺', computer: '💻', gun: '🔫', hammer: '🔨',
         sword: '🗡️', shield: '🛡️', rose: '🌹', sun: '☀️', moon: '🌙', rainbow: '🌈', snowflake: '❄️', snowman: '⛄', warning: '⚠️',
-        check: '✅', x: '❌', salt: '🧂', cap: '🧢', ok: '🆗', dice: '🎲', checkered_flag: '🏁', headphones: '🎧', dancer: '💃', bonk: '🔨'
+        check: '✅', x: '❌', salt: '🧂', cap: '🧢', ok: '🆗', dice: '🎲', checkered_flag: '🏁', headphones: '🎧', dancer: '💃', bonk: '🔨', tm: '™️'
     };
     LT.emojiCodes = function (text) {
         return String(text || '').replace(/:([a-z0-9_+\-]{1,30}):/gi, function (m, k) {

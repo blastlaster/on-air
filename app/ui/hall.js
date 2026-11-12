@@ -70,6 +70,10 @@
     // 🧴 is a bottle of water: drawn by hand (there's no water-bottle emoji before Unicode 13; Windows 10 would show a box).
     const WATER = '🧴', HOLD_NAME = { [WATER]: 'a bottle of water' };
     const holdName = (o) => HOLD_NAME[o] || o;
+    // Anything can be held: one emoji, or a station emote as ':name:' (the same test as engine/hall.js holdable()).
+    const ONE_EMOJI = /^(?:\p{RI}\p{RI}|[#*0-9]️?⃣|\p{Extended_Pictographic}️?\p{EMod}?(?:[\u{E0020}-\u{E007E}]+\u{E007F})?(?:‍\p{Extended_Pictographic}️?\p{EMod}?)*)$/u;
+    const READS = /^[©®™#*0-9\u{1F1E6}-\u{1F1FF}]/u;          // letters and flags: never drawn mirrored
+    const emoteKey = (o) => { const m = /^:([a-z0-9_]{2,30}):$/.exec(o || ''); return m ? m[1] : ''; };
     /** The bottle of water, (cx, cy) its middle, px a pixel: clear plastic, water two-thirds up, a blue cap and label. */
     function waterBottle(ctx, cx, cy, px) {
         const rows = ['  cc  ', '  cc  ', ' nnnn ', 'bbbbbb', 'bhbbbb', 'bhbbbb', 'wwwwww', 'LLLLLL', 'LLLLLL', 'whwwww', 'wwwwww', 'wwwwww', ' wwww '];
@@ -506,7 +510,7 @@
             if (m.id) li.dataset.mid = m.id;
             if (cls) li.className = cls;
             // Links you can click (they open in a new tab, or the browser in the app); the game lines are plain.
-            const text = !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text);
+            const text = !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : window.LT && LT.emoteHtml ? LT.emoteHtml(esc(m.text)) : esc(m.text);
             li.innerHTML = (m.ts ? '<span class="hl-when">' + lineTime(m.ts) + '</span>' : '') + (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
             logEl.appendChild(li);
             while (logEl.children.length > 150) logEl.removeChild(logEl.firstChild);
@@ -617,19 +621,40 @@
             const feel = (mine() || {}).f || '';
             const pics = stationEmotes();
             const tab = (id, label) => '<button type="button" class="btn' + (emojiTab === id ? ' on' : '') + '" data-tab="' + id + '">' + label + '</button>';
-            const emo = (e, on) => '<button type="button" class="he-e' + (on ? ' on' : '') + '" data-em="' + e + '"' + (e === WATER ? ' title="Bottle of water">' + waterImg() : '>' + e) + '</button>';
+            const emo = (e, on) => '<button type="button" class="he-e' + (on ? ' on' : '') + '" data-em="' + esc(e) + '"' + (e === WATER ? ' title="Bottle of water">' + waterImg() : '>' + esc(e)) + '</button>';
+            const pic = (k, on) => '<button type="button" class="he-e he-pic' + (on ? ' on' : '') + '" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>';
             emojiEl.innerHTML = '<div class="he-tabs">' + tab('say', '😀 Emote') + tab('hold', '✋ Hold') + tab('feel', '😊 Feel') +
-                (held ? '<button type="button" class="btn" data-drop>Drop ' + (held === WATER ? waterImg() : held) + '</button>' : '') +
+                (held ? '<button type="button" class="btn" data-drop>Drop ' + heldHtml(held) + '</button>' : '') +
                 '<span class="he-hint">' + (emojiTab === 'hold' ? 'Carry it around — everyone sees it' : emojiTab === 'feel' ? 'Your face shows it (pick again to stop)' : 'Adds it to what you’re typing') + '</span>' +
                 '<button type="button" class="btn he-x" data-close title="Close">✕</button></div>' +
                 '<div class="he-grid">' + (emojiTab === 'feel'
                     ? MOODS.map(([id, icon]) => '<button type="button" class="he-e' + (id === feel ? ' on' : '') + '" data-mood="' + id + '" title="' + id + '">' + icon + '</button>').join('')
-                    : emojiTab === 'hold' ? HOLDS.map(e => emo(e, e === held)).join('')
+                    // Hold: any emoji at all (typed or pasted), the station's pictures, things, then every other emoji there's a button for.
+                    : emojiTab === 'hold' ? '<form class="he-any" data-any><input maxlength="40" placeholder="Any emoji, or a :code:" autocomplete="off"><button class="btn">✋ Hold it</button></form>' +
+                        (pics.length ? '<div class="he-sub">Memeoji</div>' + pics.map(k => pic(k, ':' + k + ':' === held)).join('') : '') +
+                        '<div class="he-sub">Things</div>' + HOLDS.map(e => emo(e, e === held)).join('') +
+                        '<div class="he-sub">More</div>' + moreEmoji().map(e => emo(e, e === held)).join('')
                     // Emote: the station's own pictures first, then the emoji.
-                    : (pics.length ? '<div class="he-sub">Memeoji</div>' + pics.map(k => '<button type="button" class="he-e he-pic" data-em=":' + esc(k) + ':" title=":' + esc(k) + ':"><img alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '"></button>').join('') +
+                    : (pics.length ? '<div class="he-sub">Memeoji</div>' + pics.map(k => pic(k, false)).join('') +
                         '<div class="he-sub">Emoji</div>' : '') + SAY.concat(HOLDS.filter(e => e !== WATER)).map(e => emo(e, false)).join('')) + '</div>';
         }
         const stationEmotes = () => Object.keys((window.LT && LT.EMOTES) || {});
+        /** Every emoji with a button that isn't among the things to hold: the Emote tab's, then the chat's :codes: (™ too). */
+        const moreEmoji = () => [...new Set(SAY.concat(Object.values((window.LT && LT.EMOJI) || {})))].filter(e => !HOLDS.includes(e) && ONE_EMOJI.test(e));
+        /** What someone's holding, as HTML (the bottle and the station's pictures are pictures). */
+        function heldHtml(o) {
+            const k = emoteKey(o);
+            if (o === WATER) return waterImg();
+            if (k && window.LT && LT.EMOTES && LT.EMOTES[k]) return '<img class="he-held" alt=":' + esc(k) + ':" src="' + esc(LT.EMOTES[k]) + '">';
+            return esc(o);
+        }
+        /** The Hold tab's box: one emoji, or a :code: (a station emote, or a chat code like :tm:). */
+        function holdTyped(raw) {
+            const t = String(raw || '').trim(), k = emoteKey(t.toLowerCase());
+            const v = k && stationEmotes().includes(k) ? ':' + k + ':' : window.LT && LT.emojiCodes ? LT.emojiCodes(t).trim() : t;
+            if (!emoteKey(v) && !ONE_EMOJI.test(v)) return U.toast('One emoji (or a :code:) to hold.');
+            hold(v); emojiEl.hidden = true;
+        }
         let auraColor = 'yellow';
         try { auraColor = localStorage.getItem('ltl.hallAuraColor') || 'yellow'; } catch { /* default */ }
         if (!A.AURA_COLORS[auraColor] && auraColor !== 'rainbow') auraColor = 'yellow';
@@ -653,6 +678,11 @@
             core.send({ t: 'hall-hold', o });
             paintEmoji();
         }
+        emojiEl.addEventListener('submit', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const f = e.target.closest('[data-any]');
+            if (f) holdTyped($('input', f).value);
+        });
         emojiEl.addEventListener('click', (e) => {
             e.stopPropagation();
             const t = e.target.closest('[data-tab]'), em = e.target.closest('[data-em]');
@@ -699,9 +729,11 @@
                 const lit = p.o === BOMB && bomb && bomb.h === p.h, red = lit && bombBlink(x, y, fs, now());
                 ctx.save();
                 ctx.translate(Math.round(x), Math.round(y));
-                ctx.scale(-f, 1);                     // emoji face left; turn them the way their holder faces
+                const k = emoteKey(p.o), pic = k && emotePic(k);
+                if (!pic && !READS.test(p.o)) ctx.scale(-f, 1);   // emoji face left; turn them the way their holder faces (not ™, flags or pictures)
                 if (p.o === WATER) waterBottle(ctx, 0, 0, Math.max(1, Math.round(fs / 13)));
-                else ctx.fillText(p.o, 0, 0);
+                else if (pic) { if (pic.complete && pic.naturalWidth) { const ph = fs * 1.4, pw = Math.min(ph * 1.5, ph * pic.naturalWidth / pic.naturalHeight); ctx.drawImage(pic, Math.round(-pw / 2), Math.round(-ph / 2), Math.round(pw), Math.round(ph)); } }
+                else if (!k) ctx.fillText(p.o, 0, 0);
                 if (red) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ff1a1a'; ctx.beginPath(); ctx.arc(0, fs * 0.08, fs * 0.36, 0, Math.PI * 2); ctx.fill(); }
                 if (lit) { ctx.globalAlpha = 1; ctx.fillStyle = Math.floor(now() * 20) % 2 ? '#fff3a0' : '#ff9a20'; ctx.fillRect(Math.round(fs * 0.22), Math.round(-fs * 0.5), Math.max(2, Math.round(fs / 7)), Math.max(2, Math.round(fs / 7))); }
                 ctx.restore();
@@ -1011,7 +1043,7 @@
             const their = tableOf(q.h);
             const mineHeld = (mine() || {}).o;
             popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
-                (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + mineHeld) + '</button>' : '') +
+                (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
                 '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
                     ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
@@ -1994,6 +2026,9 @@
         listen('keyup', (e) => { keys.delete(e.key.toLowerCase()); if (keymap.dash && keyNorm(e.key) === keymap.dash) sprintKey = false; });
         listen('blur', () => { keys.clear(); sprintKey = false; });
 
+        // Stretch (⛶ in the actions, remembered): the room fills the whole stage, out of shape if it must.
+        let stretch = false;
+        try { stretch = localStorage.getItem('ltl.hallStretch') === '1'; } catch { /* default */ }
         /* ---------- actions: in a panel beside the room (between it and the chat) or along the bottom,
            with keys you choose (⌨, then click one and press a key) ---------- */
         const ACTIONS = [
@@ -2005,7 +2040,8 @@
             { id: 'emoji', icon: '😀', name: 'Emoji, things to hold, feelings and glowsticks', run: () => toggleEmoji() },
             { id: 'boards', icon: '🎲', name: 'Board games', run: () => toggleGames() },
             { id: 'chat', icon: '💬', name: 'Show or hide the chat', run: () => toggleChat() },
-            { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() }
+            { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() },
+            { id: 'stretch', icon: '⛶', name: 'Stretch the room to fill the space (again: keep its shape)', run: () => toggleStretch() }
         ];
         const KEYS0 = Object.fromEntries([...EMOTES.map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
         const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
@@ -2027,7 +2063,7 @@
             const fighting = !!duelOf(me);
             actsEl.innerHTML = ACTIONS.filter(a => !a.duel || (fighting && !touch)).map(a => {         // on a phone they're the big buttons
                 const k = keymap[a.id];
-                return '<button type="button" class="btn" data-act="' + a.id + '" title="' + esc(a.name) + (k ? ' (' + esc(keyName(k)) + ')' : '') + '">' + a.icon +
+                return '<button type="button" class="btn' + (a.id === 'stretch' && stretch ? ' on' : '') + '" data-act="' + a.id + '" title="' + esc(a.name) + (k ? ' (' + esc(keyName(k)) + ')' : '') + '">' + a.icon +
                     (k || editingKeys ? '<kbd>' + (waitKey === a.id ? '…' : k ? esc(keyShort(k)) : '+') + '</kbd>' : '') + '</button>';
             }).join('') +
                 '<button type="button" class="btn ha-tool' + (editingKeys ? ' on' : '') + '" data-keys title="Choose your keys: press this, click an action, then press a key">⌨</button>' +
@@ -2080,6 +2116,12 @@
         function toggleGames() {
             gamesEl.hidden = !gamesEl.hidden;
             if (!gamesEl.hidden) { const t = [...tables.values()].find(tb => tb.state !== 'done' && seatOf(tb) >= 0); view = t ? t.id : ''; paintGames(); }
+        }
+        function toggleStretch() {
+            stretch = !stretch;
+            try { localStorage.setItem('ltl.hallStretch', stretch ? '1' : '0'); } catch { /* full */ }
+            fit(); paintActs();
+            U.toast(stretch ? 'The room stretches to fill the space' : 'The room keeps its shape');
         }
         function toggleChat() {
             chatOn = !chatOn; logBox.hidden = !chatOn; layoutChat();
@@ -2187,12 +2229,13 @@
             // The room's space: the stage less any padding (the chat column takes some when the window is wide).
             const r = stage.getBoundingClientRect(), cs = getComputedStyle(stage);
             const w = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), hgt = r.height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-            let k = Math.min(w / A.W, hgt / A.H);
-            if (k >= 2) k = Math.floor(k);                                  // whole pixels when there's room
-            scale = Math.max(0.5, k);
+            // As big as fits: the full width unless the stage is too short for it (no rounding down to whole
+            // pixels, which left a wide margin; the room is drawn small and blown up without smoothing, so it stays crisp).
+            scale = Math.max(0.5, Math.min(w / A.W, hgt / A.H));
             dpr = Math.min(2, window.devicePixelRatio || 1);
-            cv.style.width = Math.round(A.W * scale) + 'px';
-            cv.style.height = Math.round(A.H * scale) + 'px';
+            // Stretched, the canvas keeps the room's shape inside and the page pulls it out to the stage's.
+            cv.style.width = Math.round(stretch ? Math.max(w, A.W * 0.5) : A.W * scale) + 'px';
+            cv.style.height = Math.round(stretch ? Math.max(hgt, A.H * 0.5) : A.H * scale) + 'px';
             cv.width = Math.round(A.W * scale * dpr);
             cv.height = Math.round(A.H * scale * dpr);
         }
@@ -2264,8 +2307,8 @@
                 tvEl.hidden = !want;
             }
             if (!want) return false;
-            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, S = A.screenAt(screenLive, tvK);
-            const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * k) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * k) + 'px';
+            const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, ky = r.height / A.H, S = A.screenAt(screenLive, tvK);
+            const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * ky) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * ky) + 'px';
             if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
             return true;
         }
