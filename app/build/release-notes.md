@@ -1,4 +1,3 @@
-## What's new in 0.5.41
+## What's new in 0.5.42
 
-- **Aura colours:** every aura in blug.dj/jej now takes a colour (🎨 Look → Aura colour), Flower petals, Hearts, Fire and the rest included, and everyone in the room sees it. Natural keeps each aura's own colours.
-- **One window:** [s4s] no longer says "This station has no board" when the app starts with it showing, or when it moves under Now Playing. It waits for the station and opens.
+- **Interface:** your level shows again in One window. The Interface opens with the app there, before the station is known, and it now asks for your level once it is (and your 4chan replies' checks are looked up then too).
