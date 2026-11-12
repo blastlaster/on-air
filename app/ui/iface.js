@@ -331,7 +331,8 @@
             else if (v === 'reports') { $('.if-main', box).innerHTML = '<p class="dim if-load">Loading reports…</p>'; refresh(false); }
         }
 
-        // One list: the board's threads and the green threads, by last bump (or green first).
+        // One list: the green threads pinned at the top (by last bump), then the board's threads, by last bump
+        // (or the ones with green posts first).
         function threads() {
             const b = boardName();
             const list = catalog.map(t => ({
@@ -343,7 +344,7 @@
                 gcount: t.replies + 1, green: true, name: t.name, expires: t.expires, last: t.last || []
             })));
             for (const t of list) t.lit = t.green || t.gcount > 0;
-            list.sort((x, y) => (prefs.sort === 'green' ? (y.lit - x.lit) : 0) || (y.sticky - x.sticky) || (y.bumped - x.bumped));
+            list.sort((x, y) => (!!y.green - !!x.green) || (prefs.sort === 'green' ? (y.lit - x.lit) : 0) || (y.sticky - x.sticky) || (y.bumped - x.bumped));
             return list;
         }
 

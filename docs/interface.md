@@ -42,7 +42,7 @@ Along the top:
 | | |
 |---|---|
 | **Threads · ★ · Archive** | Everything; the threads you watch (with a count of new replies); green threads that died. Moderators also get **Reports**. |
-| **Bump order / Green on top** | Mixed by last bump, or everything green first. |
+| **Bump order / Green on top** | Green threads are always pinned at the top. Below them, the board's threads by last bump, or the ones with green posts first. |
 | **Green only** | Hide the rest. |
 | **Search** | Find threads by subject, text or number (Esc clears it). |
 | **Fade** | How far threads with nothing green fade. Hover one to see it clearly. |
