@@ -24,6 +24,15 @@
     /** Your look in the Hall, if you've been there: it goes with a call or a voicemail, for the speaker box. */
     const hallLook = () => { try { const l = JSON.parse(pref('hallLook', 'null')); return l && typeof l === 'object' ? l : null; } catch { return null; } };
     const trim = (s) => String(s || '').trim();
+    /** Whose messages you've hidden (/ignore), lower case. */
+    const ignored = () => { try { const a = JSON.parse(pref('ignore', '[]')); return Array.isArray(a) ? a : []; } catch { return []; } };
+    /** A chat line's words as HTML: /me in italics; /roll and /fortune (the station's own) in bold, in their colour. */
+    LT.lineHtml = (m) => {
+        const h = LT.chatHtml ? LT.chatHtml(m.text) : String(m.text).replace(/[&<>"']/g, (ch) => '&#' + ch.charCodeAt(0) + ';');
+        if (m.me) return '<i>' + h + '</i>';
+        if (m.dice) return '<strong' + (/^#[0-9a-f]{6}$/i.test(m.tint || '') ? ' style="color:' + m.tint + '"' : '') + '>' + h + '</strong>';
+        return h;
+    };
     const sameJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
     /* ---------- who is listening (windows come and go) ---------- */
@@ -123,7 +132,8 @@
     function onMessage(m) {
         switch (m.t) {
             case 'welcome':
-                chat = (m.chat || []).slice(-150);
+                if (ignored().length) send({ t: 'ignore', names: ignored() });        // /ignore (engine/chat-commands.js)
+                chat = (m.chat || []).filter(x => !ignored().includes(String(x.name || '').toLowerCase())).slice(-150);
                 emit('chat', { reset: chat });
                 if (m.pins) { gotPins = true; setPins(m.pins); }
                 if (m.role === 'cohost' && pendingPassCall) { pendingPassCall = false; startCall(true); }
@@ -142,6 +152,7 @@
             case 'chat-hide': chat = chat.filter(x => x.id !== m.id); emit('chat', { hide: m.id }); break;
             case 'chat-pins': gotPins = true; setPins(m.pins); break;
             case 'chat-pin': if (!gotPins) setPins(m.msg ? [m.msg] : []); break;
+            case 'ignore': setPref('ignore', JSON.stringify(m.names || [])); break;
             case 'named': myName = m.name; if (m.nick) setPref('name', m.name); render(); break;      // nick: /nick (engine/chat-commands.js)
             case 'call': onCall(m); break;
             case 'rtc': if (call) call.onRtc(m.data); break;

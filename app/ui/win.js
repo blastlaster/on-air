@@ -68,7 +68,7 @@
             if (m.role === 'system') li.innerHTML = '<span class="sys">' + esc(m.text) + '</span>';
             else li.innerHTML = '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b>' +
                 (m.role === 'host' || m.role === 'cohost' ? '<span class="tag">' + (m.role === 'host' ? 'DJ' : 'co-host') + '</span>' : '') +
-                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text)) +
+                (m.role === 'request' ? '<span class="tag">request</span>' : '') + ' ' + (LT.lineHtml ? LT.lineHtml(m) : esc(m.text)) +
                 (m.ts || m.at ? '<span class="when">' + clock(m.ts || m.at) + '</span>' : '');
             return li;
         }

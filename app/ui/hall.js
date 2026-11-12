@@ -561,7 +561,7 @@
             if (m.id) li.dataset.mid = m.id;
             if (cls) li.className = cls;
             // Links you can click (they open in a new tab, or the browser in the app); the game lines are plain.
-            const text = !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : window.LT && LT.emoteHtml ? LT.emoteHtml(esc(m.text)) : esc(m.text);
+            const text = !cls && window.LT && LT.lineHtml ? LT.lineHtml(m) : !cls && window.LT && LT.chatHtml ? LT.chatHtml(m.text) : window.LT && LT.emoteHtml ? LT.emoteHtml(esc(m.text)) : esc(m.text);
             li.innerHTML = (m.ts ? '<span class="hl-when">' + lineTime(m.ts) + '</span>' : '') + (m.name ? '<b style="color:' + esc(m.color || '') + '">' + esc(m.name) + '</b> ' : '') + text;
             logEl.appendChild(li);
             while (logEl.children.length > 150) logEl.removeChild(logEl.firstChild);
@@ -579,7 +579,7 @@
             if (!m) return;
             logLine(m);
             const p = m.hid && people.get(m.hid);
-            if (p) { p.say = m.text; p.sayId = m.id; p.sayUntil = now() + sayFor(m.text); }
+            if (p) { p.say = m.me ? '*' + m.text + '*' : m.text; p.sayId = m.id; p.sayUntil = now() + sayFor(m.text); }
             else if (m.role === 'host') hostSay = { text: m.text, id: m.id, at: now(), until: now() + sayFor(m.text) };
         }, window);
 
