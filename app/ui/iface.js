@@ -187,7 +187,7 @@
             if (app.onToast) app.onToast(UI.toast);
             checkBoardPosts();
             // Light on purpose: one look a while, and none while the window is hidden.
-            timer = setInterval(() => { if (!document.hidden) refresh(false); }, 20000);
+            timer = setInterval(() => { if (!document.hidden) { refresh(false); if (!me) loadMe(); } }, 20000);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(false); });
         }
 
@@ -204,10 +204,20 @@
         }
 
         /* ---------- you: level, XP, achievements ---------- */
+        let meAsked = 0;
         async function loadMe() {
             if (!server()) return;
+            meAsked = Date.now();
             try { showMe((await toServer('/api/me', {})).me); } catch { /* offline */ }
         }
+        /* Opened before the station was known (One window loads with the app): ask once it is,
+           and again now and then until it answers. */
+        let postsChecked = false;
+        core.on('state', () => {
+            if (!server() || !$('.if-me', box)) return;
+            if (!me && Date.now() - meAsked > 15000) loadMe();
+            if (!postsChecked) { postsChecked = true; checkBoardPosts(); }      // your 4chan replies from before it was known
+        }, window);
         function showMe(m) {
             if (!m) return;
             me = m;
