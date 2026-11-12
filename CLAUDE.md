@@ -291,10 +291,10 @@ rules — levels, milestones, checks, achievements — are in
 | `GET /green/api/threads?v=N` | `{ version, mode, threads: [summary] }` by last bump; `{ version, unchanged: true }` if `v` equals the current version. |
 | `GET /green/api/thread/:id?v=N` | `{ version, thread: summary, posts: [post] }`, live or archived (404 if gone). |
 | `GET /green/api/archive?page=0` | `{ page, total, threads: [summary] }`, 50 a page, newest death first. |
-| `POST /green/api/thread` | `{ key, sub, name, text, refs?, cap? }` → `{ ok, version, thread, post, me, levelUp, earned, dubs, checks }`. 403 under level 11, 409 if they already have a live thread. |
-| `POST /green/api/thread/:id/reply` | `{ key, name, options, text, refs?, cap? }` → `{ ok, version, post, me, levelUp, earned, dubs, checks }`. `options: "sage"` doesn't bump. |
+| `POST /green/api/thread` | `{ key, sub, name, text, refs?, cap? }` → `{ ok, version, thread, post, me, levelUp, earned, dubs, checks, again, own }`. 403 under level 11, 409 if they already have a live thread. |
+| `POST /green/api/thread/:id/reply` | `{ key, name, options, text, refs?, cap? }` → `{ ok, version, post, me, levelUp, earned, dubs, checks, again, own }`. `options: "sage"` doesn't bump. |
 | `POST /green/api/me` | `{ key }` → `{ me }`. |
-| `POST /green/api/check` | `{ key, thread, nos, text }` → `{ ok, checks, earned, me, levelUp }`. |
+| `POST /green/api/check` | `{ key, thread, nos, text }`, or `{ key, thread, post }` for the person's own 4chan reply → `{ ok, checks, again, own, earned, dubs, me, levelUp }`. |
 | `POST /green/api/report` | `{ id, reason }`. |
 | `GET /green/api/admin/reports`, `POST /green/api/admin/delete {id}`, `/ban {id, hours, reason}`, `/dismiss {id}` | `Authorization: Bearer <moderator token>`. |
 
@@ -304,8 +304,11 @@ rules — levels, milestones, checks, achievements — are in
   hash. Without one, fall back to a salted hash of their address.
 - `name#secret` → `name` + tripcode `!` + 10 characters of a salted hash.
 - `refs: [{ no, thread }]` and `/check`: board posts quoted in the text; verify
-  each against `https://a.4cdn.org/<board>/thread/<thread>.json` (cache it;
-  only posts from the last 24 h) before giving check XP.
+  each against `https://a.4cdn.org/<board>/thread/<thread>.json` (cache it)
+  before giving check XP: the post must exist there, however old. Every check
+  pays (no daily cap), but once per post per person (`again`: how many were
+  checked already), and never for the person's own posts (`own`: how many; the
+  app says *Try checking someone else's dubs for a change!*). Up to 40 a post.
 - `mode`: `on`, `read` (no posting) or `off` — a switch in the studio.
 - The moderator token is generated once, kept in `data/`, readable only from
   the studio page; the person pastes it into the app (Interface → ⚙).

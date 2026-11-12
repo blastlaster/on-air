@@ -151,10 +151,9 @@ reply's number counts too: if *it* lands dubs or better, that's your get.
 - **In green threads**: quote a green post whose id ends in repeats (`>>7xKK`).
 - **On the board at large**: quote a real 4chan post whose number repeats — in a green post on its thread, or in a green thread. The station checks it with 4chan's own data: the post must exist in that thread. **However old it is**, it can be checked.
 - **Never your own** (your green posts, and your replies on 4chan from the board window): quote one and you're told to *try checking someone else's dubs for a change!*
-- **Once per post**, for each person: quote one you've checked already and it says so. Up to 12 new checks in one post.
-- Dubs and trips checks share **55 XP a day** (**111** for checks on 4chan); quads and up always count.
-  Past the cap a check still counts toward the achievements, for 0 XP.
-- **Your profile** (click **Lv**) shows today's check XP against the cap, and how far you are
+- **Once per post**, for each person: quote one you've checked already and it says so. Up to 40 new checks in one post.
+- **No daily limit**: every check pays, as many as you find.
+- **Your profile** (click **Lv**) shows what checking earned you today, and how far you are
   toward each achievement you haven't got yet.
 
 ## Achievements

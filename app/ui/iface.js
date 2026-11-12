@@ -258,7 +258,9 @@
             // How far along the counted ones are (a station that doesn't send the counts shows none).
             const goal = { quoted11: [m.quoted, 11], quoted111: [m.quoted, 111], roamer11: [m.roamed, 11], checker11: [m.checks, 11], checker111: [m.checks, 111], level11: [m.level, 11], level44: [m.level, 44], level111: [m.level, 111], level1111: [m.level, 1111] };
             const progress = (id) => { const g = goal[id]; return g && g[0] != null && !have.has(id) ? ' <span class="dim">(' + Math.min(g[0], g[1]) + ' / ' + g[1] + ')</span>' : ''; };
-            const checking = m.checks != null ? '<p class="dim">Checking today: ' + m.checksToday + ' / ' + m.checkCap + ' XP for dubs and trips · ' + m.chanToday + ' / ' + m.chanCap + ' on 4chan · quads and up always count · ' + m.checks + ' check' + (m.checks === 1 ? '' : 's') + ' in all</p>' : '';
+            // Checking has no daily cap (a station that still has one sends checkCap).
+            const checking = m.checks == null ? '' : '<p class="dim">Checking today: ' + (m.checkCap ? m.checksToday + ' / ' + m.checkCap + ' XP for dubs and trips · ' + m.chanToday + ' / ' + m.chanCap + ' on 4chan · quads and up always count'
+                : (m.checksToday + m.chanToday) + ' XP' + (m.chanToday ? ' (' + m.chanToday + ' of it on 4chan)' : '')) + ' · ' + m.checks + ' check' + (m.checks === 1 ? '' : 's') + ' in all</p>';
             const pct = Math.round((m.xp - m.from) / Math.max(1, m.next - m.from) * 100);
             UI.sheet('<div class="if-prof"><h2>' + lvBadge(m.level) + ' ' + esc(m.title || 'Level ' + m.level) + '</h2>' +
                 '<div class="if-xpbig"><i style="width:' + pct + '%"></i></div><p class="dim">' + m.xp + ' XP · ' + (m.next - m.xp) + ' to level ' + (m.level + 1) + ' · today ' + m.today + ' / ' + m.todayCap + ' from posting</p>' + checking +
