@@ -397,8 +397,8 @@
             }
             if (posts[0]) posts[0].op = true;                              // its opening post: hiding that is hiding the thread
             const watched = !!watch[cur.key], greenIn = posts.filter(p => p.kind === 'f').length;
-            main.innerHTML =
-                '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '"><div class="if-thead row">' +
+            const html =
+                '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '" data-key="' + esc(cur.key) + '"><div class="if-thead row">' +
                     '<b class="grow ell">' + esc(head.title) + '</b>' +
                     (cur.kind === 'c' ? '<span class="if-pg">' + pageTag(cur.id) + '</span>' : '') +
                     (head.green && !head.archived ? '<span class="dim if-exp" title="Green threads die after 3 days without a reply, then go to the archive">' + esc(expiresIn(head.expires)) + '</span>' : '') +
@@ -410,6 +410,20 @@
                 '</div><div class="if-posts">' + posts.map(postHtml).join('') + (cur.kind === 'c' && !greenIn ? '<p class="dim if-load if-gempty">No green posts in this thread yet.</p>' : '') + '</div>' +
                 (readOnly ? '<p class="dim if-note">' + (head.archived ? 'This thread is archived — read only.' : 'This thread is closed.') + '</p>' : replyForm(cur)) +
                 '</div>';
+            // A refresh of the same thread swaps only its heading and posts: the reply form stays as it is,
+            // so whoever is typing in it keeps their place (and the cursor).
+            const old = $('.if-thread', main), oldForm = old && $('.if-reply', old);
+            if (keepScroll && oldForm && !readOnly && old.dataset.key === cur.key) {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = html;
+                const nu = tmp.firstChild;
+                old.className = nu.className;
+                old.replaceChild($('.if-thead', nu), $('.if-thead', old));
+                old.replaceChild($('.if-posts', nu), $('.if-posts', old));
+                $('.if-posts', old).scrollTop = top;
+                return;
+            }
+            main.innerHTML = html;
             if (draft) { const f = $('.if-reply', box); if (f) { f.text.value = draft.text; f.name.value = draft.name; f.options.value = draft.opt; } }
             const sc = $('.if-posts', box);
             if (sc) sc.scrollTop = keepScroll ? top : threadTops.get(cur.key) || 0;
