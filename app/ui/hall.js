@@ -271,6 +271,7 @@
         function held(h, t = now()) {
             const d = duelOf(h), s = d && d.st[h];
             if ((btStun.get(h) || 0) > t) return true;
+            if (blasted.has(h) && blasted.get(h).end > t) return true;
             return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
         const slowOf = (h, t = now()) => { const d = duelOf(h), s = d && d.st[h]; return s && d.state === 'fighting' && s.slow > t ? DUEL_SLOW[Math.max(1, Math.min(3, s.lvl || 2))] : 1; };
@@ -786,8 +787,12 @@
 
         /* ---------- hot potato (engine/hall-potato.js) ---------- */
         const BOMB = '💣', BOMB_REACH = [160, 230];      // how close to pass it (the room's units)
+        const BOMB_BACK = 2.5;                           // seconds before it can go straight back (engine BOMB.backMs)
         let bomb = null;                                 // { h, from, end, n }: who has it and when it goes off (this page's clock)
         const booms = [];                                // { x, y, at }: going off
+        // Whoever held it when it went off: h → { land, end } (this page's clock). In the air till land
+        // (smoking), charred for CHAR_S after, coughing, then shaking the dust off in the last SHAKE_S before end.
+        const blasted = new Map(), FLY_S = 1.1, CHAR_S = 1, SHAKE_S = 0.6;
         const bombMine = () => !!bomb && bomb.h === me;
         function onBomb(m, quiet) {
             const t = now();
@@ -798,17 +803,18 @@
                 for (const [h, xy] of Object.entries(m.boom.hits || {})) {
                     const q = people.get(h);
                     if (!q) continue;
-                    const [kx, ky] = toPx(xy[0], xy[1]);
-                    Object.assign(q, { knock: { x0: q.x, y0: q.y, x1: kx, y1: ky, at: t, dur: 0.85, arc: 24 }, tx: kx, ty: ky, pushed: false, real: null });
+                    const [kx, ky] = toPx(xy[0], xy[1]), it = h === m.boom.h;          // its holder goes much higher and further
+                    Object.assign(q, { knock: { x0: q.x, y0: q.y, x1: kx, y1: ky, at: t, dur: it ? FLY_S : 0.85, arc: it ? 46 : 24 }, tx: kx, ty: ky, pushed: false, real: null });
                     if (h === me) { lastSent = ''; pendingHit = null; }
                 }
-                if (!quiet) logLine({ text: '💥 BOOM! ' + nameOf(m.boom.h) + ' was holding the bomb. 😇' }, 'announce');
+                if (m.boom.stun && !quiet) blasted.set(m.boom.h, { land: t + FLY_S, end: t + m.boom.stun / 1000 });
+                if (!quiet) logLine({ text: '💥 BOOM! ' + nameOf(m.boom.h) + ' was holding the bomb.' }, 'announce');
             } else if (m.fizzle) {
                 bomb = null;
                 if (!quiet) logLine({ text: '💣 The bomb fizzled out.' }, 'game');
             } else if (m.h) {
                 const first = !bomb;
-                bomb = { h: m.h, from: m.from, end: t + (m.left || 0) / 1000, n: m.n || 0 };
+                bomb = { h: m.h, from: m.from, end: t + (m.left || 0) / 1000, n: m.n || 0, got: t };
                 if (!quiet && first) logLine({ text: '💣 ' + nameOf(m.from) + ' handed ' + nameOf(m.h) + ' a lit bomb! HOT POTATO!' }, 'announce');
                 if (!quiet && m.h === me) U.toast('💣 You’ve got the bomb! Pass it on — J' + (touch ? ' or 💣 Pass' : '') + ' — before it goes off!');
                 if (!quiet && m.from === me && m.ebil) gotPoint('ebil');
@@ -819,18 +825,19 @@
         function passBomb(h) {
             const p = mine();
             if (!p || !(bombMine() || (h && p.o === BOMB && !bomb))) return;
-            let q = h ? people.get(h) : null;
+            let q = h ? people.get(h) : null, back = false;
             if (!q) {
                 let best = Infinity;
                 for (const x of people.values()) {
                     if (x.h === me || x.s || isEaten(x.h)) continue;
+                    if (bomb && x.h === bomb.from && now() - bomb.got < BOMB_BACK) { back = true; continue; }      // not straight back
                     const [ux, uy] = toU(x.x, x.y), [mx, my] = toU(p.x, p.y), dx = Math.abs(ux - mx) / BOMB_REACH[0], dy = Math.abs(uy - my) / BOMB_REACH[1];
                     if (dx > 1 || dy > 1) continue;
                     const d = Math.hypot(dx, dy);
                     if (d < best) { best = d; q = x; }
                 }
             }
-            if (!q) return U.toast('Nobody close enough — run at someone!');
+            if (!q) return U.toast(back ? 'Not straight back! Find someone else, or hang on a moment.' : 'Nobody close enough — run at someone!');
             const [ax, ay] = toU(p.x, p.y), [bx, by] = toU(q.x, q.y);
             core.send({ t: 'hall-give', to: q.h, ax, ay, bx, by });
         }
@@ -1791,6 +1798,69 @@
             if (MELEE[k] && !near(p, q)) { duelSay = { text: 'Get closer!', until: now() + 1.2 }; return paintDuel(); }
             sendHit(q, k);
         }
+        /* ---------- blown up holding the bomb ---------- */
+        let charCv = null;
+        /** Them, burnt black (their own look under it, hat and all), with embers and smoke; returns the head's y like A.person. */
+        function charred(look, po, t, bl) {
+            const W = 48, H = 64, ax = 24, ay = 56;
+            if (!charCv) charCv = document.createElement('canvas');
+            charCv.width = W; charCv.height = H;
+            const g = charCv.getContext('2d');
+            const head = A.person(g, look, { ...po, x: ax, y: ay, noShadow: true });
+            lc.fillStyle = 'rgba(0,0,0,0.45)'; lc.fillRect(Math.round(po.x) - 4, Math.round(po.y) - 1, 9, 2);      // its shadow, on the room
+            g.globalCompositeOperation = 'source-atop';
+            const fade = Math.max(0, Math.min(1, (bl.land + CHAR_S - t) / 0.35));     // the soot falls away at the end
+            g.globalAlpha = 0.85 * fade; g.fillStyle = '#17110d'; g.fillRect(0, 0, W, H);
+            g.globalAlpha = fade;
+            for (let i = 0; i < 6; i++) {                                              // embers glowing on the soot
+                const ex = (i * 37 + Math.floor(t * 6) * 13) % 14 - 7, ey = (i * 23) % 18;
+                if ((i + Math.floor(t * 10)) % 3) { g.fillStyle = i % 2 ? '#ff7a1a' : '#ffd040'; g.fillRect(ax + ex, ay - 4 - ey, 1, 1); }
+            }
+            lc.drawImage(charCv, Math.round(po.x) - ax, Math.round(po.y) - ay);
+            // Smoke curling up off them.
+            lc.fillStyle = '#6b6670';
+            for (let i = 0; i < 4; i++) {
+                const k = (t * 0.9 + i / 4) % 1;
+                lc.globalAlpha = 0.55 * (1 - k) * fade;
+                lc.fillRect(Math.round(po.x - 3 + i * 2 + Math.sin(t * 3 + i) * 2), Math.round(head - 2 - k * 12), 2, 2);
+            }
+            lc.globalAlpha = 1;
+            return head - ay + Math.round(po.y);
+        }
+        /** Shaking it off: soot and dust dropping off them. */
+        function dust(po, t, bl) {
+            const k = (t - (bl.end - SHAKE_S)) / SHAKE_S;
+            lc.fillStyle = '#8a8178';
+            for (let i = 0; i < 8; i++) {
+                const side = i % 2 ? 1 : -1, sp = 0.6 + (i % 4) * 0.3;
+                lc.globalAlpha = 0.8 * (1 - k);
+                lc.fillRect(Math.round(po.x + side * (4 + k * 6 * sp)), Math.round(po.y - 14 + (i % 5) * 2 + k * k * 14 * sp), 1, 1);
+            }
+            lc.globalAlpha = 1;
+        }
+        /** Over their heads: stars while they're stunned on the floor, and coughing up smoke. */
+        function drawBlasted(t, u, heads) {
+            for (const [h, bl] of blasted) {
+                const p = people.get(h);
+                if (!p || !heads.has(h) || t < bl.land || t > bl.end - SHAKE_S) continue;
+                const hy = heads.get(h), x = p.x * u, f = p.face < 0 ? -1 : 1, s = t - bl.land;
+                for (let k = 0; k < 3; k++) {
+                    const a2 = t * 6 + k * 2.1;
+                    popWord('*', x + Math.cos(a2) * 6 * u, (hy - 3) * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a');
+                }
+                // A cough every so often: a puff of smoke out of the mouth, and the word.
+                const c = s % 0.55;
+                if (s > 0.2 && c < 0.4) {
+                    ctx.fillStyle = 'rgba(110,104,115,' + (0.7 * (1 - c / 0.4)).toFixed(2) + ')';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath();
+                        ctx.arc(x + f * (4 + c * 22 + i * 2) * u, (hy + 4 - c * 6 - i) * u, (1 + c * 3 + i * 0.4) * u, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    if (c < 0.3) popWord(Math.floor(s / 0.55) % 2 ? 'cough' : 'hack', x + f * 10 * u, (hy - 8 - c * 8) * u, u * 0.7, '#d8d0c8');
+                }
+            }
+        }
         /** On the duellists: stars when stunned, snowflakes when slowed (one a level, frost at 3), and the fish and snowballs in a row so far. */
         function drawDuels(t, u, heads) {
             const es = Math.max(10, Math.round(3.6 * u / dpr)) * dpr;
@@ -2429,7 +2499,14 @@
                 if (team >= 0) { lc.fillStyle = out ? '#77708a' : DB_TEAMS[team][1]; lc.globalAlpha = 0.8; lc.beginPath(); lc.ellipse(po.x, po.y, 6, 2, 0, 0, Math.PI * 2); lc.fill(); lc.globalAlpha = 1; }
                 if (out) lc.globalAlpha = 0.45;
                 else if (fight && p.h !== fight.a && p.h !== fight.b) lc.globalAlpha = 0.22;     // in a duel: only the two of you
-                heads.set(p.h, A.person(lc, p.l, po));
+                const bl = blasted.get(p.h);
+                if (bl && t >= bl.end) blasted.delete(p.h);
+                if (bl && t < bl.end) {
+                    if (t > bl.end - SHAKE_S) po.x += Math.floor(t * 30) % 2 ? 1 : -1;      // shaking it off
+                    if (t < bl.land + CHAR_S) heads.set(p.h, charred(p.l, po, t, bl));
+                    else heads.set(p.h, A.person(lc, p.l, po));
+                    if (t > bl.end - SHAKE_S) dust(po, t, bl);
+                } else heads.set(p.h, A.person(lc, p.l, po));
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
                 if (p.star > performance.now()) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
@@ -2466,6 +2543,7 @@
             drawGlows(sorted, heads, u, t);
             drawHeld(sorted, heads, u);
             if (duels.size) drawDuels(t, u, heads);
+            if (blasted.size) drawBlasted(t, u, heads);
             if (db.state) drawBall(t, u, heads);
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
