@@ -658,7 +658,12 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         }
         function show() {
             const url = b().url;
-            if (!url) { box.innerHTML = '<div class="empty">This station has no board.</div>'; return; }
+            if (!url) {
+                // Opened before the station's extras came in (the app starting with the board showing): wait for them.
+                box.innerHTML = '<div class="empty">' + (core.state.extras ? 'This station has no board.' : 'Loading the board…') + '</div>';
+                const stop = on('state', () => { if (b().url && $('.empty', box)) { stop(); UI.setTitle(b().title || 'Board', '📋'); show(); } });
+                return;
+            }
             box.classList.add('flush');
             box.innerHTML = '<div class="bd-bar row"><button type="button" class="btn" data-b="back" title="Back">‹</button><button type="button" class="btn" data-b="home" title="The board’s front page">⌂</button><button type="button" class="btn" data-b="reload" title="Reload">⟳</button><button type="button" class="btn" data-b="link" title="Verify your e-mail with 4chan here, or open a 4chan link in this window">🔗</button><span class="grow"></span>' +
                 '<label class="dim"><input type="checkbox" class="tint"' + (UI.info.ui.boardTint === false ? '' : ' checked') + '> Tint to the look</label><button type="button" class="btn" data-b="scripts" title="Userscripts: extra features for the board">🧩 Scripts</button><button type="button" class="btn" data-b="out" title="Open in the browser">↗</button></div>' +
