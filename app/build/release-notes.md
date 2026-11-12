@@ -1,5 +1,7 @@
-## What's new in 0.5.35
+## What's new in 0.5.36
 
-- **One window: a part under Now Playing.** In ▦, put [s4s], the Interface or blug.dj/jej under Now Playing instead of the playlist, giving the middle more room.
-- **The Interface fits small panels:** the view options fold behind ⋯, and threads, buttons and the reply box tighten up so it stays usable.
-- **Watched threads are shared** between the Interface's ★ and the board's Thread Watcher, both ways (as hidden threads already were).
+- **blug.dj/jej fills its space:** the room now scales to the full width beside the chat, in its own window and in the One window's panels.
+- **Stretch to fill:** ⛶ in the room's actions stretches the room over the whole stage (remembered).
+- **Hold anything:** the Hold tab takes any emoji (type or paste it, or a :code:) and the station's own emotes, and everyone in the room sees it.
+- **:tm:** works in chat (™), and can be held.
+- **The board** opened before the station's extras arrived now waits for them instead of saying there is no board.
