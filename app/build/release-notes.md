@@ -1,3 +1,3 @@
-## What's new in 0.5.44
+## What's new in 0.5.45
 
-- **Checking has no daily limit:** every check pays, as many as you find (still once per post, and never your own). Your profile shows what checking has earned you today.
+- **Interface:** green threads are always pinned at the top of the thread list. The board's threads, with green posts or without, follow in their usual order.
