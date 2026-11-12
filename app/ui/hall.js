@@ -73,6 +73,50 @@
     // Anything can be held: one emoji, or a station emote as ':name:' (the same test as engine/hall.js holdable()).
     const ONE_EMOJI = /^(?:\p{RI}\p{RI}|[#*0-9]️?⃣|\p{Extended_Pictographic}️?\p{EMod}?(?:[\u{E0020}-\u{E007E}]+\u{E007F})?(?:‍\p{Extended_Pictographic}️?\p{EMod}?)*)$/u;
     const READS = /^[©®™#*0-9\u{1F1E6}-\u{1F1FF}]/u;          // letters and flags: never drawn mirrored
+    /* Moving emotes: a canvas only ever shows a GIF's first frame, so each animated one is decoded once
+       (ImageDecoder, frames shrunk to 64 px high, at most 150 of them) and stepped through by the clock.
+       One copy per emote, shared by everyone holding it or saying it, and kept when the room is reopened. */
+    const ANIM_H = 64, ANIM_MAX = 150, anims = {};
+    function emoteAnim(src) {
+        if (anims[src]) return anims[src];
+        const a = anims[src] = { frames: null, ends: null, total: 0 };
+        if (!/\.(gif|webp)(\?|$)/i.test(src) || typeof ImageDecoder !== 'function') return a;
+        (async () => {
+            const res = await fetch(src);
+            const type = (res.headers.get('content-type') || '').split(';')[0] || (/\.webp/i.test(src) ? 'image/webp' : 'image/gif');
+            if (!res.ok || !(await ImageDecoder.isTypeSupported(type))) return;
+            const dec = new ImageDecoder({ data: await res.arrayBuffer(), type });
+            try {
+                await dec.tracks.ready; await dec.completed;
+                const n = dec.tracks.selectedTrack ? Math.min(ANIM_MAX, dec.tracks.selectedTrack.frameCount) : 0;
+                if (n < 2) return;                                          // a still picture: the <img> does
+                const frames = [], ends = [];
+                let t = 0;
+                for (let i = 0; i < n; i++) {
+                    const { image } = await dec.decode({ frameIndex: i });
+                    const h = Math.min(ANIM_H, image.displayHeight), w = Math.max(1, Math.round(image.displayWidth * h / image.displayHeight));
+                    frames.push(await createImageBitmap(image, { resizeWidth: w, resizeHeight: h, resizeQuality: 'medium' }));
+                    const ms = (image.duration || 0) / 1000;
+                    t += ms > 10 ? ms : 100;                                // as browsers play them: "0 ms" is a tenth of a second
+                    ends.push(t);
+                    image.close();
+                }
+                Object.assign(a, { frames, ends, total: t });
+            } finally { dec.close(); }
+        })().catch(() => { /* the first frame it is */ });
+        return a;
+    }
+    /** The frame to draw now: a decoded one while it moves, else the picture itself. */
+    function emoteNow(im) {
+        const a = emoteAnim(im.src);
+        if (!a.frames) return im;
+        const ms = performance.now() % a.total;
+        let i = 0;
+        while (a.ends[i] <= ms) i++;
+        return a.frames[i];
+    }
+    /** [width, height] of something drawable, or null while it's still loading. */
+    const picSize = (im) => (im.naturalWidth ? [im.naturalWidth, im.naturalHeight] : im.width && !(im instanceof HTMLImageElement) ? [im.width, im.height] : null);
     const emoteKey = (o) => { const m = /^:([a-z0-9_]{2,30}):$/.exec(o || ''); return m ? m[1] : ''; };
     /** The bottle of water, (cx, cy) its middle, px a pixel: clear plastic, water two-thirds up, a blue cap and label. */
     function waterBottle(ctx, cx, cy, px) {
@@ -732,7 +776,7 @@
                 const k = emoteKey(p.o), pic = k && emotePic(k);
                 if (!pic && !READS.test(p.o)) ctx.scale(-f, 1);   // emoji face left; turn them the way their holder faces (not ™, flags or pictures)
                 if (p.o === WATER) waterBottle(ctx, 0, 0, Math.max(1, Math.round(fs / 13)));
-                else if (pic) { if (pic.complete && pic.naturalWidth) { const ph = fs * 1.4, pw = Math.min(ph * 1.5, ph * pic.naturalWidth / pic.naturalHeight); ctx.drawImage(pic, Math.round(-pw / 2), Math.round(-ph / 2), Math.round(pw), Math.round(ph)); } }
+                else if (pic) { const fr = emoteNow(pic), sz = picSize(fr); if (sz) { const ph = fs * 1.4, pw = Math.min(ph * 1.5, ph * sz[0] / sz[1]); ctx.drawImage(fr, Math.round(-pw / 2), Math.round(-ph / 2), Math.round(pw), Math.round(ph)); } }
                 else if (!k) ctx.fillText(p.o, 0, 0);
                 if (red) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ff1a1a'; ctx.beginPath(); ctx.arc(0, fs * 0.08, fs * 0.36, 0, Math.PI * 2); ctx.fill(); }
                 if (lit) { ctx.globalAlpha = 1; ctx.fillStyle = Math.floor(now() * 20) % 2 ? '#fff3a0' : '#ff9a20'; ctx.fillRect(Math.round(fs * 0.22), Math.round(-fs * 0.5), Math.max(2, Math.round(fs / 7)), Math.max(2, Math.round(fs / 7))); }
@@ -2287,9 +2331,10 @@
             const tx = Math.max(bx + s * 2, Math.min(bx + w - s * 4, Math.round(x - s)));
             ctx.fillRect(tx, by + h, s * 2, s * 2); ctx.fillStyle = '#000'; ctx.fillRect(tx - s, by + h, s, s * 2); ctx.fillRect(tx + s * 2, by + h, s, s * 2); ctx.fillRect(tx, by + h + s * 2, s * 2, s);
             pics.forEach((im, i) => {
-                if (!im.complete || !im.naturalWidth) return;
-                const pw = Math.min(ph * 1.5, ph * im.naturalWidth / im.naturalHeight), cx = bx + w / 2 + (i - (pics.length - 1) / 2) * ph * 1.15;
-                ctx.drawImage(im, Math.round(cx - pw / 2), Math.round(by + pad * 0.7), Math.round(pw), Math.round(ph));
+                const fr = emoteNow(im), sz = picSize(fr);
+                if (!sz) return;
+                const pw = Math.min(ph * 1.5, ph * sz[0] / sz[1]), cx = bx + w / 2 + (i - (pics.length - 1) / 2) * ph * 1.15;
+                ctx.drawImage(fr, Math.round(cx - pw / 2), Math.round(by + pad * 0.7), Math.round(pw), Math.round(ph));
             });
             ctx.fillStyle = '#141018'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             lines.forEach((ln, i) => ctx.fillText(ln, bx + w / 2, by + pad * 0.8 + ph + i * lh));
