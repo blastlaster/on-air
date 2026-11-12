@@ -597,9 +597,9 @@ async function boardMenu(w, wc, p) {
 }
 
 /* ---------- your replies on 4chan, for the Interface's checks ----------
-   The board window's reply form posts to sys.4chan.org. If the reply quotes
-   a post ending in repeats, find the reply's number in the thread a little
-   later (4chan's read-only data) and hand it to the Interface, which asks the
+   The board window's reply form posts to sys.4chan.org. For every reply (its
+   own number may be a get; it may check someone's repeats), find its number
+   in the thread a little later (4chan's read-only data) and hand it to the Interface, which asks the
    station: the station reads the reply from 4chan itself before giving XP. */
 const boardPosted = [];               // { board, thread, no, at }
 function formField(text, name) {
@@ -616,7 +616,7 @@ function boardPostSent(d) {
         const board = (/^https:\/\/sys\.4chan\.org\/(\w+)\/post/.exec(d.url) || [])[1];
         const body = Buffer.concat((d.uploadData || []).filter(x => x.bytes).map(x => x.bytes)).toString('utf8');
         const thread = Number(formField(body, 'resto')), com = formField(body, 'com').replace(/\r/g, '');
-        if (!board || !(thread > 0) || ![...com.matchAll(/>>(\d+)/g)].some(m => /(\d)\1$/.test(m[1]))) return;
+        if (!board || !(thread > 0) || !com.trim()) return;
         const sent = Date.now(), want = com.replace(/\s+/g, ''), quotes = quoteSet(com);
         let tries = 0;
         const look = async () => {
@@ -1376,8 +1376,11 @@ on('board-goto', (e, url) => {
     if (who(e) !== 'interface') return;
     url = String(url || '');
     if (!/^https:\/\/boards\.4chan(nel)?\.org\//.test(url)) return;
-    if (boardView && !boardView.webContents.isDestroyed()) { boardView.webContents.loadURL(url); setVisible('board', true); }
-    else { boardNext = url; toPage('open-element', 'board'); }
+    if (boardView && !boardView.webContents.isDestroyed()) {
+        boardView.webContents.loadURL(url);
+        // In the one window the board is a panel: bring it into the middle (the Interface steps aside for it).
+        if (oneWin()) toPage('open-element', 'board'); else setVisible('board', true);
+    } else { boardNext = url; toPage('open-element', 'board'); }
 });
 
 function uiInfo() {

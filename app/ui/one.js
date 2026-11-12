@@ -154,7 +154,11 @@
         function open(id) {
             if (id === 'np' || id === 'playlist' || id === 'banner') { if (!show.np) { show.np = true; layout(); save(); } return; }
             if (id === 'chat') { if (!show.chat) { show.chat = true; layout(); save(); } return; }
-            if (id === 'board' || id === 'hall') { if (show.mid !== id) { show.mid = id; layout(); save(); } return; }
+            if (id === 'board' || id === 'hall') {
+                if (id === 'board') closeFly();                 // the board can't show under the Interface (or anything else over the page)
+                if (show.mid !== id) { show.mid = id; layout(); save(); }
+                return;
+            }
             if (id === 'tv') {
                 // Off the air the TV button is the station's channel, in the browser.
                 if (!(s.tv && s.tv.live)) { const c = s.extras && s.extras.tv && s.extras.tv.channel; if (c) app.openExternal(c); return; }

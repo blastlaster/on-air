@@ -191,7 +191,7 @@
             const bits = [];
             if (r.dubs) bits.push({ dubs: 'Dubs! +22 XP', trips: 'TRIPS! +111 XP', quads: 'QUADS!!! +1111 XP' }[r.dubs]);
             const NAMED = { 2: 'dubs', 3: 'trips', 4: 'quads', 5: 'quints', 6: 'sexts' };
-            for (const c of r.checks || []) bits.push('✓ Checked ' + (NAMED[Math.min(6, c.repeats)] || 'repeats') + ' (>>' + (c.no || c.id) + ')' + (c.via === '4chan' ? ' on 4chan' : '') + ' +' + c.xp + ' XP');
+            for (const c of r.checks || []) bits.push('✓ Checked ' + (NAMED[Math.min(6, c.repeats)] || 'repeats') + ' (>>' + (c.no || c.id) + ')' + (c.via === '4chan' ? ' on 4chan' : '') + (c.xp ? ' +' + c.xp + ' XP' : ' (today’s checking XP is used up; it still counts)'));
             for (const a of r.earned || []) if (!/^(dubs|trips|quads)$/.test(a.id)) bits.push('🏆 ' + a.name + (a.xp ? ' +' + a.xp + ' XP' : ''));
             if (r.levelUp) {
                 const k = kindOf(r.levelUp);
@@ -203,19 +203,23 @@
         function profile() {
             const m = me;
             if (!m) return UI.toast('Green threads are offline right now.');
-            const all = [['dubs', 'Checked', 'A post id ending in dubs (+22 XP each time)'], ['trips', 'Trips get', 'A post id ending in trips (+111 XP each time)'], ['quads', 'Quads get', 'A post id that is all quads (+1111 XP)'],
+            const all = [['dubs', 'Checked', 'Your own post id ending in dubs: a green post, or your 4chan reply from the board window (+22 XP each time)'], ['trips', 'Trips get', 'Your own post id ending in trips (+111 XP each time)'], ['quads', 'Quads get', 'Your own post id ending in quads (+1111 XP each time)'],
                 ['quoted11', 'Heard', 'Quoted 11 times'], ['quoted111', 'Famous', 'Quoted 111 times'], ['roamer11', 'Regular', 'Posted in 11 different green threads'],
                 ['thread22', 'Conversation', 'Your thread reached 22 replies'], ['thread111', 'Legend thread', 'Your thread reached 111 replies'],
                 ['checker11', 'Checker', 'Checked 11 repeats that weren’t yours'], ['checker111', 'Witness', 'Checked 111 repeats'], ['checkQuads', 'Quads witness', 'Checked quads or better'],
                 ['level11', 'Thread starter', 'Level 11: start green threads'], ['level44', 'Long-lived', 'Level 44: your threads live 4 days'], ['level111', 'Trips', 'Level 111'], ['level1111', 'Quads', 'Level 1111']];
             const have = new Set(m.ach.map(a => a.id));
+            // How far along the counted ones are (a station that doesn't send the counts shows none).
+            const goal = { quoted11: [m.quoted, 11], quoted111: [m.quoted, 111], roamer11: [m.roamed, 11], checker11: [m.checks, 11], checker111: [m.checks, 111], level11: [m.level, 11], level44: [m.level, 44], level111: [m.level, 111], level1111: [m.level, 1111] };
+            const progress = (id) => { const g = goal[id]; return g && g[0] != null && !have.has(id) ? ' <span class="dim">(' + Math.min(g[0], g[1]) + ' / ' + g[1] + ')</span>' : ''; };
+            const checking = m.checks != null ? '<p class="dim">Checking today: ' + m.checksToday + ' / ' + m.checkCap + ' XP for dubs and trips · ' + m.chanToday + ' / ' + m.chanCap + ' on 4chan · quads and up always count · ' + m.checks + ' check' + (m.checks === 1 ? '' : 's') + ' in all</p>' : '';
             const pct = Math.round((m.xp - m.from) / Math.max(1, m.next - m.from) * 100);
             UI.sheet('<div class="if-prof"><h2>' + lvBadge(m.level) + ' ' + esc(m.title || 'Level ' + m.level) + '</h2>' +
-                '<div class="if-xpbig"><i style="width:' + pct + '%"></i></div><p class="dim">' + m.xp + ' XP · ' + (m.next - m.xp) + ' to level ' + (m.level + 1) + ' · today ' + m.today + ' / ' + m.todayCap + ' from posting</p>' +
+                '<div class="if-xpbig"><i style="width:' + pct + '%"></i></div><p class="dim">' + m.xp + ' XP · ' + (m.next - m.xp) + ' to level ' + (m.level + 1) + ' · today ' + m.today + ' / ' + m.todayCap + ' from posting</p>' + checking +
                 (m.canThread ? '<p>' + (m.thread ? 'Your live thread: <a class="ql" data-goto="g:' + esc(m.thread) + '">&gt;&gt;' + esc(m.thread) + '</a> (one at a time).' : 'You can start a green thread (one at a time).') + '</p>'
                     : '<p>Reach <b>level ' + m.threadLevel + '</b> to start green threads. Until then, post in them.</p>') +
-                '<h3>How XP works</h3><p class="dim">+10 a real post (12+ characters, not a repeat), up to 120 a day · +5 when someone quotes you · +22 / +111 / +1111 when your post id ends in dubs / trips / quads · <b>checking</b> someone else’s repeats by quoting them (green posts, and board posts from the last day): +5 dubs, +11 trips, +22 quads, +111 quints, +1111 sexts (dubs and trips checks: up to 55 a day) · <b>double</b> for checking with a real reply on 4chan, from the board window: +11 dubs, +22 trips, +44 quads, +222 quints, +2222 sexts (up to 111 a day for dubs and trips). Milestone levels are the repeating ones: 11, 22, 33… 111, 1111, palindromes like 121 and 3113, patterns like 1313.</p>' +
-                '<h3>Achievements</h3><ul class="list if-ach">' + all.map(([id, name, about]) => '<li class="' + (have.has(id) ? 'got' : '') + '">' + (have.has(id) ? '🏆' : '·') + ' <b>' + esc(name) + '</b> <span class="dim">' + esc(about) + '</span></li>').join('') + '</ul>' +
+                '<h3>How XP works</h3><p class="dim">+10 a real post (12+ characters, not a repeat), up to 120 a day · +5 when someone quotes you · +22 / +111 / +1111 when your post id ends in dubs / trips / quads (green posts, and your 4chan replies from the board window) · <b>checking</b> someone else’s repeats by quoting them (green posts, and board posts from the last day): +5 dubs, +11 trips, +22 quads, +111 quints, +1111 sexts (dubs and trips checks: up to 55 a day) · <b>double</b> for checking with a real reply on 4chan, from the board window: +11 dubs, +22 trips, +44 quads, +222 quints, +2222 sexts (up to 111 a day for dubs and trips). Milestone levels are the repeating ones: 11, 22, 33… 111, 1111, palindromes like 121 and 3113, patterns like 1313.</p>' +
+                '<h3>Achievements</h3><ul class="list if-ach">' + all.map(([id, name, about]) => '<li class="' + (have.has(id) ? 'got' : '') + '">' + (have.has(id) ? '🏆' : '·') + ' <b>' + esc(name) + '</b> <span class="dim">' + esc(about) + '</span>' + progress(id) + '</li>').join('') + '</ul>' +
                 '<div class="row"><button type="button" class="btn" data-close>Close</button></div></div>');
             const g = $('.sheet-card [data-goto]');
             if (g) g.onclick = () => { UI.closeSheet(); openThread(g.dataset.goto); };
@@ -401,6 +405,8 @@
                 '<div class="if-thread' + (head.green ? ' green' : '') + (cur.kind === 'c' && prefs.threadGreen ? ' gonly' : '') + '" data-key="' + esc(cur.key) + '"><div class="if-thead row">' +
                     '<b class="grow ell">' + esc(head.title) + '</b>' +
                     (cur.kind === 'c' ? '<span class="if-pg">' + pageTag(cur.id) + '</span>' : '') +
+                    '<button type="button" class="btn" data-scroll="top" title="To the opening post">[Top]</button>' +
+                    '<button type="button" class="btn" data-scroll="bottom" title="To the newest post">[Bottom]</button>' +
                     (head.green && !head.archived ? '<span class="dim if-exp" title="Green threads die after 3 days without a reply, then go to the archive">' + esc(expiresIn(head.expires)) + '</span>' : '') +
                     (head.archived ? '<span class="dim">archived</span>' : '') +
                     (cur.kind === 'c' ? '<button type="button" class="btn' + (prefs.threadGreen ? ' on' : '') + '" data-tgreen title="Show only the green posts (and the opening post)">🟩 Green only' + (greenIn ? ' (' + greenIn + ')' : '') + '</button>' : '') +
@@ -694,6 +700,8 @@
             // The end of a drag that selected text (to copy it) is not a click on what's under it.
             const sel = getSelection();
             if (sel && !sel.isCollapsed && String(sel).trim() && !t.closest('button')) return;
+            const sb = t.closest('[data-scroll]');
+            if (sb) { const p = $('.if-posts', box); if (p) p.scrollTo({ top: sb.dataset.scroll === 'top' ? 0 : p.scrollHeight }); return; }
             const hb = t.closest('[data-hidet], [data-hidep]');
             if (hb) {
                 if (hb.dataset.hidep) { setHide(hb.dataset.hidep, !isHidden(hb.dataset.hidep)); return applyHidden(); }
