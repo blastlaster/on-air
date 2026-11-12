@@ -192,7 +192,7 @@
         }
 
         const boardRefs = (text) => [...new Set([...String(text).matchAll(/>>(\d{3,})(?!\d)/g)].map(m => Number(m[1])))]
-            .filter(no => seenPosts.has(no) && /(\d)\1$/.test(String(no))).slice(0, 6).map(no => ({ no, thread: seenPosts.get(no) }));
+            .filter(no => seenPosts.has(no) && /(\d)\1$/.test(String(no))).slice(0, 40).map(no => ({ no, thread: seenPosts.get(no) }));
 
         /** Posts you made on 4chan itself: the station reads them from 4chan and gives the (bigger) checking XP. */
         async function checkBoardPosts() {
@@ -242,6 +242,8 @@
                 bits.unshift((NAMES[k] ? '✨ LEVEL ' + r.levelUp + ' — ' + NAMES[k] + '!' : 'Level ' + r.levelUp + '!') + (r.levelUp === r.me.threadLevel ? ' You can start green threads now.' : ''));
                 UI.flash();
             }
+            if (r.own) bits.push('Try checking someone else’s dubs for a change!');
+            if (r.again && !(r.checks || []).length) bits.push('Already checked ' + (r.again === 1 ? 'that one' : 'those ' + r.again) + ': each post counts once');
             if (bits.length) UI.toast(bits.join('  ·  '));
         }
         function profile() {
