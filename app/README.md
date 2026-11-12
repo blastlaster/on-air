@@ -35,10 +35,13 @@ builds Windows and Linux on GitHub's machines and publishes the release with
 | `preload.js` | The only bridge between the app's pages and the computer (`window.onairApp`). Sandboxed. |
 | `watch.js` | Finds a station from any address and watches whether it's live (plain Node). |
 | `updates.js` | electron-updater against GitHub releases. |
-| `userscripts.js` · `board-preload.js` | Board userscripts: install/update/remove, and the GM_* shim injected into the board's own view. |
+| `userscripts.js` · `board-preload.js` | Board userscripts: install/update/remove, and the GM_* shim injected into the board's own view; the board preload also keeps 4chan's hidden and watched threads in step with the Interface. |
 | `ui/` | The app's own pages, served from `onair://app/`. |
 | `ui/core.js` | The station client (ported from the listener page): one engine socket, the stream, the album player, calls. |
 | `ui/radio.*` | The main window. |
+| `ui/one.*` | One window (Settings → Layout): the radio grown into the site's layout, the other windows as panels in it. |
+| `ui/add.*` | The first run's "paste the station's address" page, and Stations… |
+| `ui/elements-list.js` | The windows, in the order of the radio's buttons. |
 | `ui/win.*` | Every other window (`win.html?w=chat` …); `ui/iface.*` is the Interface. |
 | `ui/hall.*` · `ui/hall-art.js` | The Hall (🕺 in Chat's title bar): the pixel room, its people and Radioman, drawn from code on a 240×150 canvas. |
 | `ui/common.js` | The frame, title bar, sheets, toasts, looks — shared by all windows. |
@@ -60,10 +63,19 @@ green-thread server). Main adds the person's private key (`cfg.ifaceKey`) to
 green-thread requests, and the moderator token only for the server it was saved
 for (`station` = wherever the station PC is today, from its pointer).
 
+**One window** loads each part as `win.html?w=<id>&panel=1` in an iframe of the
+radio's page, so they still share `core`. A panel reaches the layout through
+`window.parent.onairOne` (`close`, `zoom`, `inMiddle`, `zoomed`, `covered`). The
+board is still the native view, placed over its panel's slot (and hidden while
+something covers it). The layout (`cfg.ui.full`: parts shown, the middle's
+arrangement `mid`, the part `under` Now Playing) is kept in settings.
+
 **The Hall** rides the radio's station socket (`hall-*` messages, see
 `engine/hall.js`): the engine sends where people are heading and each app
 walks them there. What you say is ordinary station chat tagged with your Hall
-id, so it shows as a bubble. Your look is kept in `localStorage` (`ltl.hallLook`).
+id, so it shows as a bubble. Your look is kept in `localStorage` (`ltl.hallLook`). The `/` chat commands
+are answered by the engine (`engine/chat-commands.js`); the app only opens the
+Request window for `/request` and keeps the `/nick` name and the `/ignore` list.
 
 ## Test runs
 

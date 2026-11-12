@@ -58,6 +58,7 @@ its window is showing, and asks the station only *"anything new?"*.
 
 ## Reading
 
+- **[Top]** and **[Bottom]** by the thread's heading jump to either end of it. In a small panel (One window, beside the others) the toolbar folds into **⋯** and the posts fit the width.
 - **Quotes** (`>>123`, `>>123-45`, `>>7xK2`) are links: hover for a preview, click to jump to the post (or open the thread it's in).
 - **Links** in posts open in your browser; `>>>/s4s/123` and `>>>/g/` open in the board window. YouTube links get an **[Embed]** to play them in the post.
 - **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address, open it in your browser, or **search for it** (Google Lens, Yandex, SauceNAO, TinEye, IQDB, trace.moe).
@@ -73,7 +74,7 @@ At the bottom of every thread:
 | In a board thread | In a green thread |
 |---|---|
 | **🟩 Green post** — goes to funposters.club, so everyone using the interface (in the app or the [s4s] interface userscript) sees it in that thread. **📎 Picture** adds an image (or paste one into the comment, or drop it on the form), up to 8 MB. | **Reply** — goes to the station's green threads. Text only. |
-| **Reply on 4chan ↗** — opens the board window at that thread, where 4chan's own captcha lives. | |
+| **Reply on 4chan ↗** — opens the board at that thread (its window, or its part of One window), where 4chan's own captcha lives. | |
 
 - **Name**: your app name to start with; `name#secret` gives a tripcode (`!Ab3…`).
 - **Options** (click the field for the list): `sage` replies without bumping; `numberless` hides your number on a green post; moderators can write `station` for the Station badge.
@@ -144,12 +145,16 @@ Spotted someone's repeating digits? **Check'em** — quote the post — and get 
 **Check on 4chan itself and it's worth double**: reply on 4chan from the board
 window (Reply on 4chan ↗) quoting the repeats, and the app spots your reply
 — +11 dubs, +22 trips, +44 quads, +222 quints, +2222 sexts. The station reads
-your reply from 4chan before it pays, and each reply counts once.
+your reply from 4chan before it pays, and each reply counts once. Your own
+reply's number counts too: if *it* lands dubs or better, that's your get.
 
 - **In green threads**: quote a green post whose id ends in repeats (`>>7xKK`).
 - **On the board at large**: quote a real 4chan post whose number repeats — in a green post on its thread, or in a green thread. The station's PC checks it with 4chan's own data: the post must exist and be **from the last 24 hours**.
 - **Never your own**, and **once per post**.
 - Dubs and trips checks share **55 XP a day** (**111** for checks on 4chan); quads and up always count.
+  Past the cap a check still counts toward the achievements, for 0 XP.
+- **Your profile** (click **Lv**) shows today's check XP against the cap, and how far you are
+  toward each achievement you haven't got yet.
 
 ## Achievements
 

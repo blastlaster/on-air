@@ -9,7 +9,7 @@ One window** lays it all out in one window, like the station's site. Built for F
 
 <img src="images/radio.png" alt="The radio" width="480">
 
-**Contents:** [Install](#install) · [The radio](#the-radio) · [The windows](#the-windows) · [Moving things around](#moving-things-around) · [One window](#one-window) ·
+**Contents:** [Install](#install) · [The radio](#the-radio) · [The windows](#the-windows) · [Chat commands](#chat-commands) · [blug.dj/jej](#blugdjjej) · [Moving things around](#moving-things-around) · [One window](#one-window) ·
 [Looks](#looks-text-size-and-effects) · [Live alerts and pings](#live-alerts-and-pings) · [The board](#the-board-and-its-scripts) ·
 [Albums](#albums) · [Settings](#settings) · [The tray](#the-tray) · [Updates](#updates) · [For stations: extras.json](#for-stations-extrasjson) ·
 [Privacy](#privacy-and-safety) · [Trouble?](#trouble)
@@ -47,7 +47,7 @@ The media keys on your keyboard play and pause.
 
 | Button | Window |
 |---|---|
-| 💬 **Chat** | The live room during a show (the station's own chat), the community's Chattable room the rest of the time — in the app's look, under the name you set. |
+| 💬 **Chat** | The station's own chat whenever its engine is on (the community's Chattable room when it isn't) — in the app's look, under the name and colour you set. [Chat commands](#chat-commands) work here. |
 | 🎵 **Request** | The station's music: search and request — from the DJ's library when live, from AutoDJ's otherwise. |
 | 🕘 **Playlist** | Coming up next, and what just played. |
 | 📞 **Call in** | Call the show (it asks first — you'll be live), leave a voicemail, check in with a guest code, and see who's on the line. |
@@ -57,7 +57,58 @@ The media keys on your keyboard play and pause.
 | 📺 **TV** | The station's video stream while it's live (the button pulses); its channel in your browser otherwise. |
 | 💫 **Links** | The station's friends. |
 | ⚙️ **Settings** | Everything below. |
+| 🕺 **blug.dj/jej** | The station's pixel room (🕺 in the Chat window's top bar, or its own tab in One window). [Below](#blugdjjej). |
 | 🟩 **Interface** | *Hidden.* [How to find it](interface.md). |
+
+## Chat commands
+
+A chat line starting with `/` is a command, wherever you type it (the app, the
+listener page, blug.dj/jej). Only you see the answers, unless it says otherwise.
+
+| Command | What it does |
+|---|---|
+| `/nick name` | Your new name (the app keeps it). |
+| `/afk why` · `/brb` | Away: a flag over you in blug.dj/jej, and anyone who mentions you hears so. Saying anything brings you back, and so does `/back`. Ten idle minutes in the room marks you away too. |
+| `/me does a thing` | An action, in italics. |
+| `/np` | What's playing, and who asked for it. |
+| `/request` | Opens the Request window. |
+| `/who` | Who's here, and who's in blug.dj/jej. |
+| `/ignore name` · `/unignore name` | Hides someone's lines from you (the app remembers the list). |
+| `/wave` `/dance` `/cheer` … | An emote in blug.dj/jej. |
+| `/roll` · `/roll 100` · `/roll 5-10` | A number everyone sees, in bold; dubs and better get cheered. |
+| `/fortune` | Your fortune, the old way, in its colour. |
+| `/help` | The list. |
+
+## blug.dj/jej
+
+A pixel room to hang out in while the station plays. What you say in it is the
+station's chat, and it comes out of your character's mouth; Radioman runs the
+show from his desk. Up to 40 people at once (the host can change that).
+
+- **Walk**: click, WASD or the arrows, or a controller. **Space** jumps, **Shift**
+  dashes (hold it to sprint), **1–0** are the emotes (wave, dance, jump, sit,
+  cheer, clap, point, spin, headbang, sleep). **⌨** in the actions changes any key.
+- **🎨 Look**: skin, hair, clothes, extras and your name colour. **😀** has
+  feelings (a face and a little emoji over you), **glowsticks**, **auras** (each
+  takes a colour everyone sees; *Natural* keeps its own) and **things to hold**:
+  any emoji, or one of the station's own emotes (moving GIFs move in your hands).
+  Walk up to someone and **Give** it to them.
+- **Points and unlocks**: giving things earns *nice* points (petals, wings, a
+  tiara… up to the Heaven aura at 999); passing the hot potato earns *ebil* ones
+  (fire, horns, a cape… up to the Crown of flames); five UFO abductions unlock
+  the UFO to ride.
+- **Games**: rock paper scissors, **duels** (bonk, fish slap and snowball, best
+  of three, on **J K L**), **🎲 board games** at tables (tic-tac-toe, checkers,
+  Chinese checkers) and **hot potato** (give someone a 💣; **J** passes it on).
+  The host starts Dodgeball and Burgertime. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
+  to sit out the hitting. Dash or jump just before a snowball lands and it misses.
+- **Say "ayy lmao"** and alien heads rain down; now and then a UFO takes someone.
+- The room fills the width beside the chat; **⛶** stretches it to fill all the
+  space (again: back to its shape). **💬** shows or hides the chat, which you can
+  move and resize.
+
+The host runs the room from the studio: open or closed, how many people, stage
+effects, whether listeners can set off 🔥 and 🎊, and kicking or banning someone.
 
 ## Moving things around
 

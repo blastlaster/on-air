@@ -39,7 +39,10 @@ in, request songs, play the albums — and do things a web page can't.
 - **📻 The radio**: the song, its cover and how far into it; 👍/👎 on AutoDJ songs; long titles scroll by.
 - **⏭ Vote to skip**: when more than half of the people listening press ⏭, the AutoDJ song is skipped, and a bar under the volume shows everyone how close a vote is. (When the station allows it.)
 - **📣 A ping when the station goes live** — and whenever the host presses 📣 Ping, live or not. No account, no push service: the app watches the station itself.
-- **🗂️ Every part in its own window.** Chat, Request, Playlist, Call in, Sign, Albums, Board, TV, Links, Settings. Move them, size them, roll them up to their title bar, tuck them into the radio, keep any of them on top. They remember where they were, and bringing the radio forward brings them all with it.
+- **🗂️ Every part in its own window.** Chat, blug.dj/jej, Request, Playlist, Call in, Sign, Albums, Board, TV, Links, Settings. Move them, size them, roll them up to their title bar, tuck them into the radio, keep any of them on top. They remember where they were, and bringing the radio forward brings them all with it.
+- **🖥️ Or all in one window**, laid out like the station's site: Now Playing, the video and chat around a middle that holds [s4s], the Interface and blug.dj/jej — one of them, or two or three side by side (▦ picks the arrangement, ⤢ fills the middle with one, and one can sit under Now Playing).
+- **🕺 blug.dj/jej**, the station's pixel room: walk, dance and talk out of your character's mouth; hold and give any emoji or the station's own emotes; auras, glowsticks and unlockables; duels, rock paper scissors, board games, hot potato, and the host's Dodgeball and Burgertime.
+- **💬 Chat commands**: `/nick`, `/afk`, `/me`, `/np`, `/request`, `/who`, `/ignore`, `/roll` (check 'em), `/fortune` and `/help`.
 - **🎨 25 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese and Starry — and a see-through **HUD** that leaves only the words.
 - **🎃 Holiday looks**, like the board's one-day-a-year themes: **Spooky** on Halloween (with a dancing skeleton), party hats for **4chan's birthday** (Oct 1) and **[s4s]'s birthday** (Apr 1), snow for **Crimbus**, plus New Year, Valentine's and St Patrick's. The app dresses up by itself on the day; wear them any day you like.
 - **📞 Call the show** or leave a voicemail, right from the desktop.
@@ -84,7 +87,7 @@ with letters in their ids — that exist nowhere else.
 - **Green posts with pictures**: pick one, paste it or drop it in. **↓ save** any picture, or right-click it to search for it.
 - **Green threads**: text only, quoted like `>>7xK2`, bumped by replies, archived after three days without one.
 - **Levels.** You earn XP by posting, by being quoted, by landing repeating ids — and by **checking** other people's: dubs, trips, quads and up, in green threads *and* on the board itself. **Checking with a real reply on 4chan is worth double.** Level **11** lets you start a thread of your own (one at a time). The milestones are the numbers [s4s] cares about: **11, 22, 33… 111, 1111**, palindromes like **3113**, patterns like **1313**.
-- **(You)**, a watcher for threads, quote previews, tripcodes, the Options list, and moderation tools for the station.
+- **(You)**, a watcher for threads (the same list as the board's Thread Watcher, and hidden threads are shared too), quote previews, tripcodes, the Options list, and moderation tools for the station.
 
 Green threads are hosted by the station; they're there whenever the station is on.
 
