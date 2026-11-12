@@ -83,8 +83,11 @@ radio into one big window laid out like the station's site:
 - Along the top: the station, the live light, a **tab for each part**, and the LED sign.
 - **Now Playing** on the left, with *Call in*, *Request* and *blug.dj/jej* under the
   player, and the playlist under that.
-- The **board** or **blug.dj/jej** in the middle (their tabs swap them), the **video**
-  and the **chat** on the right.
+- The **middle**: the **board**, the **Interface** and **blug.dj/jej**, alone or side
+  by side. Their tabs show or hide each one; **▦** in the top bar picks how they
+  share the middle (say the board top left, the Interface under it and
+  blug.dj/jej beside them). **⤢** on one fills the middle with it; ⤢ again puts
+  the rest back. The **video** and the **chat** are on the right.
 - **Albums**, **Request**, **Call in**, **Links** and **Settings** open over the page;
   ✕, a click beside it or Esc closes them.
 

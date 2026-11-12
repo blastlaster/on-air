@@ -1,9 +1,14 @@
 /* =============================================================
    THE ONE WINDOW — the radio grown into one big window, laid out
    like the station's site: a top bar with the tabs and the LED
-   sign, Now Playing on the left, the board or blug.dj/jej in the
-   middle, the video and the chat on the right. Request, Albums,
-   Call in, Links and Settings open over the page.
+   sign, Now Playing on the left, the middle, the video and the
+   chat on the right. Request, Albums, Call in, Links and Settings
+   open over the page.
+
+   The middle holds the board ([s4s]), the Interface and
+   blug.dj/jej: one of them, or two or three side by side in one
+   of the arrangements below (▦ in the top bar picks; ⤢ on a part
+   fills the middle with it, and back).
 
    Each part is the same page its own window would be
    (win.html?w=chat), in a frame here: window.parent.core is the
@@ -13,14 +18,33 @@
 (function () {
     'use strict';
     const PANELS = ['np', 'mid', 'tv', 'chat'];
-    const FLY = { request: 560, albums: 640, studio: 480, links: 520, settings: 600, interface: 1100 };
+    const FLY = { request: 560, albums: 640, studio: 480, links: 520, settings: 600 };
+    /* The middle's parts, and the ways they share it: a grid each (columns, rows, areas). */
+    const PARTS = ['board', 'interface', 'hall'];
+    const SIDE = 'minmax(320px, 36%)';
+    const ARR = {
+        board: { cols: '1fr', rows: '1fr', areas: '"board"' },
+        interface: { cols: '1fr', rows: '1fr', areas: '"interface"' },
+        hall: { cols: '1fr', rows: '1fr', areas: '"hall"' },
+        'board+hall': { cols: SIDE + ' minmax(0, 1fr)', rows: '1fr', areas: '"board hall"' },
+        'interface+hall': { cols: SIDE + ' minmax(0, 1fr)', rows: '1fr', areas: '"interface hall"' },
+        'board+interface': { cols: '1fr 1fr', rows: '1fr', areas: '"board interface"' },
+        'board/interface+hall': { cols: SIDE + ' minmax(0, 1fr)', rows: '1fr 1fr', areas: '"board hall" "interface hall"' },
+        'hall+board/interface': { cols: 'minmax(0, 1fr) ' + SIDE, rows: '1fr 1fr', areas: '"hall board" "hall interface"' },
+        'hall/board+interface': { cols: '1fr 1fr', rows: 'minmax(0, 1.4fr) minmax(0, 1fr)', areas: '"hall hall" "board interface"' },
+        'board+hall+interface': { cols: 'minmax(300px, 28%) minmax(0, 1fr) minmax(300px, 28%)', rows: '1fr', areas: '"board hall interface"' }
+    };
+    const partsOf = (a) => (ARR[a] ? PARTS.filter(p => ARR[a].areas.includes(p)) : []);
+    const setKey = (parts) => PARTS.filter(p => parts.includes(p)).join(',');
 
     window.OneWindow = function ({ app, core, $, esc }) {
         const saved = (UI.info.ui && UI.info.ui.full) || {};
         // Which panels show (the video never comes back by itself: it stops the radio).
-        const show = { np: saved.np !== false, chat: saved.chat !== false, tv: false, mid: saved.mid === 'board' || saved.mid === 'hall' ? saved.mid : '' };
+        const show = { np: saved.np !== false, chat: saved.chat !== false, tv: false, mid: ARR[saved.mid] ? saved.mid : '' };
+        // For each mix of parts, the arrangement last picked for it.
+        const pref = saved.arr && typeof saved.arr === 'object' ? { ...saved.arr } : {};
         const frames = {};             // id → its <iframe>
-        let fly = '', s = core.state, list = [];
+        let fly = '', s = core.state, list = [], picking = false, zoomedFrom = '';
 
         const markup =
             '<div class="one">' +
@@ -29,6 +53,7 @@
                 '<span class="one-pill" title="Red when someone is live, blue for AutoDJ"><span class="light"></span><span class="state">Tuning in…</span><span class="count dim"></span></span></div>' +
               '<nav class="one-tabs"></nav>' +
               '<div class="one-win">' +
+                '<button type="button" data-w="pick" title="Arrange the middle: [s4s], the Interface and blug.dj/jej">▦</button>' +
                 '<button type="button" data-w="layout" title="Separate windows: the little radio, each part in its own window">⧉</button>' +
                 '<button type="button" data-w="menu" title="Window options">≡</button>' +
                 '<button type="button" data-w="tuck" title="Minimise">–</button>' +
@@ -55,11 +80,12 @@
                 '</div>' +
                 '<div class="one-slot" data-slot="playlist"></div>' +
               '</section>' +
-              '<section class="one-panel" data-p="mid"><div class="one-slot" data-slot="board"></div><div class="one-slot" data-slot="hall"></div></section>' +
+              '<section class="one-panel one-mid" data-p="mid">' + PARTS.map(p => '<div class="one-slot" data-slot="' + p + '" style="grid-area: ' + p + '"></div>').join('') + '</section>' +
               '<section class="one-panel one-tv" data-p="tv"><div class="one-slot" data-slot="tv"></div></section>' +
               '<section class="one-panel" data-p="chat"><div class="one-slot" data-slot="chat"></div></section>' +
               '<div class="one-empty" hidden>👀 Everything is hidden. Pick a tab above to bring something back.</div>' +
             '</main>' +
+            '<div class="one-pick" hidden></div>' +
             '<div class="one-fly" hidden><div class="one-fly-card"><button type="button" class="one-fly-x" title="Close (Esc)">✕ Close</button><div class="one-slot" data-slot="fly"></div></div></div>' +
             '</div>';
 
@@ -94,11 +120,16 @@
             if (np) frame('playlist');
             if (chat) frame('chat');
             if (tv) frame('tv'); else drop('tv');
-            if (show.mid === 'board') frame('board', 'board');
-            if (show.mid === 'hall') frame('hall', 'hall'); else drop('hall');
-            if (frames.board) frames.board.hidden = show.mid !== 'board';
-            $('[data-slot="board"]').hidden = show.mid !== 'board';
-            $('[data-slot="hall"]').hidden = show.mid !== 'hall';
+            // The middle: its parts in their arrangement. The board and the Interface keep their place
+            // (and drafts) while they're away; blug.dj/jej is left.
+            const inMid = partsOf(show.mid), m = $('[data-p="mid"]', g), a = ARR[show.mid];
+            for (const p of PARTS) {
+                const on = inMid.includes(p);
+                if (on) frame(p, p); else if (p === 'hall') drop('hall');
+                if (frames[p]) frames[p].hidden = !on;
+                $('[data-slot="' + p + '"]').hidden = !on;
+            }
+            if (a) { m.style.gridTemplateColumns = a.cols; m.style.gridTemplateRows = a.rows; m.style.gridTemplateAreas = a.areas; }
             // Columns: Now Playing, the middle, and the video over the chat. Whatever is missing, the rest share.
             const cols = [], r1 = [], r2 = [];
             const add = (w, a, b) => { cols.push(w); r1.push(a); r2.push(b); };
@@ -127,7 +158,41 @@
             requestAnimationFrame(() => { const f = frames.board; if (f && f.dataset.ready) f.contentWindow.dispatchEvent(new Event('panel-moved')); });
         }
         window.addEventListener('resize', moved);
-        function save() { app.setUi({ full: { np: show.np, chat: show.chat, mid: show.mid } }); }
+        function save() { app.setUi({ full: { np: show.np, chat: show.chat, mid: show.mid, arr: pref } }); }
+
+        /** The middle with these parts: in the arrangement last picked for them, or the first that fits. */
+        function setMid(parts) {
+            const k = setKey(parts);
+            zoomedFrom = '';
+            show.mid = !k ? '' : ARR[pref[k]] && setKey(partsOf(pref[k])) === k ? pref[k] : Object.keys(ARR).find(a => setKey(partsOf(a)) === k);
+            layout(); save();
+        }
+        /** ⤢ on a part: it fills the middle; again, and the middle is as it was. */
+        function zoom(id) {
+            if (zoomedFrom && show.mid === id) { show.mid = zoomedFrom; zoomedFrom = ''; }
+            else { const was = show.mid; show.mid = id; zoomedFrom = was !== id ? was : ''; }
+            layout(); save();
+        }
+
+        /* ---------- ▦ the middle's arrangements, drawn small ---------- */
+        const SHORT = { board: '[s4s]', interface: 'Interface', hall: 'blug.dj' };
+        function offered() { const have = tabIds(); return Object.keys(ARR).filter(a => partsOf(a).every(p => have.has(p))); }
+        function drawPick() {
+            const box = $('.one-pick');
+            const name = (p) => p === 'board' ? (s.extras && s.extras.board && s.extras.board.title) || SHORT.board : SHORT[p];
+            box.innerHTML = '<div class="one-pick-h">Arrange the middle</div><div class="one-pick-list">' + offered().map(a =>
+                '<button type="button" class="one-arr' + (a === show.mid ? ' on' : '') + '" data-arr="' + esc(a) + '" title="' + esc(partsOf(a).map(name).join(' + ')) + '">' +
+                '<span class="one-mini" style="grid-template-columns: ' + ARR[a].cols.replace(/minmax\((\d+)px, (\d+%)\)/g, '$2') + '; grid-template-rows: ' + ARR[a].rows + '; grid-template-areas: ' + esc(ARR[a].areas) + '">' +
+                partsOf(a).map(p => '<i class="mini-' + p + '" style="grid-area: ' + p + '">' + esc(name(p)) + '</i>').join('') + '</span></button>').join('') +
+                '</div><div class="one-pick-foot dim">⤢ on a part fills the middle with it · its tab hides or shows it</div>';
+        }
+        function pick(on) {
+            picking = on;
+            if (on) drawPick();
+            $('.one-pick').hidden = !on;
+            $('.one-win [data-w="pick"]').classList.toggle('on', on);
+            moved();                                       // the board's view steps aside while this is over it
+        }
 
         /* ---------- over the page: Request, Albums, Call in, Links, Settings ---------- */
         function openFly(id) {
@@ -154,9 +219,10 @@
         function open(id) {
             if (id === 'np' || id === 'playlist' || id === 'banner') { if (!show.np) { show.np = true; layout(); save(); } return; }
             if (id === 'chat') { if (!show.chat) { show.chat = true; layout(); save(); } return; }
-            if (id === 'board' || id === 'hall') {
-                if (id === 'board') closeFly();                 // the board can't show under the Interface (or anything else over the page)
-                if (show.mid !== id) { show.mid = id; layout(); save(); }
+            if (PARTS.includes(id)) {
+                if (id === 'board') closeFly();                 // the board can't show under anything over the page
+                const now = partsOf(show.mid);
+                if (!now.includes(id)) setMid(now.concat(id));
                 return;
             }
             if (id === 'tv') {
@@ -168,27 +234,35 @@
             if (FLY[id]) openFly(id);
         }
         function hide(id) {
-            if (id === 'board' || id === 'hall') { if (show.mid === id) show.mid = ''; }
-            else if (id in show) show[id] = false;
+            if (PARTS.includes(id)) return setMid(partsOf(show.mid).filter(p => p !== id));
+            if (id in show) show[id] = false;
             else if (id === fly) return closeFly();
             layout(); save();
         }
         function toggle(id) {
             if (FLY[id]) return fly === id ? closeFly() : openFly(id);
-            const on = id === 'board' || id === 'hall' ? show.mid === id : show[id];
+            const on = PARTS.includes(id) ? partsOf(show.mid).includes(id) : show[id];
             if (on) hide(id); else open(id);
         }
-        // For the parts in their frames: "take me back" hides the panel; the board asks if anything covers it.
-        window.onairOne = { close: (id) => (FLY[id] ? closeFly() : hide(id)), covered: () => !!fly || document.body.classList.contains('tv-full') };
+        // For the parts in their frames: "take me back" hides the panel; ⤢ fills the middle; the board asks if anything covers it.
+        window.onairOne = {
+            close: (id) => (FLY[id] ? closeFly() : hide(id)),
+            zoom, inMiddle: (id) => PARTS.includes(id), zoomed: (id) => !!zoomedFrom && show.mid === id,
+            covered: () => !!fly || picking || document.body.classList.contains('tv-full')
+        };
 
         /* ---------- the tabs (the site's top bar) and Now Playing's buttons ---------- */
         const TABS = ['tv', 'np', 'albums', 'board', 'hall', 'chat', 'interface', 'links', 'settings'];
         const ICON = { np: '🎶', hall: '🕺' }, NAME = { np: 'Radio', hall: 'blug.dj/jej' };
         let lastTabs = '';
-        function tabs() {
+        function tabIds() {
             const have = new Set(list.map(el => el.id));
             if (have.has('chat')) have.add('hall');
             have.add('np');
+            return have;
+        }
+        function tabs() {
+            const have = tabIds();
             const els = TABS.filter(id => have.has(id)).map(id => ELEMENTS.find(e => e.id === id) || { id });
             const label = (el) => NAME[el.id] || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
             const key = els.map(el => el.id + ':' + label(el)).join(',');
@@ -200,7 +274,7 @@
             }
             for (const b of nav.children) {
                 const id = b.dataset.el;
-                b.classList.toggle('open', id === 'board' || id === 'hall' ? show.mid === id : id in show ? !!show[id] : fly === id);
+                b.classList.toggle('open', PARTS.includes(id) ? partsOf(show.mid).includes(id) : id in show ? !!show[id] : fly === id);
                 if (id === 'tv') b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !show.tv);
                 if (id === 'chat' && show.chat) b.classList.remove('new');
             }
@@ -221,11 +295,22 @@
             $('.one-win').onclick = (e) => {
                 const b = e.target.closest('button[data-w]');
                 if (!b) return;
-                if (b.dataset.w === 'layout') app.setUi({ layout: 'windows' });
+                if (b.dataset.w === 'pick') pick(!picking);
+                else if (b.dataset.w === 'layout') app.setUi({ layout: 'windows' });
                 else app.winCmd(b.dataset.w);
             };
+            $('.one-pick').onclick = (e) => {
+                const b = e.target.closest('[data-arr]');
+                if (!b) return;
+                const a = b.dataset.arr;
+                pref[setKey(partsOf(a))] = a;
+                zoomedFrom = ''; show.mid = a;
+                layout(); save(); pick(false);
+            };
+            document.addEventListener('mousedown', (e) => { if (picking && !e.target.closest('.one-pick, [data-w="pick"]')) pick(false); });
+            window.addEventListener('blur', () => { if (picking) pick(false); });          // a click in a part's frame
             $('.one-fly').onclick = (e) => { if (e.target === $('.one-fly') || e.target.closest('.one-fly-x')) closeFly(); };
-            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && fly) closeFly(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (picking) pick(false); else if (fly) closeFly(); } });
             // The video, full screen: it fills the window (and the window the screen).
             if (app.onPanelFull) app.onPanelFull((id) => { document.body.classList.toggle('tv-full', id === 'tv'); moved(); });
             const paintMax = (w) => { const m = $('.one-win [data-w="max"]'); m.textContent = w && w.max ? '🗗' : '▢'; m.title = w && w.max ? 'Restore' : 'Maximise'; document.body.classList.toggle('maxed', !!(w && w.max)); };

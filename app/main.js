@@ -70,7 +70,7 @@ const UI_DEFAULTS = {
     ifaceOn: false,             // the secret Interface window (type "interface" on the radio)
     travelOn: false,            // the Studio-on-a-server field in Settings → Station (type "mysterioustraveller" on the radio)
     layout: 'windows',          // 'windows': the radio and its own windows; 'one': one big window laid out like the station's site
-    full: {},                   // the one window: which panels are showing ({ np, chat, tv, mid: 'board' | 'hall' | '' })
+    full: {},                   // the one window: which panels are showing ({ np, chat, tv, mid: the middle's arrangement, arr })
     ifaceServer: '',            // green threads server, if not the station's
     ifaceToken: '', ifaceTokenFor: ''   // the station's moderator token, and the server it is for (never sent to the pages)
 };
@@ -1404,7 +1404,13 @@ handle('ui-set', (e, patch) => {
         else if (k === 'ifaceToken' || k === 'ifaceTokenFor') continue;          // only through iface-token
         else if (k === 'studioSsh') cfg.studioSsh = cleanSsh(patch.studioSsh);
         else if (k === 'layout') { const l = patch.layout === 'one' ? 'one' : 'windows'; if (l !== cfg.ui.layout) { cfg.ui.layout = l; setTimeout(relayout, 60); } }
-        else if (k === 'full') { const f = patch.full || {}; cfg.ui.full = { np: f.np !== false, chat: f.chat !== false, tv: !!f.tv, mid: ['board', 'hall'].includes(f.mid) ? f.mid : '' }; }
+        else if (k === 'full') {
+            // mid: the middle's arrangement ('hall', 'board/interface+hall' …); arr: the one last picked for each mix of parts.
+            const f = patch.full || {}, ok = (a) => typeof a === 'string' && /^[a-z+/]{0,40}$/.test(a);
+            const arr = {};
+            for (const [key, a] of Object.entries(f.arr && typeof f.arr === 'object' ? f.arr : {}).slice(0, 12)) if (/^[a-z,]{1,30}$/.test(key) && ok(a)) arr[key] = a;
+            cfg.ui.full = { np: f.np !== false, chat: f.chat !== false, tv: !!f.tv, mid: ok(f.mid) ? f.mid : '', arr };
+        }
         else if (k in UI_DEFAULTS) cfg.ui[k] = patch[k];
     }
     if ('onTop' in patch) for (const w of allWindows()) { const id = idOf(w.webContents); if (prefs(id).onTop === undefined) w.setAlwaysOnTop(!!cfg.ui.onTop, 'floating'); }

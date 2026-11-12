@@ -54,6 +54,33 @@ body.one-on .sheet { inset: 0; }
 .one-slot:empty { display: none; }
 .one-frame { flex: 1; min-height: 0; width: 100%; border: 0; display: block; background: transparent; color-scheme: normal; }
 .one-frame[hidden] { display: none; }
+/* The middle: [s4s], the Interface and blug.dj/jej in their arrangement (one.js sets the grid) */
+.one-mid { display: grid; gap: var(--gap); }
+.one-mid > .one-slot { min-width: 0; }
+.one-mid > .one-slot[hidden] { display: none; }
+
+/* ▦ the arrangements, drawn small, under the top bar */
+.one-win button.on { background: rgba(255, 255, 255, 0.22); opacity: 1; }
+.one-pick {
+    position: fixed; top: 44px; right: 10px; z-index: 28; width: min(560px, calc(100vw - 20px)); padding: 10px 12px 12px;
+    background: var(--sk-panel-bg); color: var(--sk-panel-text); border: var(--sk-panel-border); border-radius: var(--sk-radius);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.one-pick[hidden] { display: none; }
+.one-pick-h { font-family: var(--sk-title-font); font-weight: bold; margin-bottom: 8px; }
+.one-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.one-arr { padding: 4px; cursor: pointer; background: transparent; border: 2px solid transparent; border-radius: 6px; font: inherit; color: inherit; }
+.one-arr:hover { border-color: rgba(127, 127, 127, 0.5); }
+.one-arr.on { border-color: var(--sk-btn-active); }
+.one-mini { display: grid; gap: 3px; height: 64px; }
+.one-mini i {
+    font-style: normal; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; overflow: hidden; white-space: nowrap; color: #fff;
+}
+.one-mini .mini-board { background: #2f7d32; }
+.one-mini .mini-interface { background: #1e5bb8; }
+.one-mini .mini-hall { background: #a0329b; }
+.one-pick-foot { margin-top: 8px; font-size: 0.8em; }
 
 /* Now Playing: a card like the other panels, with the playlist under it */
 .one-np {

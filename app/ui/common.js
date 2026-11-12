@@ -46,6 +46,14 @@
     }
     let lookNow, lookFns = [];
 
+    /** A part of the one window's middle: ⤢ fills the middle with it (and back), ✕ hides it. */
+    function midButtons(id) {
+        const one = window.parent !== window && window.parent.onairOne;
+        if (!one || !one.inMiddle || !one.inMiddle(id)) return '';
+        return '<button type="button" data-cmd="zoom" title="Fill the middle with this (again: back as it was)">⤢</button>' +
+            '<button type="button" class="x" data-cmd="hide" title="Hide this">✕</button>';
+    }
+
     /** Build the window: a frame with a title bar, a body, and a grip.
         A panel of the one window (opts.panel) gets just its heading: the one window moves and closes it. */
     async function init(opts) {
@@ -54,7 +62,7 @@
         if (panel) document.body.classList.add('panel');
         document.body.insertAdjacentHTML('afterbegin',
             '<div class="frame"><div class="bar"><span class="ic"></span><span class="t"></span>' +
-            (opts.barExtra || '') + (panel ? '</div><div class="body"></div></div>' :
+            (opts.barExtra || '') + (panel ? midButtons(opts.id) + '</div><div class="body"></div></div>' :
             '<button type="button" data-cmd="menu" title="Window options (or right-click the title)">≡</button>' +
             (opts.id === 'radio' ? '' : '<button type="button" data-cmd="roll" title="Roll up to the title bar">▴</button>') +
             '<button type="button" data-cmd="tuck" title="' + (opts.id === 'radio' ? 'Minimise' : 'Tuck into the radio') + '">–</button>' +
@@ -66,7 +74,9 @@
             const b = e.target.closest('button[data-cmd]');
             if (!b) return;
             const c = b.dataset.cmd;
-            if (c === 'roll') app.setWin({ rolled: !me.rolled });
+            if (c === 'zoom') window.parent.onairOne.zoom(opts.id);
+            else if (c === 'hide') window.parent.onairOne.close(opts.id);
+            else if (c === 'roll') app.setWin({ rolled: !me.rolled });
             else app.winCmd(c);
         });
         $('.body').addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, a')) { e.preventDefault(); app.winCmd('menu'); } });
