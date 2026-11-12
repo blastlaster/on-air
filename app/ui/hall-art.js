@@ -1066,6 +1066,24 @@
         ALIEN.forEach((r, j) => [...r].forEach((k, i) => { if (ALIEN_C[k]) { ctx.fillStyle = ALIEN_C[k]; ctx.fillRect(x0 + Math.round(i * s), y0 + Math.round(j * s), Math.ceil(s), Math.ceil(s)); } }));
         ctx.restore();
     }
+    /** A crop circle burnt into the floor where the UFO took someone: (x, y) its middle, a 0–1 (fading out). */
+    function cropCircle(x, y, a) {
+        x = Math.round(x); y = Math.round(y);
+        const ring = (rx, ry, c, gap) => {
+            for (let i = 0, n = Math.round(rx * 4); i < n; i++) {
+                if (gap && i % gap === 0) continue;
+                const k = i / n * Math.PI * 2;
+                R(x + Math.round(Math.cos(k) * rx), y + Math.round(Math.sin(k) * ry), 1, 1, c);
+            }
+        };
+        l.globalAlpha = a * 0.22;
+        for (let j = -5; j <= 5; j++) { const w = Math.round(15 * Math.sqrt(1 - (j / 6) ** 2)); R(x - w, y + j, w * 2 + 1, 1, '#b8e07a'); }   // the flattened patch
+        l.globalAlpha = a * 0.75;
+        ring(16, 6, '#d8f59a'); ring(10, 3.7, '#a6d46a', 7); ring(4, 1.5, '#d8f59a');
+        R(x, y, 1, 1, '#f2ffd0');
+        for (const s of [-1, 1]) { R(x + s * 20, y, 1, 1, '#d8f59a'); R(x + s * 21, y - 1, 1, 1, '#a6d46a'); R(x + s * 21, y + 1, 1, 1, '#a6d46a'); R(x + s * 22, y, 1, 1, '#a6d46a'); }   // little ones either side
+        l.globalAlpha = 1;
+    }
     /** The UFO that takes people: (x, y) the middle of its saucer, an alien in the dome; beam 0–1 down to y + reach. */
     function ufo(x, y, t, beam, reach) {
         x = Math.round(x); y = Math.round(y);
@@ -1508,5 +1526,6 @@
         sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); },
         explosion: (ctx, x, y, s) => { l = ctx; explosion(x, y, s); },
         shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); },
-        alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); } };
+        alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
+        cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); } };
 })();

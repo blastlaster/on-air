@@ -794,6 +794,7 @@
         // The UFO (seconds from when it's sent): flies in, beams them up (UFO_UP to UFO_IN), flies off at UFO_OFF.
         const UFO_AT = 1.4, UFO_UP = 1.6, UFO_IN = 2.8, UFO_OFF = 3.0, UFO_GONE = 4.4;
         let ayyRain = null, ayyUfo = null, ayyMe = null;         // the heads; the UFO { h, x, y, at }; you, taken { at, backAt }
+        const crops = [], CROP_S = 90;                           // crop circles where it took people { x, y, at }: CROP_S seconds, fading at the end
         const ayyAway = new Set();                               // who's up there
         function onAyy(m) {
             const t = now();
@@ -805,6 +806,8 @@
             if (m.ufo) {
                 const [x, y] = toPx(m.ufo.x, m.ufo.y), p = people.get(m.ufo.h);
                 ayyUfo = { h: m.ufo.h, x, y, at: t };
+                crops.push({ x, y, at: t + UFO_UP });                   // burnt in as the beam takes them
+                if (crops.length > 8) crops.shift();
                 ayyAway.add(m.ufo.h);
                 if (p) Object.assign(p, { x, y, tx: x, ty: y, walking: false, real: null });
                 if (m.ufo.h === me) { ayyMe = { at: t, backAt: 0 }; keys.clear(); }
@@ -2567,6 +2570,11 @@
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             A.fxBack(lc, t, onAir, fx);
             if (dbOn()) court();
+            for (let i = crops.length - 1; i >= 0; i--) {                       // crop circles, under everyone
+                const k = t - crops[i].at;
+                if (k > CROP_S) { crops.splice(i, 1); continue; }
+                if (k >= 0) A.cropCircle(lc, crops[i].x, crops[i].y, Math.min(1, k / 0.6, (CROP_S - k) / 10));
+            }
             const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y);
             const heads = new Map(), fight = duelOf(me);
             btStep(dt);
