@@ -245,7 +245,10 @@ this off.
 
 The radio, chat, requests, call-in and the sign come from the station itself.
 Albums, links, a board, a video channel and suggested board scripts come from
-a small file published next to `station.json` (`onair/extras.json`):
+a small file published next to `station.json` (`onair/extras.json`). Its links
+can be edited in the studio (**Settings → Links**): the first time, the studio
+takes the file over from the site, and from then on the station keeps it and
+publishes every change with the rest of `onair/`.
 
 ```json
 {
