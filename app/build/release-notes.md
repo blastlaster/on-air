@@ -1,3 +1,3 @@
-## What's new in 0.5.45
+## What's new in 0.5.46
 
-- **Interface:** green threads are always pinned at the top of the thread list. The board's threads, with green posts or without, follow in their usual order.
+- **Interface:** green threads carry a small green clover in the corner of their picture box, so you can tell them apart at a glance.
