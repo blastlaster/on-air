@@ -192,6 +192,7 @@
 .hg-cc { display: block; width: min(340px, 100%); margin: 0 auto; }
 .hg-cc circle { cursor: pointer; }
 .hg-cc circle.last { stroke: #ffd34a; stroke-width: 2.2; }
+.hall-pop .hp-afk { display: block; opacity: 0.8; }
 .hall-pop .hp-note { display: block; font-size: 0.85em; opacity: 0.75; margin-top: 4px; }
 .he-glow { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); box-shadow: 0 0 8px rgba(255, 255, 255, 0.35); }
 .he-glow.on { border-color: #fff; box-shadow: 0 0 12px #fff; }

@@ -1084,6 +1084,18 @@
         for (const s of [-1, 1]) { R(x + s * 20, y, 1, 1, '#d8f59a'); R(x + s * 21, y - 1, 1, 1, '#a6d46a'); R(x + s * 21, y + 1, 1, 1, '#a6d46a'); R(x + s * 22, y, 1, 1, '#a6d46a'); }   // little ones either side
         l.globalAlpha = 1;
     }
+    /** Away (/afk): a little white flag on a pole over their head (top: the top of their head), waving, AFK on it. */
+    const AFK_TXT = ['.#..###.#.#', '#.#.#...##.', '###.##..#.#', '#.#.#...#.#'];   // A F K, 3×4 each
+    function afkFlag(x, top, t) {
+        x = Math.round(x); top = Math.round(top);
+        const px = x + 4, y = top - 9;
+        R(px, y, 1, 10, '#8a7a5a'); R(px, y - 1, 1, 1, '#ffd34a');
+        for (let i = 0; i < 14; i++) {                                          // the cloth
+            const dy = i < 12 ? 0 : Math.round(Math.sin(t * 6 - i) * 0.7 + 0.3);         // the far edge flutters
+            R(px + 1 + i, y + dy, 1, 6, i % 4 === 3 ? '#ece8f2' : '#ffffff');
+            AFK_TXT.forEach((r, j) => { if (i >= 1 && r[i - 1] === '#') R(px + 1 + i, y + dy + 1 + j, 1, 1, '#3a2c5a'); });
+        }
+    }
     /** The UFO that takes people: (x, y) the middle of its saucer, an alien in the dome; beam 0–1 down to y + reach. */
     function ufo(x, y, t, beam, reach) {
         x = Math.round(x); y = Math.round(y);
@@ -1527,5 +1539,6 @@
         explosion: (ctx, x, y, s) => { l = ctx; explosion(x, y, s); },
         shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); },
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
-        cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); } };
+        cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
+        afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); } };
 })();

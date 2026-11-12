@@ -142,7 +142,7 @@
             case 'chat-hide': chat = chat.filter(x => x.id !== m.id); emit('chat', { hide: m.id }); break;
             case 'chat-pins': gotPins = true; setPins(m.pins); break;
             case 'chat-pin': if (!gotPins) setPins(m.msg ? [m.msg] : []); break;
-            case 'named': myName = m.name; render(); break;
+            case 'named': myName = m.name; if (m.nick) setPref('name', m.name); render(); break;      // nick: /nick (engine/chat-commands.js)
             case 'call': onCall(m); break;
             case 'rtc': if (call) call.onRtc(m.data); break;
             case 'rtc-restart': if (call && call.pc) call.restart(); break;

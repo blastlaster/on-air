@@ -308,7 +308,7 @@
         function add(p) {
             const [x, y] = toPx(p.x, p.y);
             const old = people.get(p.h);
-            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', star: starTill(p.star) || (old ? old.star : 0), trail: [], atrail: [],
+            people.set(p.h, { h: p.h, n: p.n, c: p.c || '', l: p.l, o: p.o || '', f: p.f || '', s: !!p.s, g: p.g || '', a: p.a || '', star: starTill(p.star) || (old ? old.star : 0), afk: p.afk || '', trail: [], atrail: [],
                 x: old ? old.x : x, y: old ? old.y : y, tx: x, ty: y, e: p.e || '', et: now(), face: 1, walking: false, say: '', sayUntil: 0 });
         }
         // The gold star for surviving Burgertime: up for BT_STAR_MS (real time). Older engines send true.
@@ -415,6 +415,7 @@
                     break;
                 }
                 case 'hall-name': { const p = people.get(m.h); if (p) { p.n = m.n; p.c = m.c || ''; } break; }
+                case 'hall-afk': { const p = people.get(m.h); if (p) p.afk = m.afk || ''; break; }      // /afk (engine/chat-commands.js)
                 case 'hall-hold': { const p = people.get(m.h); if (p) p.o = m.o; if (m.h === me) paintEmoji(); break; }
                 case 'hall-mood': { const p = people.get(m.h); if (p) p.f = m.f; if (m.h === me) paintEmoji(); break; }
                 case 'hall-act': {
@@ -554,7 +555,7 @@
         listen('storage', (e) => { if (e.key === 'ltl.chatTimes') paintTimes(); });
         const lineTime = (ts) => { const d = new Date(ts), h = d.getHours(), mi = d.getMinutes(); return (h % 12 || 12) + ':' + (mi < 10 ? '0' : '') + mi + (h < 12 ? ' am' : ' pm'); };
         function logLine(m, cls) {
-            if ((m.role === 'system' && !cls) || !m.text) return;
+            if ((m.role === 'system' && !cls && !m.mine) || !m.text) return;
             const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 30;
             const li = document.createElement('li');
             if (m.id) li.dataset.mid = m.id;
@@ -1197,7 +1198,7 @@
             const sr = stage.getBoundingClientRect();
             const their = tableOf(q.h);
             const mineHeld = (mine() || {}).o;
-            popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
+            popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (q.afk ? '<small class="hp-afk">💤 away' + (q.afk !== 'afk' ? ': ' + esc(q.afk) : '') + '</small>' : '') + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
                 (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
                 '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
@@ -2625,6 +2626,7 @@
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
                 if (p.star > performance.now()) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
+                if (p.afk) A.afkFlag(lc, po.x, heads.get(p.h), t);                       // away (/afk)
                 const back = btBack.get(p.h);
                 if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
             }
