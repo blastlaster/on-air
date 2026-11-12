@@ -26,6 +26,10 @@
         return '';
     }
     const NAMES = { dubs: 'Dubs', trips: 'Trips', quads: 'Quads', pattern: 'Pattern', palindrome: 'Palindrome' };
+    // A green clover in the corner of a green thread's picture box: four leaves and a stem.
+    const CLOVER = '<svg class="if-clover" viewBox="0 0 16 16" aria-label="Green thread" role="img"><title>Green thread</title>' +
+        '<path d="M8.6 8.6 Q11 12.5 14.5 15" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>' +
+        '<g fill="currentColor">' + [45, 135, 225, 315].map(a => '<path transform="rotate(' + a + ' 8 8)" d="M8 7.4 C6 6 4.5 4.6 5.4 2.9 C6.1 1.7 7.5 1.8 8 2.9 C8.5 1.8 9.9 1.7 10.6 2.9 C11.5 4.6 10 6 8 7.4Z"/>').join('') + '</g></svg>';
     function titleOf(lv) { for (let n = lv; n >= 11; n--) { const k = kindOf(n); if (NAMES[k]) return NAMES[k] + ' ' + n; } return ''; }
     const lvBadge = (lv) => lv ? '<span class="if-lv k-' + (kindOf(lv) || 'none') + '" title="Level ' + lv + (titleOf(lv) ? ' · ' + titleOf(lv) : '') + '">Lv ' + lv + '</span>' : '';
     /** A post id with its repeating end marked, 4chan-style: 7x<b>KK</b>. */
@@ -383,7 +387,7 @@
             const w = watch[t.key], fresh = w && !t.gone ? Math.max(0, (t.replies + t.gcount) - w.seen) : 0;
             const you = t.kind === 'g' && (t.last || []).some(p => quotesMine(p.text)), hidden = threadHidden(t.key);
             return '<article class="if-th' + (t.green ? ' green' : '') + (t.lit ? ' lit' : ' faded') + (t.gone ? ' gone' : '') + (hidden ? ' hid' : '') + '" data-k="' + esc(t.key) + '">' +
-                (t.thumb ? '<img class="if-thumb" loading="lazy" alt="" src="' + esc(t.thumb) + '">' : '<span class="if-thumb none">' + (t.green ? '🟩' : '') + '</span>') +
+                (t.thumb ? '<img class="if-thumb" loading="lazy" alt="" src="' + esc(t.thumb) + '">' : '<span class="if-thumb none">' + (t.green ? '🟩' + CLOVER : '') + '</span>') +
                 '<div class="if-th-body"><div class="if-th-head">' +
                     (t.sub ? '<b class="if-sub">' + esc(t.sub) + '</b> ' : '') +
                     '<span class="dim">' + (t.kind === 'g' ? 'No.' + esc(t.id) : 'No.' + t.id) + (t.gone ? ' · gone' : '') + '</span>' +

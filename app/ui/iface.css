@@ -27,6 +27,8 @@
 .if-post.hid { opacity: 0.6; }
 .if-post.hid > :not(.if-ph) { display: none; }
 .if-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; flex: none; background: rgba(127, 127, 127, 0.15); display: grid; place-items: center; font-size: 26px; }
+.if-thumb.none { position: relative; }
+.if-clover { position: absolute; top: 2px; right: 2px; width: 40%; height: 40%; color: var(--if-green); filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45)); pointer-events: none; }
 .if-th-body { min-width: 0; flex: 1; }
 .if-th-head { font-size: 0.85em; }
 .if-th-text { font-size: 0.9em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
