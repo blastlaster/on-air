@@ -87,7 +87,9 @@ radio into one big window laid out like the station's site:
   by side. Their tabs show or hide each one; **▦** in the top bar picks how they
   share the middle (say the board top left, the Interface under it and
   blug.dj/jej beside them). **⤢** on one fills the middle with it; ⤢ again puts
-  the rest back. The **video** and the **chat** are on the right.
+  the rest back. In ▦ you can also put one of them **under Now Playing**, in place
+  of the playlist, to give the others more room. The **video** and the **chat**
+  are on the right.
 - **Albums**, **Request**, **Call in**, **Links** and **Settings** open over the page;
   ✕, a click beside it or Esc closes them.
 

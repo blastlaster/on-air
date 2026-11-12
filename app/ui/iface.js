@@ -54,6 +54,35 @@
         const saveMine = () => store.set('mine', [...mine].slice(-1000));
         const savePrefs = () => store.set('prefs', prefs);
         const saveWatch = () => store.set('watch', watch);
+        /** ★ on or off. A 4chan thread's is shared with the board window's Thread Watcher (both ways). */
+        function setWatch(key, on, title) {
+            if (!!watch[key] === !!on) return;
+            if (on) watch[key] = { title: title || '', seen: seenNow(key) }; else delete watch[key];
+            saveWatch();
+            if (key[0] === 'c' && app.boardWatched) app.boardWatched(boardName(), [{ id: key.slice(2), on, title: on ? watch[key].title : '' }]).catch(() => {});
+        }
+        /** The 4chan threads watched in the board window: the Interface's ★ list follows it. */
+        function takeWatched(list) {
+            if (!list) return;
+            let changed = false;
+            for (const k of Object.keys(watch)) if (k[0] === 'c' && !list[k.slice(2)]) { delete watch[k]; changed = true; }
+            for (const [id, w] of Object.entries(list)) if (!watch['c:' + id]) { watch['c:' + id] = { title: w.title || '', seen: seenNow('c:' + id) }; changed = true; }
+            if (changed) { saveWatch(); updateWatchCount(); if (view === 'watch') render(); }
+        }
+        // How many posts a thread has now (when it's in the catalog), so a newly watched one starts with nothing new.
+        function seenNow(key) { const t = threads().find(x => x.key === key); return t ? t.replies + (t.gcount || 0) : 0; }
+        let watchLoaded = false;
+        const loadWatched = async () => {
+            if (!app.boardWatched) return;
+            // The first time, what the Interface already watched joins the shared list; after that the shared list leads.
+            if (!store.get('watchShared', false)) {
+                const ops = Object.keys(watch).filter(k => k[0] === 'c').map(k => ({ id: k.slice(2), on: true, title: watch[k].title }));
+                await app.boardWatched(boardName(), ops.length ? ops : undefined).catch(() => null);
+                store.set('watchShared', true);
+            }
+            takeWatched(await app.boardWatched(boardName()).catch(() => null));
+        };
+        if (app.onBoardWatched) app.onBoardWatched((b, list) => { if (b === boardName()) takeWatched(list); });
         // Hidden: 4chan threads and posts in the app's list (shared with the board window, both ways);
         // green threads and green posts only here. Keys: t:no / r:no (4chan), gt:id / gp:id (green), fp:id (funposters).
         let shared = { t: {}, r: {} }, showHidden = false;
@@ -108,13 +137,17 @@
                   '<span class="if-tabs seg"><button type="button" class="btn" data-v="index">Threads</button><button type="button" class="btn" data-v="watch" title="Threads you watch">★ <span class="wn"></span></button><button type="button" class="btn" data-v="archive" title="Green threads that died">Archive</button>' +
                   '<button type="button" class="btn" data-v="reports" hidden>Reports</button></span>' +
                   '<input type="search" class="if-search" placeholder="Search threads" title="Search the threads: subject, text or number">' +
+                  // The view's options: in a small panel they fold away behind ⋯.
+                  '<button type="button" class="btn if-more" data-v="more" title="Order, Green only, Hidden, Fade">⋯</button>' +
+                  '<span class="if-view">' +
                   '<select class="sort" title="Order"><option value="bump">Bump order</option><option value="green">Green on top</option></select>' +
                   '<label class="dim"><input type="checkbox" class="gonly"> Green only</label>' +
                   '<label class="dim" title="Show the threads you hid (✕), to bring them back"><input type="checkbox" class="shid"> Hidden <span class="hn"></span></label>' +
                   '<label class="dim fadeset" title="How far threads with nothing green fade">Fade <input type="range" class="fade" min="0.08" max="1" step="0.02"></label>' +
+                  '</span>' +
                   '<span class="grow"></span>' +
                   '<button type="button" class="btn if-me" data-v="me" title="Your level" hidden></button>' +
-                  '<button type="button" class="btn go" data-v="new" title="Start a green thread (only on the Interface)">＋ Green thread</button>' +
+                  '<button type="button" class="btn go" data-v="new" title="Start a green thread (only on the Interface)">＋<span class="l"> Green thread</span></button>' +
                   '<button type="button" class="btn" data-v="refresh" title="Refresh">⟳</button>' +
                   '<button type="button" class="btn" data-v="set" title="Interface settings">⚙</button>' +
                 '</div><div class="if-main"></div>';
@@ -136,6 +169,7 @@
                 if (v === 'refresh') return refresh(true);
                 if (v === 'set') return settingsSheet();
                 if (v === 'me') return profile();
+                if (v === 'more') { b.classList.toggle('on', $('.if-bar', box).classList.toggle('more')); return; }
                 go(v);
             };
             $('.if-main', box).addEventListener('click', onMainClick);
@@ -251,6 +285,7 @@
                 } catch { /* off, busy or unreachable: keep what we had; the board still shows */ }
             }
             else green = [];
+            if (!watchLoaded) { watchLoaded = true; await loadWatched(); }     // after the catalog: a thread watched in the board window starts with nothing new
             checkWatch();
         }
 
@@ -273,7 +308,7 @@
             view = v;
             $('[data-v="back"]', box).hidden = v === 'index';
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.toggle('on', b.dataset.v === v);
-            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
+            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search, .if-more')) (el.closest('label') || el).hidden = v !== 'index' && v !== 'watch';
             if (v === 'index' || v === 'watch') {
                 $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the board…</p>';
                 if (catalog.length) render();
@@ -356,7 +391,7 @@
             view = 'thread';
             $('[data-v="back"]', box).hidden = false;
             for (const b of box.querySelectorAll('.if-tabs .btn')) b.classList.remove('on');
-            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search')) (el.closest('label') || el).hidden = true;
+            for (const el of box.querySelectorAll('.sort, .gonly, .shid, .fadeset, .if-search, .if-more')) (el.closest('label') || el).hidden = true;
             $('.if-main', box).innerHTML = '<p class="dim if-load">Loading the thread…</p>';
             await loadThread(current, false);
         }
@@ -530,7 +565,7 @@
                 }
                 f.text.value = '';
                 if (pic) attached = null;
-                if (!watch[current.key]) { watch[current.key] = { title: '', seen: 0 }; saveWatch(); }
+                setWatch(current.key, true, $('.if-thead b', box) ? $('.if-thead b', box).textContent : '');
                 await loadThread(current, false);
                 const sc = $('.if-posts', box); if (sc) sc.scrollTop = sc.scrollHeight;
             } catch (e) { UI.toast(e.message); } finally { if (btn.isConnected) btn.disabled = false; }
@@ -711,7 +746,7 @@
                 return applyHidden();
             }
             const card = t.closest('.if-th');
-            if (card) return card.classList.contains('gone') ? (delete watch[card.dataset.k], saveWatch(), render()) : openThread(card.dataset.k);
+            if (card) return card.classList.contains('gone') ? (setWatch(card.dataset.k, false), render()) : openThread(card.dataset.k);
             const a = t.closest('a, button');
             if (!a) return;
             const d = a.dataset;
@@ -733,8 +768,8 @@
             if (d.yt) return toggleYT(a);
             if (d.href) return app.openExternal(d.href);
             if (d.open4) return app.boardGoto(d.open4);
-            if (d.watch) { if (watch[d.watch]) delete watch[d.watch]; else watch[d.watch] = { title: $('.if-thead b', box) ? $('.if-thead b', box).textContent : '', seen: 0 }; saveWatch(); a.textContent = watch[d.watch] ? '★ Watching' : '☆ Watch'; updateWatchCount(); return; }
-            if (d.unwatch) { delete watch[d.unwatch]; saveWatch(); return go('index'); }
+            if (d.watch) { setWatch(d.watch, !watch[d.watch], $('.if-thead b', box) ? $('.if-thead b', box).textContent : ''); a.textContent = watch[d.watch] ? '★ Watching' : '☆ Watch'; updateWatchCount(); return; }
+            if (d.unwatch) { setWatch(d.unwatch, false); return go('index'); }
             if (d.report) {
                 const [k, id] = [d.report[0], d.report.slice(2)];
                 if (k === 'f') return app.openExternal('https://sys.funposters.club/sius/imgboard.php?mode=interface_report&no=' + encodeURIComponent(id));

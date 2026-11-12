@@ -52,6 +52,7 @@ body.one-on .sheet { inset: 0; }
 .one-panel[hidden] { display: none !important; }
 .one-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .one-slot:empty { display: none; }
+.one-slot[hidden] { display: none; }
 .one-frame { flex: 1; min-height: 0; width: 100%; border: 0; display: block; background: transparent; color-scheme: normal; }
 .one-frame[hidden] { display: none; }
 /* The middle: [s4s], the Interface and blug.dj/jej in their arrangement (one.js sets the grid) */
@@ -119,3 +120,14 @@ body.tv-full .one-head { visibility: hidden; }
     background: var(--sk-btn-active); color: var(--sk-btn-active-text, #fff); border: var(--sk-btn-border); border-radius: 999px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .one-fly .one-slot { flex: 1; }
+
+/* One of the middle's parts under Now Playing (instead of the playlist): the column widens for it */
+body.one-under-on .one { --np-w: clamp(320px, 27vw, 460px); }
+.one-np .one-under { min-height: 220px; }
+.one-under-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.one-under-pick .btn.on { background: var(--sk-btn-active); color: var(--sk-btn-active-text, var(--sk-btn-text)); }
+/* …and Now Playing makes room: the cover small, beside the song */
+body.one-under-on .one-np-in { padding: 8px 10px; gap: 6px; }
+body.one-under-on .one-np .np { flex-direction: row; align-items: center; text-align: left; gap: 10px; }
+body.one-under-on .one-np .art { width: 72px; flex: none; }
+body.one-under-on .one-np .np-text { min-width: 0; flex: 1; }

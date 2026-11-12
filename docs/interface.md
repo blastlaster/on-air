@@ -172,6 +172,8 @@ your reply from 4chan before it pays, and each reply counts once.
 ## Watching and (You)
 
 - **☆ Watch** a thread (your own replies watch it for you); the **★** tab lists them with their new replies.
+  The 4chan threads you watch are the same list as the board window's Thread Watcher: watch or
+  unwatch in either and the other follows (as hidden threads do).
 - Your green-thread posts carry **(You)**, and so do quotes of them; a post that replies to you is outlined.
 - New replies to what you watch flash the window's title bar. Notifications are visual only — the app's one sound stays the live ping.
 

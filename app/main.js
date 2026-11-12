@@ -1320,6 +1320,39 @@ const fromBoardView = (e) => !!boardView && e.sender === boardView.webContents &
 ipcMain.on('board-hidden-get', (e, board) => { e.returnValue = fromBoardView(e) && /^\w{1,12}$/.test(String(board)) ? hiddenOf(String(board)) : null; });
 ipcMain.on('board-hidden-set', (e, board, ops) => { if (fromBoardView(e)) setHidden(String(board), ops, 'board'); });
 
+/* ---------- watched threads on the board ----------
+   The same for watching: ★ in the Interface and 4chan's own Thread Watcher in
+   the board window are one list (per board: thread number → its title). */
+const WATCH_MAX = 300;
+function watchedOf(board) {
+    const all = cfg.watched = cfg.watched || {};
+    return (all[board] = all[board] || {});
+}
+/** ops: [{ id, on, title }]. */
+function setWatched(board, ops, from) {
+    if (!/^\w{1,12}$/.test(String(board)) || !Array.isArray(ops)) return;
+    const w = watchedOf(board), done = [];
+    for (const o of ops.slice(0, 300)) {
+        const id = String((o && o.id) || '');
+        if (!/^\d{1,12}$/.test(id) || !!w[id] === !!o.on) continue;
+        if (o.on) w[id] = { title: String(o.title || '').slice(0, 120), at: Date.now() }; else delete w[id];
+        done.push({ id, on: !!o.on, title: o.on ? w[id].title : '' });
+    }
+    const ids = Object.keys(w);
+    if (ids.length > WATCH_MAX) for (const id of ids.sort((x, y) => w[x].at - w[y].at).slice(0, ids.length - WATCH_MAX)) delete w[id];
+    if (!done.length) return;
+    saveSoon();
+    if (from !== 'interface') sendTo('interface', 'board-watched', board, w);
+    if (boardView && !boardView.webContents.isDestroyed() && from !== 'board') boardView.webContents.send('board-watched', board, done);
+}
+handle('board-watched', (e, board, ops) => {
+    if (who(e) !== 'interface') throw new Error('Not allowed.');
+    if (ops) setWatched(String(board), ops, 'interface');
+    return watchedOf(String(board));
+});
+ipcMain.on('board-watched-get', (e, board) => { e.returnValue = fromBoardView(e) && /^\w{1,12}$/.test(String(board)) ? watchedOf(String(board)) : null; });
+ipcMain.on('board-watched-set', (e, board, ops) => { if (fromBoardView(e)) setWatched(String(board), ops, 'board'); });
+
 /* ---------- pictures from the Interface: save, copy the link, open ---------- */
 const imageUrlOf = (u) => { const x = new URL(String(u || '')); if (x.protocol !== 'https:') throw new Error('Not a picture on the web.'); return x; };
 async function saveImage(w, url, name, fetcher = net.fetch) {
@@ -1405,11 +1438,11 @@ handle('ui-set', (e, patch) => {
         else if (k === 'studioSsh') cfg.studioSsh = cleanSsh(patch.studioSsh);
         else if (k === 'layout') { const l = patch.layout === 'one' ? 'one' : 'windows'; if (l !== cfg.ui.layout) { cfg.ui.layout = l; setTimeout(relayout, 60); } }
         else if (k === 'full') {
-            // mid: the middle's arrangement ('hall', 'board/interface+hall' …); arr: the one last picked for each mix of parts.
+            // mid: the middle's arrangement ('hall', 'board/interface+hall' …); under: the part under Now Playing; arr: the one last picked for each mix of parts.
             const f = patch.full || {}, ok = (a) => typeof a === 'string' && /^[a-z+/]{0,40}$/.test(a);
             const arr = {};
             for (const [key, a] of Object.entries(f.arr && typeof f.arr === 'object' ? f.arr : {}).slice(0, 12)) if (/^[a-z,]{1,30}$/.test(key) && ok(a)) arr[key] = a;
-            cfg.ui.full = { np: f.np !== false, chat: f.chat !== false, tv: !!f.tv, mid: ok(f.mid) ? f.mid : '', arr };
+            cfg.ui.full = { np: f.np !== false, chat: f.chat !== false, tv: !!f.tv, mid: ok(f.mid) ? f.mid : '', under: ['board', 'interface', 'hall'].includes(f.under) ? f.under : '', arr };
         }
         else if (k in UI_DEFAULTS) cfg.ui[k] = patch[k];
     }

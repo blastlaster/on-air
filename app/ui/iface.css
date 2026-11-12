@@ -112,3 +112,31 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-pick { cursor: pointer; }
 .if-picked { display: inline-flex; align-items: center; gap: 4px; max-width: 40%; font-size: 0.85em; }
 .if-picked[hidden], .if-pick[hidden] { display: none; }
+
+/* ---------- a small panel (the one window's middle, or under Now Playing): what matters stays usable ---------- */
+.if-view { display: contents; }
+.if-more { display: none; }
+@media (max-width: 620px) {
+    .if-more { display: inline-block; }
+    .if-more[hidden] { display: none; }
+    .if-view { display: none; }
+    .if-bar.more .if-view { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; order: 10; width: 100%; }
+    .if-search { flex: 1 1 90px; width: auto; }
+    .if-bar .l { display: none; }
+    .if-th { gap: 6px; padding: 5px; }
+    .if-thumb { width: 44px; height: 44px; font-size: 18px; }
+    .if-th-text { -webkit-line-clamp: 2; }
+    .if-file img { max-width: 110px; max-height: 110px; }
+    .if-thead { gap: 4px; padding: 4px; }
+    .if-thead .btn, .if-reply .btn { padding: 1px 6px; }
+    .if-reply input[name=options] { width: 80px; }
+    .if-hint { display: none; }
+}
+@media (max-height: 520px) {
+    .if-thumb { width: 40px; height: 40px; }
+    .if-th-text { -webkit-line-clamp: 1; }
+    .if-reply { gap: 3px; padding: 4px; }
+    .if-reply textarea { min-height: 34px; height: 34px; }
+    .if-reply textarea:focus { height: 64px; }
+    .if-hint { display: none; }
+}
