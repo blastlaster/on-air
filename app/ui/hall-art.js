@@ -30,10 +30,11 @@
         { key: 'pants', label: 'Pants', colors: PANTS },
         { key: 'extra', label: 'Extra', names: ['None', 'Cap', 'Headphones', 'Shades', 'Crown', 'Beanie', 'Bow', 'Halo', 'Horns', 'Party hat', 'Flower', 'Burger',
             'Flower crown', 'Tiara', 'Skull mask', 'Demon horns', 'Crown of flames'] },
-        { key: 'back', label: 'Back', names: ['None', 'Angel wings', 'Fairy wings', 'Seraph wings', 'Devil tail', 'Bat wings', 'Villain cape'] }
+        { key: 'back', label: 'Back', names: ['None', 'Angel wings', 'Fairy wings', 'Seraph wings', 'Devil tail', 'Bat wings', 'Villain cape'] },
+        { key: 'ride', label: 'Ride', names: ['None', 'UFO'] }
     ];
     // Anyone can have these; the rest are earned (the secret burger, and what nice and ebil points unlock: app/ui/hall.js REWARDS).
-    const FREE = { extra: 11, back: 1, face: 5 };
+    const FREE = { extra: 11, back: 1, face: 5, ride: 1 };
     const randomLook = () => Object.fromEntries(PARTS.map(p => [p.key, Math.floor(Math.random() * (FREE[p.key] || (p.colors || p.names).length))]));
 
     /* ---------- a tiny 3×5 pixel font (rows of 3 bits: 4 left, 2 middle, 1 right) ---------- */
@@ -894,6 +895,8 @@
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
         else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
         if (jumpT != null && jumpT >= 0 && jumpT < 0.6) lift = Math.max(lift, Math.round(Math.sin(jumpT / 0.6 * Math.PI) * 8));     // Space: a jump
+        const ufo = L.ride === 1;
+        if (ufo) lift += 2 + Math.round(Math.sin(t * 3) * 0.8 + 0.4) + Math.round(o.hover || 0);       // the UFO: always floating a little
         if (!o.noShadow) R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,0.45)');                   // shadow stays on the floor
         if (o.dash) {                                                   // Shift: a dash, with speed lines behind
             const back = f > 0 ? -1 : 1;
@@ -1035,7 +1038,55 @@
             R(x + 4, hy - 2 - Math.round(k * 6), 3, 1, '#ffffff'); R(x + 5, hy - 1 - Math.round(k * 6), 1, 1, '#ffffff'); R(x + 4, hy - Math.round(k * 6), 3, 1, '#ffffff');
             l.globalAlpha = 1;
         }
+        if (ufo) rideUfo(x, y, t, lift);
         return hy - lift;                                              // where a bubble goes
+    }
+    /** The UFO they ride (5 abductions): a saucer round their legs, lights going round, a glow underneath. Feet at (x, y). */
+    function rideUfo(x, y, t, lift) {
+        for (let j = 0; j < Math.max(1, lift - 2); j++) {                          // the glow down to the floor, flickering
+            l.globalAlpha = (0.1 + 0.12 * ((Math.floor(t * 12) + j) % 3 === 0)) * Math.min(1, lift / 4);
+            R(x - 1 - (j > 3), y + j, 3 + 2 * (j > 3), 1, '#8dffb4');
+        }
+        l.globalAlpha = 1;
+        R(x - 4, y - 6, 9, 1, '#d8dee8');
+        R(x - 6, y - 5, 13, 1, '#c3cad6'); R(x - 5, y - 5, 3, 1, '#eef2f8');
+        R(x - 7, y - 4, 15, 2, '#8c95a8');
+        for (let i = 0; i < 5; i++) R(x - 6 + i * 3, y - 4, 1, 1, (Math.floor(t * 6) + i) % 3 === 0 ? '#ff5a5a' : (Math.floor(t * 6) + i) % 3 === 1 ? '#ffe34a' : '#5aff8a');
+        R(x - 5, y - 2, 11, 1, '#5d6578');
+        R(x - 2, y - 1, 5, 1, '#3e4454'); R(x - 1, y - 1, 3, 1, '#9dffc0');
+    }
+
+    /* ---------- ayy lmao (app/ui/hall.js, engine/hall-ayy.js) ---------- */
+    const ALIEN = ['  ggggg  ', ' gGGgggg ', 'gGgggggdg', 'ggggggggd', 'gEEgggEEd', 'gEwEgEwEd', 'gEEEgEEEd', ' gEEgEEd ', '  gmmgd  ', '   ggd   '];
+    const ALIEN_C = { g: '#7ddc5a', G: '#b4f58e', d: '#4f9e36', E: '#101418', w: '#ffffff', m: '#2a5a1e' };
+    /** An alien head, (cx, cy) its middle, s a pixel, on any canvas (the room's, or the screen). */
+    function alienHead(ctx, cx, cy, s, alpha = 1) {
+        const x0 = Math.round(cx - 4.5 * s), y0 = Math.round(cy - 5 * s);
+        ctx.save(); ctx.globalAlpha = alpha;
+        ALIEN.forEach((r, j) => [...r].forEach((k, i) => { if (ALIEN_C[k]) { ctx.fillStyle = ALIEN_C[k]; ctx.fillRect(x0 + Math.round(i * s), y0 + Math.round(j * s), Math.ceil(s), Math.ceil(s)); } }));
+        ctx.restore();
+    }
+    /** The UFO that takes people: (x, y) the middle of its saucer, an alien in the dome; beam 0–1 down to y + reach. */
+    function ufo(x, y, t, beam, reach) {
+        x = Math.round(x); y = Math.round(y);
+        if (beam > 0) {
+            const h = Math.max(4, Math.round(reach || 30));
+            for (let j = 0; j < h; j++) {
+                const w = 5 + Math.round(j / h * 9);
+                l.globalAlpha = beam * (0.22 + 0.12 * ((Math.floor(t * 14) + j) % 4 === 0));
+                R(x - w, y + 5 + j, w * 2 + 1, 1, '#9dffc0');
+            }
+            l.globalAlpha = 1;
+        }
+        // The dome, with him inside.
+        l.globalAlpha = 0.9; R(x - 5, y - 9, 11, 9, '#2a4a5c'); R(x - 4, y - 10, 9, 1, '#2a4a5c'); l.globalAlpha = 1;
+        alienHead(l, x, y - 5, 0.8);
+        l.globalAlpha = 0.35; R(x - 5, y - 9, 11, 9, '#9fe8ff'); R(x - 4, y - 10, 9, 1, '#9fe8ff'); R(x - 3, y - 8, 2, 3, '#ffffff'); l.globalAlpha = 1;
+        // The saucer.
+        R(x - 11, y, 23, 1, '#e2e8f0'); R(x - 14, y + 1, 29, 1, '#b8c0ce'); R(x - 10, y + 1, 6, 1, '#f4f7fb');
+        R(x - 15, y + 2, 31, 2, '#7f889c');
+        for (let i = 0; i < 8; i++) R(x - 14 + i * 4, y + 2, 2, 1, (Math.floor(t * 8) + i) % 2 ? '#ffe34a' : '#ff5a5a');
+        R(x - 11, y + 4, 23, 1, '#555d70'); R(x - 5, y + 5, 11, 1, '#3a4050'); R(x - 2, y + 5, 5, 1, beam > 0 ? '#c8ffd8' : '#5aff8a');
     }
 
     /** What's on their back (behind them): wings, a tail or a cape. Feet at (x, y), facing f. */
@@ -1456,5 +1507,6 @@
         wallBurst: (ctx, s, seed) => { l = ctx; wallBurst(s, seed || 1); },
         sparkle: (ctx, x, y, k) => { l = ctx; sparkle(x, y, k); },
         explosion: (ctx, x, y, s) => { l = ctx; explosion(x, y, s); },
-        shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); } };
+        shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); },
+        alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); } };
 })();

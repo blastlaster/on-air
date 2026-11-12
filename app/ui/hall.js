@@ -48,7 +48,7 @@
         ['fire', '🔥', 'Fire'], ['brimstone', '🌋', 'Brimstone'], ['hellfire', '👹', 'Hellfire'], ['storm', '⛈️', 'Storm']];
     /* What nice points (giving people what you're holding; engine/hall.js NICE) and ebil points (passing
        a lit bomb; engine/hall-potato.js) unlock, all the way to 999: [points, at, what, which, name]. */
-    const POINTS = { nice: ['😇', 'nice'], ebil: ['😈', 'ebil'] };
+    const POINTS = { nice: ['😇', 'nice'], ebil: ['😈', 'ebil'], ayy: ['👽', 'abduction'] };
     const REWARDS = [
         ['nice', 11, 'aura', 'petals', 'the Petals aura'], ['nice', 33, 'extra', 12, 'the Flower crown'], ['nice', 66, 'aura', 'hearts', 'the Hearts aura'],
         ['nice', 111, 'back', 1, 'Angel wings'], ['nice', 222, 'aura', 'butterflies', 'the Butterflies aura'], ['nice', 333, 'extra', 13, 'the Tiara'],
@@ -57,7 +57,8 @@
         ['ebil', 11, 'aura', 'fire', 'the Fire aura'], ['ebil', 33, 'back', 4, 'a Devil tail'], ['ebil', 66, 'extra', 14, 'the Skull mask'],
         ['ebil', 111, 'back', 5, 'Bat wings'], ['ebil', 222, 'aura', 'brimstone', 'the Brimstone aura'], ['ebil', 333, 'extra', 15, 'Demon horns'],
         ['ebil', 555, 'back', 6, 'the Villain cape'], ['ebil', 666, 'aura', 'hellfire', 'the Hellfire aura'], ['ebil', 777, 'aura', 'storm', 'the Storm aura'],
-        ['ebil', 999, 'extra', 16, 'the Crown of flames']
+        ['ebil', 999, 'extra', 16, 'the Crown of flames'],
+        ['ayy', 5, 'ride', 1, 'the UFO']                // abductions (engine/hall-ayy.js): riding one, you can't be taken
     ];
     const rewardFor = (what, which) => REWARDS.find(r => r[2] === what && r[3] === which) || null;
     const AURA_TINTED = { glow: 1, super: 1, charge: 1, rings: 1 };
@@ -271,6 +272,7 @@
         function held(h, t = now()) {
             const d = duelOf(h), s = d && d.st[h];
             if ((btStun.get(h) || 0) > t) return true;
+            if (ayyAway.has(h)) return true;                                    // up in the UFO
             if (blasted.has(h) && blasted.get(h).end > t) return true;
             return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
@@ -321,8 +323,8 @@
             if (!core.name) { notice('Pick a name to walk in.'); return U.askName(core, join); }
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
-            // 4: hot potato and Burger Smash.
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 4 })) return notice('Connecting to the station…');
+            // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 5 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -350,9 +352,12 @@
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
                     onBomb(m.bomb || { h: '' }, true);
+                    ayyAway.clear(); ayyUfo = null; ayyMe = null;
+                    for (const h of m.ayy || []) ayyAway.add(h);
                     notice('');
                     break;
                 case 'hall-bt': onBt(m); break;
+                case 'hall-ayy': onAyy(m); break;
                 case 'hall-give': {
                     logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + holdName(m.o) }, 'game');
                     if (m.b === me) U.toast(nameOf(m.a) + ' gave you ' + holdName(m.o) + '!');
@@ -782,6 +787,102 @@
                 if (red) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#ff1a1a'; ctx.beginPath(); ctx.arc(0, fs * 0.08, fs * 0.36, 0, Math.PI * 2); ctx.fill(); }
                 if (lit) { ctx.globalAlpha = 1; ctx.fillStyle = Math.floor(now() * 20) % 2 ? '#fff3a0' : '#ff9a20'; ctx.fillRect(Math.round(fs * 0.22), Math.round(-fs * 0.5), Math.max(2, Math.round(fs / 7)), Math.max(2, Math.round(fs / 7))); }
                 ctx.restore();
+            }
+        }
+
+        /* ---------- ayy lmao (engine/hall-ayy.js): alien heads rain down; now and then a UFO takes someone ---------- */
+        // The UFO (seconds from when it's sent): flies in, beams them up (UFO_UP to UFO_IN), flies off at UFO_OFF.
+        const UFO_AT = 1.4, UFO_UP = 1.6, UFO_IN = 2.8, UFO_OFF = 3.0, UFO_GONE = 4.4;
+        let ayyRain = null, ayyUfo = null, ayyMe = null;         // the heads; the UFO { h, x, y, at }; you, taken { at, backAt }
+        const ayyAway = new Set();                               // who's up there
+        function onAyy(m) {
+            const t = now();
+            if (m.rain) {
+                const drops = [];
+                for (let i = 0; i < 46; i++) drops.push({ x: Math.random() * A.W, d: Math.random() * 2.6, v: 45 + Math.random() * 40, w: Math.random() * 6.3, s: Math.random() < 0.25 ? 1.4 : 1 });
+                ayyRain = { at: t, drops };
+            }
+            if (m.ufo) {
+                const [x, y] = toPx(m.ufo.x, m.ufo.y), p = people.get(m.ufo.h);
+                ayyUfo = { h: m.ufo.h, x, y, at: t };
+                ayyAway.add(m.ufo.h);
+                if (p) Object.assign(p, { x, y, tx: x, ty: y, walking: false, real: null });
+                if (m.ufo.h === me) { ayyMe = { at: t, backAt: 0 }; keys.clear(); }
+                logLine({ text: '🛸 ' + nameOf(m.ufo.h) + ' was abducted!' }, 'announce');
+            }
+            if (m.back) {
+                ayyAway.delete(m.back);
+                const p = people.get(m.back);
+                if (p) { const [x, y] = toPx(m.x, m.y); Object.assign(p, { x, y, tx: x, ty: y, walking: false, real: null }); }
+                btBack.set(m.back, t);
+                if (m.back === me) { if (ayyMe) ayyMe.backAt = t; lastSent = ''; gotPoint('ayy'); }
+            }
+        }
+        /** Where the UFO is k seconds in (room pixels), and its beam (0–1). */
+        function ufoAt(u, k) {
+            const hx = u.x, hy = Math.max(14, u.y - 34), ease = (a) => a * a * (3 - 2 * a);
+            if (k < UFO_AT) { const a = ease(k / UFO_AT); return { x: hx - 150 + 150 * a, y: -20 + (hy + 20) * a, beam: 0 }; }
+            if (k < UFO_OFF) return { x: hx, y: hy + Math.sin(k * 5), beam: Math.min(1, (k - UFO_AT) / 0.2) * Math.min(1, (UFO_OFF - k) / 0.15) };
+            const a = Math.min(1, (k - UFO_OFF) / (UFO_GONE - UFO_OFF));
+            return { x: hx + 170 * a * a, y: hy - (hy + 30) * a * a, beam: 0 };
+        }
+        /** Taken: rising into the UFO (lift, room pixels; fading as they go), then not there at all. */
+        function ayyLift(p, t) {
+            if (!ayyAway.has(p.h)) return null;
+            const u = ayyUfo && ayyUfo.h === p.h ? ayyUfo : null, k = u ? t - u.at : 99;
+            if (k >= UFO_IN) return { gone: true };
+            if (k < UFO_UP) return { lift: 0, a: 1 };
+            const a = (k - UFO_UP) / (UFO_IN - UFO_UP), top = p.y - (ufoAt(u, k).y + 4);
+            return { lift: Math.round(top * a * a), a: 1 - a * 0.7 };
+        }
+        /** In the room (behind the lights): the heads raining, and the UFO. */
+        function drawAyy(t) {
+            if (ayyRain) {
+                let any = false;
+                for (const r of ayyRain.drops) {
+                    const k = t - ayyRain.at - r.d;
+                    if (k < 0) { any = true; continue; }
+                    const y = -8 + k * r.v;
+                    if (y > A.H + 8) continue;
+                    any = true;
+                    A.alienHead(lc, r.x + Math.sin(k * 3 + r.w) * 4, y, r.s);
+                }
+                if (!any) ayyRain = null;
+            }
+            if (ayyUfo) {
+                const k = t - ayyUfo.at;
+                if (k > UFO_GONE) { ayyUfo = null; return; }
+                const w = ufoAt(ayyUfo, k);
+                A.ufo(lc, w.x, w.y, t, w.beam, ayyUfo.y - w.y - 5);
+            }
+        }
+        /** Yours: the screen goes dark, an alien comes at you out of it, AYY LMAO!, and you're back. */
+        function drawAbducted(t, u) {
+            if (!ayyMe) return;
+            const k = t - ayyMe.at, back = ayyMe.backAt ? t - ayyMe.backAt : -1;
+            let dark = Math.max(0, Math.min(1, (k - 1.8) / 1));
+            if (back >= 0) dark = Math.max(0, 1 - back / 0.9);
+            if (back > 0.9 || k > 20) { ayyMe = null; return; }
+            if (dark <= 0) return;
+            ctx.fillStyle = 'rgba(0,0,0,' + dark + ')'; ctx.fillRect(0, 0, cv.width, cv.height);
+            const z = k - 3.0;
+            if (z < 0) return;
+            const grow = Math.min(1, z / 1.2), s = (0.6 + grow * grow * 13) * u * 0.55;
+            const cx = cv.width / 2 + (z > 1.2 ? Math.sin(t * 23) * dpr * 2 : 0), cy = cv.height * 0.44;
+            ctx.save();
+            ctx.globalAlpha = dark * 0.35;                          // a green glow round him
+            const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 9);
+            gr.addColorStop(0, '#7dff6a'); gr.addColorStop(1, 'rgba(125,255,106,0)');
+            ctx.fillStyle = gr; ctx.fillRect(cx - s * 9, cy - s * 9, s * 18, s * 18);
+            ctx.restore();
+            A.alienHead(ctx, cx, cy, s, dark * Math.min(1, z / 0.3));
+            if (z > 0.7) {
+                const fs = Math.max(22, Math.round(13 * u / dpr)) * dpr, ty = cy + s * 6.5 + fs * 0.6 + Math.sin(t * 40) * 3 * dpr;
+                ctx.globalAlpha = dark;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#000'; ctx.fillText('AYY LMAO!', cv.width / 2 + 2 * dpr, ty + 2 * dpr);
+                ctx.fillStyle = '#7dff6a'; ctx.fillText('AYY LMAO!', cv.width / 2, ty);
+                ctx.globalAlpha = 1;
             }
         }
 
@@ -1515,14 +1616,14 @@
         const btOn = () => !!bt.state;
         const isBurger = (h) => btOn() && (bt.state === 'zap' || bt.state === 'chase' || bt.state === 'burp') && (bt.burgers.includes(h) || btZap.has(h)) && !bt.eaten.includes(h);
         const isEaten = (h) => btOn() && bt.eaten.includes(h);
-        let nice = 0, ebil = 0;                       // nice points (things you've given people) and ebil points (bombs you've passed): REWARDS
-        try { nice = Number(localStorage.getItem('ltl.hallNice')) || 0; ebil = Number(localStorage.getItem('ltl.hallEbil')) || 0; } catch { /* none yet */ }
-        const pointsOf = (kind) => (kind === 'ebil' ? ebil : nice);
+        // Nice points (things you've given people), ebil points (bombs you've passed) and abductions (the UFO took you): REWARDS.
+        const POINT_KEYS = { nice: 'ltl.hallNice', ebil: 'ltl.hallEbil', ayy: 'ltl.hallAyy' }, points = { nice: 0, ebil: 0, ayy: 0 };
+        for (const k in POINT_KEYS) { try { points[k] = Number(localStorage.getItem(POINT_KEYS[k])) || 0; } catch { /* none yet */ } }
+        const pointsOf = (kind) => points[kind] || 0;
         /** A point more: kept, and whatever it unlocks announced. */
         function gotPoint(kind) {
-            if (kind === 'ebil') ebil++; else nice++;
-            const n = pointsOf(kind), [icon, word] = POINTS[kind];
-            try { localStorage.setItem(kind === 'ebil' ? 'ltl.hallEbil' : 'ltl.hallNice', String(n)); } catch { /* this time only */ }
+            const n = ++points[kind], [icon, word] = POINTS[kind];
+            try { localStorage.setItem(POINT_KEYS[kind], String(n)); } catch { /* this time only */ }
             const got = REWARDS.filter(r => r[0] === kind && r[1] === n), next = REWARDS.find(r => r[0] === kind && r[1] > n);
             if (got.length) U.toast(icon + ' ' + n + ' ' + word + ' points! ' + got.map(r => r[4]).join(' and ') + (got.length > 1 ? ' are' : ' is') + ' yours: 🎨 Look.');
             else U.toast(icon + ' +1 ' + word + ' point (' + n + (next ? ' of ' + next[1] + ' for ' + next[4] : '') + ')');
@@ -2480,9 +2581,15 @@
                     heads.set(p.h, A.burger(lc, p.x, p.y - (p.lift || 0), t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y);
                     continue;
                 }
+                const ay = ayyLift(p, t);
+                if (ay && ay.gone) continue;                                       // up in the UFO
                 const [ox, oy] = hits.length ? hitOffset(p, t) : [0, 0];
-                const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
-                    mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t };
+                // Riding a UFO: dashing or sprinting takes them up a bit.
+                const up = p.l && p.l.ride === 1 && (p.dashUntil > t || (p.h === me ? running : p.run)) ? 7 : 0;
+                p.hover = (p.hover || 0) + (up - (p.hover || 0)) * Math.min(1, dt * 10);
+                const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                    mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t, hover: p.hover, noShadow: !!(ay && ay.lift) };
+                if (ay) lc.globalAlpha = ay.a;
                 const au = auraOf(p.a);
                 if (au) {
                     // Ultra's afterimages: where you've just been, for a moment.
@@ -2514,6 +2621,7 @@
                 if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
             }
             if (!danielDrawn) danielTop = drawDaniel(t);
+            drawAyy(t);
             for (let i = booms.length - 1; i >= 0; i--) { const s = t - booms[i].at; if (s > 2.2) booms.splice(i, 1); else A.explosion(lc, booms[i].x, booms[i].y, s); }
             if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) A.rubble(lc, t - btBurp - 2.2, 7);
             A.lights(lc, t, onAir, fx);
@@ -2531,6 +2639,7 @@
             const u = cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             for (const p of sorted) {
+                if (ayyAway.has(p.h) && !heads.has(p.h)) continue;                 // up in the UFO: no name on the floor
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
                 ctx.globalAlpha = fight && p.h !== fight.a && p.h !== fight.b ? 0.3 : 1;
                 const nx = p.x * u, ny = (p.y + 1.5) * u;
@@ -2554,6 +2663,7 @@
             tableBadges(u, heads, t);
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
             if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
+            drawAbducted(t, u);
         }
 
         /**
@@ -2616,9 +2726,9 @@
                     '<button type="button" class="hl-sw" data-auracolor="' + id + '" title="' + id + '" style="background:' + c + '"></button>').join('') +
                     '<small class="hl-note">for Glow, Super, Charge and Halo rings</small></div></div>' +
                 sec('Points') +
-                ['nice', 'ebil'].map(k => {
+                ['nice', 'ebil', 'ayy'].map(k => {
                     const n = pointsOf(k), next = REWARDS.find(r => r[0] === k && r[1] > n);
-                    return '<div class="hl-row"><span>' + POINTS[k][0] + ' ' + (k === 'nice' ? 'Nice' : 'Ebil') + '</span><div class="hl-pts"><b>' + n + '</b> ' +
+                    return '<div class="hl-row"><span>' + POINTS[k][0] + ' ' + ({ nice: 'Nice', ebil: 'Ebil', ayy: 'Abducted' })[k] + '</span><div class="hl-pts"><b>' + n + '</b> ' +
                         (next ? '<small>next: ' + esc(next[4]) + ' at ' + next[1] + '</small>' : '<small>everything unlocked!</small>') + '<small class="hl-how">' + HOW[k] + '</small></div></div>';
                 }).join('') +
                 sec('You') +
@@ -2633,7 +2743,7 @@
                 '</div><div class="hl-foot"><button type="button" class="btn" data-rand>🎲 Surprise me</button><button type="button" class="btn btn-primary" data-done>Done</button></div></div>';
             paintLook();
         }
-        const HOW = { nice: 'give people what you’re holding (click them → 🎁 Give)', ebil: 'pass a lit 💣 on (hand someone a bomb to start hot potato)' };
+        const HOW = { nice: 'give people what you’re holding (click them → 🎁 Give)', ebil: 'pass a lit 💣 on (hand someone a bomb to start hot potato)', ayy: 'get taken by the UFO (it comes now and then when someone says “ayy lmao”)' };
         function lockedBtn(r, name) {
             return '<button type="button" class="btn hl-nm hl-locked" disabled title="' + esc(name) + ': ' + HOW[r[0]] + '">🔒 ' + esc(name) + ' <small>' + pointsOf(r[0]) + '/' + r[1] + ' ' + POINTS[r[0]][1] + '</small></button>';
         }
