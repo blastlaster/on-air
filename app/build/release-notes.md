@@ -1,3 +1,4 @@
-## What's new in 0.5.42
+## What's new in 0.5.43
 
-- **Interface:** your level shows again in One window. The Interface opens with the app there, before the station is known, and it now asks for your level once it is (and your 4chan replies' checks are looked up then too).
+- **Checks in the Interface:** any post can be checked, however old; each one once per person. A post can check up to 12 at a time, and the ones you've checked already don't take up room. Quote one you've checked and it says so.
+- **Your own digits don't pay:** quote your own post and you're told to try checking someone else's dubs for a change!
