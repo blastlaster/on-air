@@ -90,6 +90,13 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-post.bbs .if-file { margin-left: 2.2em; }
 .if-thread.green .ql { color: #00e; }
 .if-thread.green .if-text .gt { color: #789922; }
+/* its posts hovered (>>7xK2): the same plain grey page */
+.if-post.bbs.if-preview.bbs-pv { background: #efefef; color: #000; font-family: "Mona", "IPAMonaPGothic", "MS PGothic", Arial, sans-serif; border: 1px solid #888; border-radius: 0; padding: 6px 10px; margin: 0; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45); }
+.if-preview.bbs-pv .ql { color: #00e; }
+.if-preview.bbs-pv .gt { color: #789922; }
+/* no screen effects over a green thread (the skin's scanlines, sparkles, glows and holiday extras) */
+body.bbs-on .frame::after { display: none !important; animation: none !important; }
+body.bbs-on .if-thread.green .if-posts, body.bbs-on .if-thread.green .if-posts *, .if-preview.bbs-pv, .if-preview.bbs-pv * { text-shadow: none !important; filter: none !important; animation: none !important; }
 
 /* reply */
 .if-reply { flex: none; display: flex; flex-direction: column; gap: 5px; padding: 6px; border-top: 1px solid rgba(127, 127, 127, 0.25); background: var(--sk-card-bg); }

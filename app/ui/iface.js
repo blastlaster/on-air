@@ -181,6 +181,9 @@
             // A picture that's gone from 4chan: no broken-image box.
             $('.if-main', box).addEventListener('error', (e) => { if (e.target.tagName !== 'IMG') return; const f = e.target.closest('.if-file'); if (f) f.hidden = true; else e.target.style.visibility = 'hidden'; }, true);
             $('.if-main', box).addEventListener('mouseover', onHover);
+            // A green thread on screen: no screen effects over it (scanlines, sparkles, glows); the text board reads plain.
+            const bbsOn = () => document.body.classList.toggle('bbs-on', !!$('.if-thread.green', box));
+            new MutationObserver(bbsOn).observe($('.if-main', box), { childList: true });
             $('.if-main', box).addEventListener('contextmenu', onContext);
             $('.if-main', box).addEventListener('mouseout', (e) => { if (e.target.closest('.ql')) hidePreview(); });
             UI.onUi(() => { $('[data-v="reports"]', box).hidden = !isAdmin(); });
@@ -897,6 +900,8 @@
             hidePreview();
             preview = el.cloneNode(true);
             preview.classList.add('if-preview');
+            preview.classList.remove('hl', 'shown');
+            if (el.classList.contains('bbs')) preview.classList.add('bbs-pv');      // a green thread's post: the text-board look there too
             document.body.appendChild(preview);
             const r = q.getBoundingClientRect(), w = Math.min(520, window.innerWidth - 20);
             preview.style.width = w + 'px';
