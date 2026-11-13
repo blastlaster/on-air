@@ -109,8 +109,9 @@
         let view = 'index', current = null;      // current = { key, kind: 'c'|'g', id }
         let catalog = [], lastPage = 0, greenCounts = {}, green = [], greenVer = 0, threadVer = 0, threadKey = '', timer = 0, busy = false, me = null, query = '';
         // Where you were: the list when you opened a thread, and each thread you've read (this session).
-        let listTop = null, restoreTop = null;
+        let listTop = null, restoreTop = null, saidServer = null;
         let attached = null;                                          // the picture for your next green post (a File)
+        let replyDrawn = { key: '', d: null };                        // the drawing for your next reply in a green thread (from the oekaki)
         const PIC_MAX = 8 * 1024 * 1024;
         const threadTops = new Map();
         function leaveThread() {
@@ -186,6 +187,9 @@
             $('[data-v="reports"]', box).hidden = !isAdmin();
             go('index');
             loadMe();
+            // A green thread clicked on the board window: open it here (now, or as the Interface opens).
+            if (app.onIfaceOpen) app.onIfaceOpen((k) => { if (/^g:[0-9a-zA-Z]{1,12}$/.test(String(k))) openThread(k); });
+            if (app.ifaceNext) app.ifaceNext().then((k) => { if (/^g:[0-9a-zA-Z]{1,12}$/.test(String(k))) openThread(k); }, () => {});
             // Your own replies on 4chan (in the board window) that check someone's repeats.
             app.onBoardPosted(checkBoardPosts);
             if (app.onToast) app.onToast(UI.toast);
@@ -296,6 +300,7 @@
                 if (r && r.json && typeof r.json === 'object') greenCounts = r.json;
             }
             // "Anything new since last time?" costs the station a few bytes when nothing is.
+            if (app.ifaceServer && server() !== saidServer) app.ifaceServer(saidServer = server());     // the board window's green threads come from here too
             if (server()) {
                 try {
                     const j = await toServer('/api/threads?v=' + greenVer);
@@ -345,7 +350,7 @@
                 thumb: t.tim ? 'https://i.4cdn.org/' + b + '/' + t.tim + 's.jpg' : ''
             })).concat(green.map(t => ({
                 key: 'g:' + t.id, kind: 'g', id: t.id, sub: t.sub || '', text: t.text, bumped: t.bumped, replies: t.replies, images: 0,
-                gcount: t.replies + 1, green: true, name: t.name, expires: t.expires, last: t.last || []
+                gcount: t.replies + 1, green: true, pic: (greenImg(t.id, t.img) || {}).thumb, name: t.name, expires: t.expires, last: t.last || []
             })));
             for (const t of list) t.lit = t.green || t.gcount > 0;
             list.sort((x, y) => (!!y.green - !!x.green) || (prefs.sort === 'green' ? (y.lit - x.lit) : 0) || (y.sticky - x.sticky) || (y.bumped - x.bumped));
@@ -387,7 +392,9 @@
             const w = watch[t.key], fresh = w && !t.gone ? Math.max(0, (t.replies + t.gcount) - w.seen) : 0;
             const you = t.kind === 'g' && (t.last || []).some(p => quotesMine(p.text)), hidden = threadHidden(t.key);
             return '<article class="if-th' + (t.green ? ' green' : '') + (t.lit ? ' lit' : ' faded') + (t.gone ? ' gone' : '') + (hidden ? ' hid' : '') + '" data-k="' + esc(t.key) + '">' +
-                (t.thumb ? '<img class="if-thumb" loading="lazy" alt="" src="' + esc(t.thumb) + '">' : '<span class="if-thumb none">' + (t.green ? '🟩' + CLOVER : '') + '</span>') +
+                (t.thumb ? '<img class="if-thumb" loading="lazy" alt="" src="' + esc(t.thumb) + '">'
+                    : t.green && t.pic ? '<span class="if-thumb none pic"><img loading="lazy" alt="" src="' + esc(t.pic) + '">' + CLOVER + '</span>'
+                    : '<span class="if-thumb none">' + (t.green ? '🟩' + CLOVER : '') + '</span>') +
                 '<div class="if-th-body"><div class="if-th-head">' +
                     (t.sub ? '<b class="if-sub">' + esc(t.sub) + '</b> ' : '') +
                     '<span class="dim">' + (t.kind === 'g' ? 'No.' + esc(t.id) : 'No.' + t.id) + (t.gone ? ' · gone' : '') + '</span>' +
@@ -467,7 +474,7 @@
                     '<button type="button" class="btn" data-watch="' + esc(cur.key) + '" title="Watch this thread">' + (watched ? '★ Watching' : '☆ Watch') + '</button>' +
                     '<button type="button" class="btn" data-hidet="' + esc(cur.key) + '" title="Hide this thread from the list (in the board window too)">' + (threadHidden(cur.key) ? '↺ Unhide' : '✕ Hide') + '</button>' +
                     (head.url ? '<button type="button" class="btn" data-open4="' + esc(head.url) + '" title="This thread on 4chan, in the board window">4chan ↗</button>' : '') +
-                '</div><div class="if-posts">' + posts.map(postHtml).join('') + (cur.kind === 'c' && !greenIn ? '<p class="dim if-load if-gempty">No green posts in this thread yet.</p>' : '') + '</div>' +
+                '</div><div class="if-posts">' + (head.green ? '<h2 class="bbs-title">' + esc(head.title) + ' <span class="bbs-count">[' + posts.length + ']</span></h2>' : '') + posts.map(postHtml).join('') + (cur.kind === 'c' && !greenIn ? '<p class="dim if-load if-gempty">No green posts in this thread yet.</p>' : '') + '</div>' +
                 (readOnly ? '<p class="dim if-note">' + (head.archived ? 'This thread is archived — read only.' : 'This thread is closed.') + '</p>' : replyForm(cur)) +
                 '</div>';
             // A refresh of the same thread swaps only its heading and posts: the reply form stays as it is,
@@ -488,7 +495,12 @@
             const sc = $('.if-posts', box);
             if (sc) sc.scrollTop = keepScroll ? top : threadTops.get(cur.key) || 0;
             const f = $('.if-reply', box);
-            if (f) { f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); }; optionsMenu(f.options, cur); if (f.upfile) pictureField(f); }
+            if (f) {
+                f.onsubmit = (e) => { e.preventDefault(); sendReply(f, e.submitter && e.submitter.dataset.send); };
+                optionsMenu(f.options, cur);
+                if (f.upfile) pictureField(f);
+                if (cur.kind === 'g') drawField(f, () => (replyDrawn.key === cur.key ? replyDrawn.d : null), (d) => { replyDrawn = { key: cur.key, d }; });
+            }
 
         }
 
@@ -497,14 +509,14 @@
             return '<form class="if-reply">' +
                 '<div class="row"><input name="name" class="grow" maxlength="60" placeholder="Name (name#secret for a tripcode)" value="' + esc(name) + '">' +
                 '<input name="options" maxlength="20" placeholder="Options" title="sage = don’t bump' + (cur.kind === 'c' ? '; numberless = hide your number' : '') + '"></div>' +
-                '<textarea name="text" rows="3" maxlength="2000" placeholder="' + (cur.kind === 'c' ? 'A green post: everyone on the interface sees it (a picture too, if you like)' : 'Reply (text only)') + '"></textarea>' +
+                '<textarea name="text" rows="3" maxlength="2000" placeholder="' + (cur.kind === 'c' ? 'A green post: everyone on the interface sees it (a picture too, if you like)' : 'Reply (and 🎨 draw, if you like)') + '"></textarea>' +
                 '<div class="row">' +
                     (cur.kind === 'c'
                         ? '<button class="btn go" data-send="fp">🟩 Green post</button>' +
                           '<label class="btn if-pick" title="Add a picture to your green post (or paste one into the comment)">📎 Picture<input type="file" name="upfile" accept="image/*" hidden></label>' +
                           '<span class="if-picked" hidden><span class="dim ell"></span> <a class="if-act" data-unpick title="Remove the picture">✕</a></span>' +
                           '<button type="button" class="btn" data-open4="https://boards.4chan.org/' + boardName() + '/thread/' + cur.id + '">Reply on 4chan ↗</button>'
-                        : '<button class="btn go" data-send="g">Reply</button>') +
+                        : '<button class="btn go" data-send="g">Reply</button><span class="if-drawn">' + DRAW_BTN + '</span>') +
                     '<span class="grow"></span><span class="dim if-hint">&gt;text greentext · &gt;&gt;' + (cur.kind === 'c' ? '123' : '7xK2') + ' quotes</span>' +
                 '</div></form>';
         }
@@ -563,7 +575,8 @@
         async function sendReply(f, how) {
             const text = f.text.value.trim();
             const pic = how === 'fp' ? attached : null;
-            if (!text && !pic) return UI.toast('Write something first.');
+            const drawn = how === 'g' && replyDrawn.key === current.key ? replyDrawn.d : null;
+            if (!text && !pic && !drawn) return UI.toast('Write something first.');
             store.set('name', f.name.value.trim());
             const btn = f.querySelector('[data-send]');
             btn.disabled = true;
@@ -578,12 +591,13 @@
                     const refs = boardRefs(text);
                     if (refs.length && server()) toServer('/api/check', { thread: Number(current.id), nos: refs.map(x => x.no), text }).then(celebrate).catch(() => {});
                 } else {
-                    const r = await toServer('/api/thread/' + current.id + '/reply', { name: f.name.value.trim(), options: f.options.value.trim(), text, refs: boardRefs(text), cap: isAdmin() && /^station$/i.test(f.options.value.trim()) });
+                    const r = await toServer('/api/thread/' + current.id + '/reply', { name: f.name.value.trim(), options: f.options.value.trim(), text, refs: boardRefs(text), cap: isAdmin() && /^station$/i.test(f.options.value.trim()), image: drawingBody(drawn) });
                     mine.add(r.post.id); saveMine();
                     celebrate(r);
                 }
                 f.text.value = '';
                 if (pic) attached = null;
+                if (drawn) replyDrawn = { key: '', d: null };
                 setWatch(current.key, true, $('.if-thead b', box) ? $('.if-thead b', box).textContent : '');
                 await loadThread(current, false);
                 const sc = $('.if-posts', box); if (sc) sc.scrollTop = sc.scrollHeight;
@@ -600,22 +614,57 @@
                     '<div class="row"><button type="button" class="btn" data-close>OK</button></div></div>');
             }
             if (me && me.thread && !isAdmin()) return UI.toast('You already have a live thread (>>' + me.thread + '). One at a time: it frees up when it dies.');
-            UI.sheet('<form><h2>🟩 New green thread</h2><p class="dim">Text only. It shows on the board for everyone using the Interface, and dies after 3 days without a reply (then it goes to the archive).</p>' +
+            let drawing = null;                                          // { png, thumb(max), width, height } from the oekaki
+            const card = UI.sheet('<form><h2>🟩 New green thread</h2><p class="dim">Draw a picture for it, if you like: green threads take only drawings made here, never pictures from elsewhere. It shows on the board for everyone using the Interface, and dies after 3 days without a reply (then it goes to the archive).</p>' +
                 '<input name="sub" maxlength="100" placeholder="Subject (optional)">' +
                 '<input name="name" maxlength="60" placeholder="Name (name#secret for a tripcode)" value="' + esc(store.get('name', core.name || '')) + '">' +
                 '<textarea name="text" rows="6" maxlength="2000" placeholder="Comment" required></textarea>' +
+                '<div class="row if-drawn">' + DRAW_BTN + '</div>' +
                 '<div class="row"><button class="btn go">Start it</button><button type="button" class="btn" data-close>Cancel</button></div></form>',
                 async (f) => {
+                    const btn = f.querySelector('.btn.go');
+                    btn.disabled = true;
                     try {
                         store.set('name', f.name.value.trim());
-                        const r = await toServer('/api/thread', { sub: f.sub.value.trim(), name: f.name.value.trim(), text: f.text.value, refs: boardRefs(f.text.value), cap: isAdmin() });
+                        const image = drawingBody(drawing);
+                        const r = await toServer('/api/thread', { sub: f.sub.value.trim(), name: f.name.value.trim(), text: f.text.value, refs: boardRefs(f.text.value), cap: isAdmin(), image });
                         mine.add(r.post.id); saveMine();
                         celebrate(r);
                         watch['g:' + r.thread.id] = { title: r.thread.sub || r.thread.text.slice(0, 60), seen: 1 }; saveWatch();
                         UI.closeSheet();
                         openThread('g:' + r.thread.id);
-                    } catch (e) { UI.toast(e.message); }
+                    } catch (e) { UI.toast(e.message); } finally { if (btn.isConnected) btn.disabled = false; }
                 });
+            drawField(card.querySelector('form'), () => drawing, (d) => { drawing = d; });
+        }
+
+        /* ---------- drawings: the only pictures in green threads, made in the oekaki ---------- */
+        const DRAW_BTN = '<button type="button" class="btn" data-draw title="Draw a picture for this post (the only pictures green threads take)">🎨 Draw</button>' +
+            '<span class="if-picked" hidden><img alt="" class="if-drawthumb"> <a class="if-act" data-draw>edit</a> · <a class="if-act" data-unpick title="Remove the drawing">✕</a></span>';
+        /** A form's 🎨 Draw: opens the oekaki (the whole window, in the one window); get/set keep the drawing. */
+        function drawField(f, get, set) {
+            const show = () => {
+                const d = get();
+                $('.if-picked', f).hidden = !d;
+                $('[data-draw].btn', f).hidden = !!d;
+                if (d) $('.if-drawthumb', f).src = d.thumb(64).data;
+            };
+            f.addEventListener('click', async (e) => {
+                if (e.target.closest('[data-unpick]')) { set(null); return show(); }
+                if (!e.target.closest('[data-draw]') || !window.Oekaki) return;
+                // Editing goes on from the drawing so far (made here, so nothing from outside gets in).
+                const was = get();
+                if (app.panelBig) app.panelBig(true);
+                const d = await Oekaki.open(was ? { width: was.width, height: was.height, start: was.png } : {}).finally(() => { if (app.panelBig) app.panelBig(false); });
+                if (d) { set(d); show(); }
+            });
+            show();
+        }
+        /** A drawing as the green server takes it: the PNG and a JPEG thumbnail, base64. */
+        function drawingBody(d) {
+            if (!d) return undefined;
+            const t = d.thumb(250);
+            return { data: d.png.split(',')[1], thumb: t.data.split(',')[1], tw: t.w, th: t.h };
         }
 
         /* ---------- posts ---------- */
@@ -635,19 +684,29 @@
                 file: img && /^https:\/\//.test(img.thumb_url || '') ? { thumb: img.thumb_url, full: img.file_url, name: img.filename || 'image', tw: img.thumb_width, th: img.thumb_height } : null
             };
         }
-        function ourPost(p) { return { kind: 'g', id: p.id, name: p.name, trip: p.trip, cap: p.cap, lv: p.lv || 0, time: p.time, html: plain(p.text), you: mine.has(p.id) }; }
+        /** A green thread's post (its opening post may carry a picture, kept on the green server). */
+        const greenImg = (id, img) => img && /^(jpg|png|gif|webp)$/.test(img.ext) && server() ? { thumb: server() + '/api/img/' + id + 's.jpg', full: server() + '/api/img/' + id + '.' + img.ext, name: img.name || id + '.' + img.ext, w: img.w, h: img.h, tw: img.tw, th: img.th } : null;
+        function ourPost(p) { return { kind: 'g', id: p.id, name: p.name, trip: p.trip, cap: p.cap, lv: p.lv || 0, time: p.time, html: plain(p.text), you: mine.has(p.id), file: greenImg(p.id, p.img) }; }
 
-        function postHtml(p) {
+        // A green thread reads like a text board (world4ch): numbered posts, "Name: Anonymous : date".
+        const bbsDate = (ms) => { const d = new Date(ms), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+        function bbsHead(p, n) {
+            return '<span class="bbs-n">' + n + '</span> Name: <b class="bbs-name">' + esc(p.name) + '</b>' + (p.trip ? ' <span class="if-trip">' + esc(p.trip) + '</span>' : '') +
+                (p.cap ? ' <span class="if-cap">## ' + esc(p.cap) + '</span>' : '') + (p.lv ? ' ' + lvBadge(p.lv) : '') + (p.you ? ' <span class="if-you">(You)</span>' : '') +
+                ' : <span class="bbs-date">' + esc(bbsDate(p.time)) + '</span>';
+        }
+        function postHtml(p, i) {
             const quotedMe = /class="ql[^"]*" data-q="[^"]*"[^>]*>[^<]*\(You\)/.test(p.html);
             const hk = p.op ? '' : p.kind === 'c' ? 'r:' + p.id : p.kind === 'g' ? 'gp:' + p.id : p.report ? 'fp:' + p.report : '', hidden = !!hk && isHidden(hk);
-            return '<div class="if-post ' + (p.kind === 'c' ? 'chan' : 'greenp') + (quotedMe ? ' to-you' : '') + (hidden ? ' hid' : '') + '" data-id="' + esc(p.id) + '"' + (hk ? ' data-hk="' + esc(hk) + '"' : '') + '>' +
+            return '<div class="if-post ' + (p.kind === 'c' ? 'chan' : p.kind === 'g' ? 'greenp bbs' : 'greenp') + (quotedMe ? ' to-you' : '') + (hidden ? ' hid' : '') + '" data-id="' + esc(p.id) + '"' + (hk ? ' data-hk="' + esc(hk) + '"' : '') + '>' +
                 '<div class="if-ph">' +
+                    (p.kind === 'g' ? bbsHead(p, (i || 0) + 1) :
                     '<b class="if-name">' + esc(p.name) + '</b>' + (p.trip ? ' <span class="if-trip">' + esc(p.trip) + '</span>' : '') +
                     (p.cap ? ' <span class="if-cap">## ' + esc(p.cap) + '</span>' : '') +
                     (p.lv ? ' ' + lvBadge(p.lv) : '') +
                     (p.you ? ' <span class="if-you">(You)</span>' : '') +
                     (p.sub ? ' <b class="if-sub">' + esc(p.sub) + '</b>' : '') +
-                    ' <span class="dim">' + esc(when(p.time)) + '</span>' +
+                    ' <span class="dim">' + esc(when(p.time)) + '</span>') +
                     ' <a class="if-no" data-quote="' + esc(p.id) + '" title="Quote this post">No.' + (p.shown && p.shown !== p.id ? esc(p.shown) : idHtml(p.id, esc)) + '</a>' +
                     (p.kind === 'g' ? ' <a class="if-act" data-report="g:' + esc(p.id) + '">report</a>' + (isAdmin() ? ' <a class="if-act" data-del="' + esc(p.id) + '">delete</a> <a class="if-act" data-ban="' + esc(p.id) + '">ban</a>' : '') : '') +
                     (p.kind === 'f' && p.report ? ' <a class="if-act" data-report="f:' + esc(String(p.report)) + '">report</a>' : '') +
@@ -893,7 +952,7 @@
             if (!server()) { main.innerHTML = '<p class="dim if-load">The archive keeps green threads that died. It’s offline while the station’s PC is off.</p>'; return; }
             let j;
             try { j = await toServer('/api/archive'); } catch (e) { main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
-            main.innerHTML = j.threads.length ? '<div class="if-list">' + j.threads.map(t => card({ key: 'g:' + t.id, kind: 'g', id: t.id, sub: t.sub, text: t.text, replies: t.replies, gcount: 0, green: true, lit: true })).join('') + '</div><p class="dim if-note">' + j.total + ' archived green thread' + (j.total === 1 ? '' : 's') + '.</p>' : '<p class="dim if-load">Nothing in the archive yet.</p>';
+            main.innerHTML = j.threads.length ? '<div class="if-list">' + j.threads.map(t => card({ key: 'g:' + t.id, kind: 'g', id: t.id, sub: t.sub, text: t.text, replies: t.replies, gcount: 0, green: true, lit: true, pic: (greenImg(t.id, t.img) || {}).thumb })).join('') + '</div><p class="dim if-note">' + j.total + ' archived green thread' + (j.total === 1 ? '' : 's') + '.</p>' : '<p class="dim if-load">Nothing in the archive yet.</p>';
         }
         async function showReports() {
             const main = $('.if-main', box);

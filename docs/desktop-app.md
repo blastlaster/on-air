@@ -227,6 +227,12 @@ it or search for it; right-click links and the reply box as usual. YouTube's **[
 with scripts that restyle posts, and links to other sites skip 4chan's
 "Redirecting…" page.
 
+**Green threads** — the station's own threads, which exist only on the
+[Interface](interface.md) — are pinned on top of the board's index and catalog, in
+the text-board style, with their drawings and last few replies. Click one to read it
+all and reply in the Interface. **[–]** hides one (it leaves a line to bring it back);
+**Hide all** tucks them all away until you press **Show**.
+
 **"Your IP range is blocked… verify your e-mail"?** The board window keeps its
 own cookies, so verifying in your browser doesn't count here. The window
 notices 4chan's message and walks you through it (or press **🔗**):

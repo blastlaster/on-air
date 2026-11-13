@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('onairApp', {
     onBoardHidden: listen('board-hidden'),
     boardWatched: (board, ops) => ipcRenderer.invoke('board-watched', board, ops),
     onBoardWatched: listen('board-watched'),
+    ifaceServer: (s) => ipcRenderer.send('iface-server', s),        // the Interface's green server, for the board window's green threads
+    ifaceNext: () => ipcRenderer.invoke('iface-next'),
+    onIfaceOpen: listen('iface-open'),
+    panelBig: (on) => ipcRenderer.send('panel-big', !!on),             // the one window: this panel takes the whole window (the oekaki)
     saveImage: (url, name) => ipcRenderer.invoke('save-image', url, name),
     imageMenu: (url, name) => ipcRenderer.send('image-menu', url, name),
     onToast: listen('toast'),

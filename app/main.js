@@ -1234,7 +1234,7 @@ handle('iface-req', async (e, r) => {
     }
     else if (r.form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(Object.entries(r.form).map(([k, v]) => [k, String(v)])).toString(); }
     else if (r.json) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(r.json); }
-    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers, body, signal: AbortSignal.timeout(r.file ? 60000 : 15000) }).catch(() => null);
+    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers, body, signal: AbortSignal.timeout(r.file || (r.json && r.json.image) ? 60000 : 15000) }).catch(() => null);
     if (!res) return { status: 0, json: null, text: 'Could not reach ' + new URL(url).host + '.' };
     const text = await res.text();
     let json = null;
@@ -1352,6 +1352,63 @@ handle('board-watched', (e, board, ops) => {
 });
 ipcMain.on('board-watched-get', (e, board) => { e.returnValue = fromBoardView(e) && /^\w{1,12}$/.test(String(board)) ? watchedOf(String(board)) : null; });
 ipcMain.on('board-watched-set', (e, board, ops) => { if (fromBoardView(e)) setWatched(String(board), ops, 'board'); });
+
+/* ---------- green threads on the board ----------
+   The board window pins the green threads on top of its index and catalog (only on the
+   station's own board). The list comes from the green server the Interface uses (it says
+   which), else the station's PC; a click opens the thread in the Interface, to read and reply.
+   The listener can hide one (✕) or all of them (kept here: cfg.boardGreen { off, hid: id → when }). */
+let greenServer = '', greenList = { at: 0, from: '', threads: [] }, ifaceNext = '';
+on('iface-server', (e, s) => { if (who(e) === 'interface') greenServer = String(s || ''); });
+async function boardGreen() {
+    let base = greenServer || cfg.ui.ifaceServer || '';
+    if (!base) { const eng = await stationEngine(); base = eng ? eng + '/green' : ''; }
+    try { const u = new URL(base); if (!(u.protocol === 'https:' || (u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)))) base = ''; } catch { base = ''; }
+    base = base.replace(/\/+$/, '');
+    if (!base) return [];
+    if (greenList.from === base && Date.now() - greenList.at < 30e3) return greenList.threads;
+    const r = await fetch(base + '/api/threads', { signal: AbortSignal.timeout(10000) }).catch(() => null);
+    const j = r && r.ok ? await r.json().catch(() => null) : null;
+    if (!j || !Array.isArray(j.threads)) return greenList.from === base ? greenList.threads : [];
+    const pic = (p) => p.img && /^(jpg|png|gif|webp)$/.test(p.img.ext) ? { thumb: base + '/api/img/' + p.id + 's.jpg', tw: Number(p.img.tw) || 0, th: Number(p.img.th) || 0 } : null;
+    const short = (p) => ({ id: String(p.id || ''), name: String(p.name || ''), trip: String(p.trip || ''), cap: String(p.cap || ''), time: Number(p.time) || 0, text: String(p.text || '').slice(0, 400), img: pic(p) });
+    const threads = j.threads.filter(t => t && /^[0-9a-zA-Z]{1,12}$/.test(String(t.id))).slice(0, 50)
+        .map(t => ({ ...short(t), sub: String(t.sub || '').slice(0, 120), replies: Number(t.replies) || 0, bumped: Number(t.bumped) || 0, last: (t.last || []).slice(-3).map(short) }));
+    greenList = { at: Date.now(), from: base, threads };
+    return threads;
+}
+const boardOf = (u) => { try { const m = /^\/(\w{1,12})\//.exec(new URL(u).pathname); return m ? m[1] : ''; } catch { return ''; } };
+function greenHidden() {
+    const g = cfg.boardGreen = cfg.boardGreen || { off: false, hid: {} };
+    for (const [id, at] of Object.entries(g.hid)) if (Date.now() - at > HIDE_KEEP) delete g.hid[id];
+    return g;
+}
+ipcMain.handle('board-green', async (e) => {
+    if (!fromBoardView(e) || !boardOf(e.sender.getURL()) || boardOf(e.sender.getURL()) !== boardOf(boardHome)) return null;
+    const g = greenHidden();
+    return { threads: await boardGreen().catch(() => []), off: !!g.off, hid: Object.keys(g.hid) };
+});
+// id: one thread (on = hidden), or '*': all of them.
+ipcMain.handle('board-green-hide', (e, id, on) => {
+    if (!fromBoardView(e)) return null;
+    const g = greenHidden();
+    if (id === '*') g.off = !!on;
+    else if (/^[0-9a-zA-Z]{1,12}$/.test(String(id))) { if (on) g.hid[id] = Date.now(); else delete g.hid[id]; }
+    const ids = Object.keys(g.hid);
+    if (ids.length > 500) for (const k of ids.sort((a, b) => g.hid[a] - g.hid[b]).slice(0, ids.length - 500)) delete g.hid[k];
+    saveSoon();
+    return { off: !!g.off, hid: Object.keys(g.hid) };
+});
+ipcMain.on('board-green-open', (e, id) => {
+    if (!fromBoardView(e) || !/^[0-9a-zA-Z]{1,12}$/.test(String(id))) return;
+    const key = 'g:' + id;
+    if ((elWins.get('interface') && !elWins.get('interface').isDestroyed()) || frameOf('interface')) sendTo('interface', 'iface-open', key);
+    else ifaceNext = key;                                         // it opens on that thread
+    toPage('open-element', 'interface');
+});
+// The Interface's oekaki, in the one window: its panel takes the whole window while it's open.
+on('panel-big', (e, big) => { if (panelOf(e) === 'interface' && win && !win.isDestroyed()) win.webContents.send('panel-full', big ? 'interface' : ''); });
+handle('iface-next', (e) => { if (who(e) !== 'interface') return ''; const k = ifaceNext; ifaceNext = ''; return k; });
 
 /* ---------- pictures from the Interface: save, copy the link, open ---------- */
 const imageUrlOf = (u) => { const x = new URL(String(u || '')); if (x.protocol !== 'https:') throw new Error('Not a picture on the web.'); return x; };

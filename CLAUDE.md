@@ -281,7 +281,9 @@ The app shows a notification (with its one sound):
 
 ### 4.7 Green threads: `/green/api/…`
 
-The Interface's community threads. Text only; post ids are 4–8 characters of
+The Interface's community threads, read like a text board (world4ch). Text,
+and **drawings**: any post may carry one, made in the app's oekaki — the only
+pictures green threads take. Post ids are 4–8 characters of
 `[0-9a-zA-Z]` with **at least one letter** (`7xK2`), quoted as `>>7xK2`. Full
 rules — levels, milestones, checks, achievements — are in
 [docs/interface.md](docs/interface.md); implement them exactly as written there.
@@ -291,8 +293,9 @@ rules — levels, milestones, checks, achievements — are in
 | `GET /green/api/threads?v=N` | `{ version, mode, threads: [summary] }` by last bump; `{ version, unchanged: true }` if `v` equals the current version. |
 | `GET /green/api/thread/:id?v=N` | `{ version, thread: summary, posts: [post] }`, live or archived (404 if gone). |
 | `GET /green/api/archive?page=0` | `{ page, total, threads: [summary] }`, 50 a page, newest death first. |
-| `POST /green/api/thread` | `{ key, sub, name, text, refs?, cap? }` → `{ ok, version, thread, post, me, levelUp, earned, dubs, checks, again, own }`. 403 under level 11, 409 if they already have a live thread. |
-| `POST /green/api/thread/:id/reply` | `{ key, name, options, text, refs?, cap? }` → `{ ok, version, post, me, levelUp, earned, dubs, checks, again, own }`. `options: "sage"` doesn't bump. |
+| `GET /green/api/img/:id.png`, `/img/:id` + `s.jpg` | A post's drawing and its thumbnail (posts with one carry `img: { ext: "png", w, h, tw, th, size, name }`). Served `Cache-Control: public, max-age=31536000, immutable`, outside the byte budget. |
+| `POST /green/api/thread` | `{ key, sub, name, text, refs?, cap?, image? }` (`image: { data, thumb, tw, th }`: base64 of a PNG of at most 800×800 and 3 MB — its size is read from the file — and a JPEG thumbnail of at most 80 KB; anything else is a 400; with a drawing, `text` may be empty) → `{ ok, version, thread, post, me, levelUp, earned, dubs, checks, again, own }`. 403 under level 11, 409 if they already have a live thread. |
+| `POST /green/api/thread/:id/reply` | `{ key, name, options, text, refs?, cap?, image? }` (`image` as for a thread) → `{ ok, version, post, me, levelUp, earned, dubs, checks, again, own }`. `options: "sage"` doesn't bump. |
 | `POST /green/api/me` | `{ key }` → `{ me }`. |
 | `POST /green/api/check` | `{ key, thread, nos, text }`, or `{ key, thread, post }` for the person's own 4chan reply → `{ ok, checks, again, own, earned, dubs, me, levelUp }`. |
 | `POST /green/api/report` | `{ id, reason }`. |

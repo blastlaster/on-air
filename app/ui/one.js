@@ -278,7 +278,7 @@
         window.onairOne = {
             close: (id) => (FLY[id] ? closeFly() : hide(id)),
             zoom, inMiddle: (id) => PARTS.includes(id), zoomed: (id) => !!zoomedFrom && show.mid === id,
-            covered: () => !!fly || picking || document.body.classList.contains('tv-full')
+            covered: () => !!fly || picking || document.body.classList.contains('tv-full') || document.body.classList.contains('iface-big')
         };
 
         /* ---------- the tabs (the site's top bar) and Now Playing's buttons ---------- */
@@ -344,7 +344,8 @@
             $('.one-fly').onclick = (e) => { if (e.target === $('.one-fly') || e.target.closest('.one-fly-x')) closeFly(); };
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (picking) pick(false); else if (fly) closeFly(); } });
             // The video, full screen: it fills the window (and the window the screen).
-            if (app.onPanelFull) app.onPanelFull((id) => { document.body.classList.toggle('tv-full', id === 'tv'); moved(); });
+            // The Interface's oekaki: it takes the whole window while it's open.
+            if (app.onPanelFull) app.onPanelFull((id) => { document.body.classList.toggle('tv-full', id === 'tv'); document.body.classList.toggle('iface-big', id === 'interface'); moved(); });
             const paintMax = (w) => { const m = $('.one-win [data-w="max"]'); m.textContent = w && w.max ? '🗗' : '▢'; m.title = w && w.max ? 'Restore' : 'Maximise'; document.body.classList.toggle('maxed', !!(w && w.max)); };
             paintMax(UI.me); app.onWin(paintMax);
             new ResizeObserver(sizeTv).observe(tvBox());

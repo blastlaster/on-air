@@ -29,6 +29,8 @@
 .if-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; flex: none; background: rgba(127, 127, 127, 0.15); display: grid; place-items: center; font-size: 26px; }
 .if-thumb.none { position: relative; }
 .if-clover { position: absolute; top: 2px; right: 2px; width: 40%; height: 40%; color: var(--if-green); filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45)); pointer-events: none; }
+.if-thumb.pic { overflow: hidden; }
+.if-thumb.pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .if-th-body { min-width: 0; flex: 1; }
 .if-th-head { font-size: 0.85em; }
 .if-th-text { font-size: 0.9em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
@@ -75,6 +77,20 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .ql, .ext { color: var(--ln); cursor: pointer; text-decoration: underline; }
 .if-preview { position: fixed; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45); background: var(--sk-card-bg); max-height: 60vh; overflow: hidden; }
 
+/* a green thread reads like a text board (world4ch): grey page, red title, numbered posts, green names */
+.if-thread.green .if-posts { background: #efefef; color: #000; font-family: "Mona", "IPAMonaPGothic", "MS PGothic", Arial, sans-serif; padding: 8px 12px; }
+.bbs-title { margin: 2px 0 12px; font-size: 1.25em; color: #cc1105; font-weight: bold; overflow-wrap: anywhere; }
+.bbs-count { color: #000; font-weight: normal; font-size: 0.8em; }
+.if-post.greenp.bbs { background: none; border: 0; border-radius: 0; padding: 2px 0 6px; margin: 0 0 8px; }
+.if-post.bbs .if-ph { font-size: 0.9em; }
+.bbs-n { font-weight: bold; margin-right: 2px; }
+.bbs-name { color: #117743; }
+.if-post.bbs .if-no, .if-post.bbs .if-act, .if-post.bbs .if-trip { color: #555; }
+.if-post.bbs .if-text { margin: 4px 0 0 2.2em; }
+.if-post.bbs .if-file { margin-left: 2.2em; }
+.if-thread.green .ql { color: #00e; }
+.if-thread.green .if-text .gt { color: #789922; }
+
 /* reply */
 .if-reply { flex: none; display: flex; flex-direction: column; gap: 5px; padding: 6px; border-top: 1px solid rgba(127, 127, 127, 0.25); background: var(--sk-card-bg); }
 .if-reply textarea { resize: vertical; min-height: 54px; }
@@ -114,6 +130,9 @@ body:not(.fx-mid) .if-post.hl { animation: none; box-shadow: 0 0 0 2px var(--sk-
 .if-pick { cursor: pointer; }
 .if-picked { display: inline-flex; align-items: center; gap: 4px; max-width: 40%; font-size: 0.85em; }
 .if-picked[hidden], .if-pick[hidden] { display: none; }
+.if-drawthumb { max-height: 48px; max-width: 64px; border: 1px solid rgba(127, 127, 127, 0.5); vertical-align: middle; background: #fff; }
+.if-drawn .if-picked { max-width: none; }
+.if-drawn [hidden] { display: none; }
 
 /* ---------- a small panel (the one window's middle, or under Now Playing): what matters stays usable ---------- */
 .if-view { display: contents; }
