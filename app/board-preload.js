@@ -295,6 +295,7 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
         if (grid) new MutationObserver(() => { if (!state.off && state.threads.length && !grid.querySelector('[data-oa-green]')) paint(true); }).observe(grid, { childList: true });
         load();
         setInterval(() => { if (!document.hidden) load(); }, 60e3);
+        ipcRenderer.on('board-green-changed', () => load());                // a new thread or reply, seen by the Interface
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();

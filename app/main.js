@@ -1406,6 +1406,12 @@ ipcMain.on('board-green-open', (e, id) => {
     else ifaceNext = key;                                         // it opens on that thread
     toPage('open-element', 'interface');
 });
+// The green threads changed (the Interface saw it): the board window looks again now.
+on('green-changed', (e) => {
+    if (who(e) !== 'interface') return;
+    greenList.at = 0;
+    if (boardView && !boardView.webContents.isDestroyed()) boardView.webContents.send('board-green-changed');
+});
 // The Interface's oekaki, in the one window: its panel takes the whole window while it's open.
 on('panel-big', (e, big) => { if (panelOf(e) === 'interface' && win && !win.isDestroyed()) win.webContents.send('panel-full', big ? 'interface' : ''); });
 handle('iface-next', (e) => { if (who(e) !== 'interface') return ''; const k = ifaceNext; ifaceNext = ''; return k; });

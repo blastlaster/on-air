@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('onairApp', {
     onBoardWatched: listen('board-watched'),
     ifaceServer: (s) => ipcRenderer.send('iface-server', s),        // the Interface's green server, for the board window's green threads
     ifaceNext: () => ipcRenderer.invoke('iface-next'),
+    greenChanged: () => ipcRenderer.send('green-changed'),            // the green threads changed: the board window looks again
     onIfaceOpen: listen('iface-open'),
     panelBig: (on) => ipcRenderer.send('panel-big', !!on),             // the one window: this panel takes the whole window (the oekaki)
     saveImage: (url, name) => ipcRenderer.invoke('save-image', url, name),

@@ -182,7 +182,12 @@
             $('.if-main', box).addEventListener('error', (e) => { if (e.target.tagName !== 'IMG') return; const f = e.target.closest('.if-file'); if (f) f.hidden = true; else e.target.style.visibility = 'hidden'; }, true);
             $('.if-main', box).addEventListener('mouseover', onHover);
             // A green thread on screen: no screen effects over it (scanlines, sparkles, glows); the text board reads plain.
-            const bbsOn = () => document.body.classList.toggle('bbs-on', !!$('.if-thread.green', box));
+            // In the one window the main window's own effects lie over this panel too: the panel steps above them.
+            const bbsOn = () => {
+                const on = !!$('.if-thread.green', box);
+                document.body.classList.toggle('bbs-on', on);
+                try { if (window.frameElement) window.frameElement.classList.toggle('bbs-on', on); } catch { /* not the one window's */ }
+            };
             new MutationObserver(bbsOn).observe($('.if-main', box), { childList: true });
             $('.if-main', box).addEventListener('contextmenu', onContext);
             $('.if-main', box).addEventListener('mouseout', (e) => { if (e.target.closest('.ql')) hidePreview(); });
@@ -307,7 +312,7 @@
             if (server()) {
                 try {
                     const j = await toServer('/api/threads?v=' + greenVer);
-                    if (!j.unchanged) { green = j.threads || []; greenVer = j.version || 0; }
+                    if (!j.unchanged) { green = j.threads || []; greenVer = j.version || 0; if (app.greenChanged) app.greenChanged(); }       // the board window shows them too: now, not in a minute
                 } catch { /* off, busy or unreachable: keep what we had; the board still shows */ }
             }
             else green = [];
@@ -596,6 +601,7 @@
                 } else {
                     const r = await toServer('/api/thread/' + current.id + '/reply', { name: f.name.value.trim(), options: f.options.value.trim(), text, refs: boardRefs(text), cap: isAdmin() && /^station$/i.test(f.options.value.trim()), image: drawingBody(drawn) });
                     mine.add(r.post.id); saveMine();
+                    if (app.greenChanged) app.greenChanged();
                     celebrate(r);
                 }
                 f.text.value = '';
@@ -632,6 +638,7 @@
                         const image = drawingBody(drawing);
                         const r = await toServer('/api/thread', { sub: f.sub.value.trim(), name: f.name.value.trim(), text: f.text.value, refs: boardRefs(f.text.value), cap: isAdmin(), image });
                         mine.add(r.post.id); saveMine();
+                        if (app.greenChanged) app.greenChanged();
                         celebrate(r);
                         watch['g:' + r.thread.id] = { title: r.thread.sub || r.thread.text.slice(0, 60), seen: 1 }; saveWatch();
                         UI.closeSheet();

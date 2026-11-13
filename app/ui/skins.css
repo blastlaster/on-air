@@ -760,3 +760,36 @@ body.skin-paddy {
     --sk-msg-bg: rgba(255,255,255,0.05);
     --sk-plain: #083018;
 }
+body.skin-topkek {
+    --sk-bg: radial-gradient(circle at 20px 20px, rgba(216,30,44,0.18) 0 5px, transparent 6px) 0 0 / 60px 60px, linear-gradient(160deg, #ff5fb4 0%, #e0218a 55%, #b0126c 100%);
+    --sk-text: #fff8fc;
+    --sk-font: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif;
+    --sk-title-font: "Cooper Black", "Arial Rounded MT Bold", Georgia, serif;
+    --sk-head-bg: linear-gradient(180deg, #2a2a2a, #0d0d0d);
+    --sk-head-text: #ffd400;
+    --sk-head-shadow: 2px 2px 0 #1f4fbf;
+    --sk-panel-bg: rgba(120, 8, 70, 0.9);
+    --sk-panel-text: #fff4fa;
+    --sk-radius: 14px;
+    --sk-panel-border: 2px solid #ffd400;
+    --sk-panel-shadow: 0 8px 24px rgba(60,0,30,0.5);
+    --sk-title-text: #ffd400;
+    --sk-glow: 0 0 6px rgba(255,212,0,0.55);
+    --sk-btn-bg: #1a1a1a;
+    --sk-btn-text: #ffd400;
+    --sk-btn-radius: 999px;
+    --sk-btn-border: 2px solid #8b1a1a;
+    --sk-btn-active: linear-gradient(180deg, #ffe24a, #f2a900);
+    --sk-btn-active-text: #5a0a36;
+    --sk-card-bg: rgba(90, 6, 52, 0.72);
+    --sk-card-text: #fff4fa;
+    --sk-card-border: 1px solid rgba(255,212,0,0.45);
+    --sk-accent: #ffd400;
+    --sk-dim: #ffb3da;
+    --sk-led-bg: #2a0418;
+    --sk-hover: #fff27a;
+    --sk-input-bg: #fff4fa;
+    --sk-input-text: #5a0a36;
+    --sk-msg-bg: rgba(255,255,255,0.07);
+    --sk-plain: #b0126c;
+}

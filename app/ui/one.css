@@ -109,6 +109,8 @@ body.one-on .sheet { inset: 0; }
 body.tv-full .one-panel[data-p="tv"] { position: fixed; inset: 0; z-index: 30; height: auto !important; }
 body.tv-full .one-head { visibility: hidden; }
 /* The Interface while its oekaki is open: the whole window to draw in */
+/* The Interface showing a green thread: above the window's screen effects (they stay everywhere else) */
+.one-frame.bbs-on { position: relative; z-index: 6; }      /* above the holiday extras too (z-index 5) */
 body.iface-big .one-frame[data-id="interface"] { position: fixed; inset: 0; z-index: 30; width: 100vw !important; height: 100vh !important; }
 
 .one-empty { grid-column: 1 / -1; align-self: center; text-align: center; color: var(--sk-dim); font-size: 1.1em; }

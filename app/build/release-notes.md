@@ -1,3 +1,5 @@
-## What's new in 0.5.48
+## What's new in 0.5.49
 
-- **Interface — green threads read plainly:** the look's screen effects (scanlines, sparkles, glows, holiday extras) stay off while a green thread is open, and hovering a `>>quote` there shows the post in the same plain text-board style.
+- **New look: TopKek.** The pink cupcake wrapper, the logo's yellow and a black TOP KEK cap. Strawberries fall on Mid.
+- **[s4s] window:** new green threads and replies show up right away, without a refresh.
+- **Interface:** in the one window, the look's screen effects (scanlines, holiday extras) no longer cover a green thread.
