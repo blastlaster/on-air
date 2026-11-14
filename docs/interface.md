@@ -98,7 +98,7 @@ its id**, quoted like `>>7xK2`.
 - **Earned.** You need **level 11** to start one — before that, post in them. It takes a few days of real replies, which keeps drive-by spam out.
 - **One at a time.** While your thread is alive you can't start another. Green threads are meant to add to the board, not bury it.
 - **Bumped by replies; three days without one and it dies** into the **Archive**, read-only. At level 44 your threads last four days. A countdown shows in every thread.
-- A thread stops bumping at 250 replies and closes at 300.
+- A thread stops bumping at 250 replies; at 300 it closes and goes straight to the **Archive**.
 - They live on the station's PC: while it's off they're offline, and the board and its green posts still show.
 
 ## Levels
