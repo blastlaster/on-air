@@ -300,6 +300,54 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
 
+// The oekaki on the board's own pages, like /i/'s: a Draw button beside 4chan's file field (the reply
+// form's and the Quick Reply's). Finish puts the drawing in that field as oekaki.png, and 4chan posts it
+// like any picture. The window is all the oekaki's while it's open.
+(function oekakiOnBoard() {
+    if (!/^boards\.4chan(nel)?\.org$/i.test(location.hostname) || !/^\/\w{1,12}\//.test(location.pathname)) return;
+    const code = ipcRenderer.sendSync('board-oekaki');
+    if (!code) return;
+    contextBridge.exposeInMainWorld('__onairBoard', { big: (on) => ipcRenderer.send('board-big', !!on) });
+    const GLUE = `(function () {
+    if (window.__oaDraw || !window.Oekaki) return;
+    window.__oaDraw = true;
+    var st = document.createElement('style');
+    st.textContent = ${JSON.stringify(code.css)} + '\\n.oa-draw { margin-left: 4px; }';
+    (document.head || document.documentElement).appendChild(st);
+    var toFile = function (dataUrl) {
+        var b = atob(dataUrl.split(',')[1]), a = new Uint8Array(b.length);
+        for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+        return new File([a], 'oekaki.png', { type: 'image/png' });
+    };
+    var add = function (input) {
+        if (input.__oaDraw) return;
+        input.__oaDraw = true;
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'oa-draw'; btn.textContent = 'Draw'; btn.title = 'Draw a picture for your post (oekaki)';
+        input.insertAdjacentElement('afterend', btn);
+        btn.addEventListener('click', function () {
+            // Drawing again while the last drawing is still in the field goes on from it.
+            var last = input.files && input.files.length && input.__oaLast ? input.__oaLast : null;
+            window.__onairBoard.big(true);
+            Oekaki.open(last ? { width: last.width, height: last.height, start: last.png } : {}).then(function (d) {
+                window.__onairBoard.big(false);
+                if (!d) return;
+                input.__oaLast = d;
+                var dt = new DataTransfer();
+                dt.items.add(toFile(d.png));
+                input.files = dt.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }, function () { window.__onairBoard.big(false); });
+        });
+    };
+    var scan = function () { document.querySelectorAll('input[type=file][name=upfile]').forEach(add); };
+    scan();
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+})();`;
+    const start = () => webFrame.executeJavaScript(code.js + '\n' + GLUE).catch((e) => console.error('[oekaki]', e));
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})();
+
 const scripts = ipcRenderer.sendSync('us-for', location.href) || [];
 if (scripts.length) {
     const values = {};

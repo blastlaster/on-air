@@ -653,13 +653,33 @@ ipcMain.on('board', (e, cmd, arg) => {
     if (cmd === 'open') return openBoard(w, String(arg || ''));
     if (!boardView) return;
     const wc = boardView.webContents;
-    if (cmd === 'bounds') { boardView.setVisible(!!arg); if (arg) boardView.setBounds(arg); }
+    if (cmd === 'bounds') { if (boardBig) { boardBig.was = arg; return; } boardView.setVisible(!!arg); if (arg) boardView.setBounds(arg); }
     else if (cmd === 'back') { if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); }
     else if (cmd === 'home') wc.loadURL(boardHome);
     else if (cmd === 'reload') wc.reload();
     else if (cmd === 'out') shell.openExternal(wc.getURL() || boardHome);
     else if (cmd === 'go') { const u = String(arg || '').trim(); if (/^https:\/\//i.test(u) && boardSite(u)) wc.loadURL(u); }
     else if (cmd === 'tint') { boardTint = String(arg || ''); applyBoardTint(); }
+});
+
+/* The oekaki on the board's own pages (a Draw button by 4chan's file field): its code, and the whole
+   window to draw in while it's open (the board's place is kept and given back after). */
+let boardBig = null;
+ipcMain.on('board-oekaki', (e) => {
+    if (!fromBoardView(e)) { e.returnValue = null; return; }
+    try { e.returnValue = { js: fs.readFileSync(path.join(__dirname, 'ui', 'oekaki.js'), 'utf8'), css: fs.readFileSync(path.join(__dirname, 'ui', 'oekaki.css'), 'utf8') }; } catch { e.returnValue = null; }
+});
+ipcMain.on('board-big', (e, on) => {
+    if (!fromBoardView(e) || !boardView) return;
+    const w = oneWin() ? win : winOf('board');
+    if (on && !boardBig && w && !w.isDestroyed()) {
+        boardBig = { was: boardView.getBounds() };
+        const [width, height] = w.getContentSize();
+        boardView.setBounds({ x: 0, y: 0, width, height });
+    } else if (!on && boardBig) {
+        const was = boardBig.was; boardBig = null;
+        boardView.setVisible(!!was); if (was) boardView.setBounds(was);
+    }
 });
 
 // The listener's userscripts for the board (Tampermonkey-style).
