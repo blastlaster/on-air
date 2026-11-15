@@ -77,7 +77,7 @@ At the bottom of every thread:
 
 | In a board thread | In a green thread |
 |---|---|
-| **🟩 Green post** — goes to funposters.club, so everyone using the interface (in the app or the [s4s] interface userscript) sees it in that thread. **📎 Picture** adds an image (or paste one into the comment, or drop it on the form), up to 8 MB. | **Reply** — goes to the station's green threads. Text only. |
+| **🟩 Green post** — goes to funposters.club, so everyone using the interface (in the app or the [s4s] interface userscript) sees it in that thread. **📎 Picture** adds an image (or paste one into the comment, or drop it on the form), up to 8 MB; **🎨 Draw** makes one in the oekaki instead (**edit** goes back to it). | **Reply** — goes to the station's green threads: text, and a drawing if you like (**🎨 Draw**; pictures from elsewhere can't go in). |
 | **Reply on 4chan ↗** — opens the board at that thread (its window, or its part of One window), where 4chan's own captcha lives. | |
 
 - **Name**: your app name to start with; `name#secret` gives a tripcode (`!Ab3…`).

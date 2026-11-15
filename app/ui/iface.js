@@ -522,7 +522,8 @@
                     (cur.kind === 'c'
                         ? '<button class="btn go" data-send="fp">🟩 Green post</button>' +
                           '<label class="btn if-pick" title="Add a picture to your green post (or paste one into the comment)">📎 Picture<input type="file" name="upfile" accept="image/*" hidden></label>' +
-                          '<span class="if-picked" hidden><span class="dim ell"></span> <a class="if-act" data-unpick title="Remove the picture">✕</a></span>' +
+                          '<button type="button" class="btn if-pick" data-draw title="Draw a picture for your green post (oekaki)">🎨 Draw</button>' +
+                          '<span class="if-picked" hidden><span class="dim ell"></span> <a class="if-act" data-draw hidden>edit</a> <a class="if-act" data-unpick title="Remove the picture">✕</a></span>' +
                           '<button type="button" class="btn" data-open4="https://boards.4chan.org/' + boardName() + '/thread/' + cur.id + '">Reply on 4chan ↗</button>'
                         : '<button class="btn go" data-send="g">Reply</button><span class="if-drawn">' + DRAW_BTN + '</span>') +
                     '<span class="grow"></span><span class="dim if-hint">&gt;text greentext · &gt;&gt;' + (cur.kind === 'c' ? '123' : '7xK2') + ' quotes</span>' +
@@ -534,8 +535,9 @@
             const show = () => {
                 const p = $('.if-picked', f);
                 p.hidden = !attached;
-                $('.ell', p).textContent = attached ? (attached.name || 'pasted picture') + ' · ' + Math.max(1, Math.round(attached.size / 1024)) + ' KB' : '';
-                $('.if-pick', f).hidden = !!attached;
+                $('.ell', p).textContent = attached ? (attached.oekaki ? 'your drawing' : attached.name || 'pasted picture') + ' · ' + Math.max(1, Math.round(attached.size / 1024)) + ' KB' : '';
+                $('a[data-draw]', p).hidden = !(attached && attached.oekaki);
+                for (const b of f.querySelectorAll('.if-pick')) b.hidden = !!attached;
             };
             const take = (file) => {
                 if (!file) return;
@@ -548,6 +550,17 @@
             f.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
             f.addEventListener('drop', (e) => { const file = e.dataTransfer && e.dataTransfer.files[0]; if (file) { e.preventDefault(); take(file); } });
             $('[data-unpick]', f).onclick = () => { attached = null; show(); };
+            // 🎨 Draw: the drawing is the post's picture (oekaki.png); edit goes on from it.
+            for (const b of f.querySelectorAll('[data-draw]')) b.onclick = async () => {
+                const was = attached && attached.oekaki;
+                const d = await openOekaki(was);
+                if (!d) return;
+                const bin = atob(d.png.split(',')[1]), bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                attached = new File([bytes], 'oekaki.png', { type: 'image/png' });
+                attached.oekaki = d;
+                show();
+            };
             show();
         }
 
@@ -661,17 +674,23 @@
             };
             f.addEventListener('click', async (e) => {
                 if (e.target.closest('[data-unpick]')) { set(null); return show(); }
-                if (!e.target.closest('[data-draw]') || !window.Oekaki) return;
-                // Editing goes on from the drawing so far (made here, so nothing from outside gets in).
-                const was = get();
-                if (app.panelBig) app.panelBig(true);
-                // In a window of its own, the oekaki stays below the title bar (a drag region: it would take the menu's clicks).
-                const bar = !document.body.classList.contains('panel') && document.querySelector('.frame > .bar');
-                const top = bar && bar.offsetParent ? bar.getBoundingClientRect().bottom : 0;
-                const d = await Oekaki.open(was ? { width: was.width, height: was.height, start: was.png, top } : { top }).finally(() => { if (app.panelBig) app.panelBig(false); });
+                if (!e.target.closest('[data-draw]')) return;
+                const d = await openOekaki(get());
                 if (d) { set(d); show(); }
             });
             show();
+        }
+        /**
+         * The oekaki, over the whole window (in the one window, the panel takes it) and below a title bar
+         * (a drag region: it would take the menu's clicks). was: the drawing so far, to go on from (made here,
+         * so nothing from outside gets in). Resolves to the drawing, or null.
+         */
+        async function openOekaki(was) {
+            if (!window.Oekaki) return null;
+            if (app.panelBig) app.panelBig(true);
+            const bar = !document.body.classList.contains('panel') && document.querySelector('.frame > .bar');
+            const top = bar && bar.offsetParent ? bar.getBoundingClientRect().bottom : 0;
+            return Oekaki.open(was ? { width: was.width, height: was.height, start: was.png, top } : { top }).finally(() => { if (app.panelBig) app.panelBig(false); });
         }
         /** A drawing as the green server takes it: the PNG and a JPEG thumbnail, base64. */
         function drawingBody(d) {
