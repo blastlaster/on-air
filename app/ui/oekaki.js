@@ -171,7 +171,11 @@
             function lineTo(q) {
                 const s = stroke, a = s.last, dx = q.x - a.x, dy = q.y - a.y, dist = Math.hypot(dx, dy);
                 const gap = Math.max(0.5, st.size * (st.tool === 'airbrush' ? 0.15 : 0.25) * (s.hard ? 0.5 : 1));
-                for (let t = gap; t <= dist; t += gap) { const k = t / dist; dab(a.x + dx * k, a.y + dy * k, a.p + (q.p - a.p) * k); }
+                // The spacing carries over from one move to the next: a slow hand with a big brush makes many
+                // moves shorter than the spacing, and they still add up to a line (not just the first dot).
+                let t = s.next === undefined ? gap : Math.min(s.next, gap);
+                for (; t <= dist; t += gap) { const k = t / dist; dab(a.x + dx * k, a.y + dy * k, a.p + (q.p - a.p) * k); }
+                s.next = t - dist;
                 s.last = q;
                 if (s.hard) flushMask();
                 soon();
