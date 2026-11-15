@@ -300,8 +300,8 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
 
-// The oekaki on the board's own pages, like /i/'s: a Draw button beside 4chan's file field (the reply
-// form's and the Quick Reply's). Finish puts the drawing in that field as oekaki.png, and 4chan posts it
+// The oekaki on the board's own pages, like /i/'s: a 🎨 in the reply form's Name row (and the Quick
+// Reply's, and the [s4s] interface's green forms), just before its green "!". Finish puts the drawing in that field as oekaki.png, and 4chan posts it
 // like any picture. The window is all the oekaki's while it's open.
 (function oekakiOnBoard() {
     if (!/^boards\.4chan(nel)?\.org$/i.test(location.hostname) || !/^\/\w{1,12}\//.test(location.pathname)) return;
@@ -312,20 +312,35 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     if (window.__oaDraw || !window.Oekaki) return;
     window.__oaDraw = true;
     var st = document.createElement('style');
-    st.textContent = ${JSON.stringify(code.css)} + '\\n.oa-draw { margin-left: 4px; }';
+    st.textContent = ${JSON.stringify(code.css)} + '\\n.oa-draw { width: 24px; height: 22px; margin: 0 2px 0 0; padding: 0; border: 1px solid #bbb; font-size: 13px; line-height: 1; vertical-align: middle; cursor: pointer; flex: none; }' +
+        '\\n#quickReply .oa-draw { width: 23px; height: 23px; }' +
+        '\\n#quickReply .oa-draw + .greenToggle + input { width: 248px !important; }' +
+        '\\n.postForm .oa-draw + .greenToggle + input { width: 195px !important; }';
     (document.head || document.documentElement).appendChild(st);
     var toFile = function (dataUrl) {
         var b = atob(dataUrl.split(',')[1]), a = new Uint8Array(b.length);
         for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
         return new File([a], 'oekaki.png', { type: 'image/png' });
     };
-    var add = function (input) {
-        if (input.__oaDraw) return;
-        input.__oaDraw = true;
-        var btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'oa-draw'; btn.textContent = 'Draw'; btn.title = 'Draw a picture for your post (oekaki)';
-        input.insertAdjacentElement('afterend', btn);
+    // 🎨 in the Name row: beside the [s4s] interface's green "!" when it's there, else before the name.
+    // It fills the file field of the form it's in (the board's, the Quick Reply's, or a green form's).
+    // (The interface script may add its "!" after this runs: each look puts the 🎨 back after it.)
+    var place = function (name, btn) {
+        // 4chan builds the Quick Reply from a copy of the reply form's row: copies of the 🎨 go.
+        Array.prototype.forEach.call(name.parentNode.querySelectorAll('.oa-draw'), function (b) { if (b !== btn) b.remove(); });
+        var prev = name.previousElementSibling === btn ? btn.previousElementSibling : name.previousElementSibling;
+        // Just before the "!" (the script sizes the name field it finds right after its "!"), else before the name.
+        if (prev && prev.classList.contains('greenToggle')) { if (prev.previousElementSibling !== btn) prev.insertAdjacentElement('beforebegin', btn); }
+        else if (name.previousElementSibling !== btn) name.insertAdjacentElement('beforebegin', btn);
+    };
+    var add = function (name) {
+        if (name.__oaDraw) return place(name, name.__oaDraw);
+        var btn = name.__oaDraw = document.createElement('button');
+        btn.type = 'button'; btn.className = 'oa-draw'; btn.textContent = '🎨'; btn.title = 'Draw a picture for your post (oekaki)';
+        place(name, btn);
         btn.addEventListener('click', function () {
+            var form = btn.closest('form'), input = form && form.querySelector('input[type=file][name=upfile]');
+            if (!input) return;
             // Drawing again while the last drawing is still in the field goes on from it.
             var last = input.files && input.files.length && input.__oaLast ? input.__oaLast : null;
             window.__onairBoard.big(true);
@@ -340,7 +355,8 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
             }, function () { window.__onairBoard.big(false); });
         });
     };
-    var scan = function () { document.querySelectorAll('input[type=file][name=upfile]').forEach(add); };
+    // (A green form's name field is "username".)
+    var scan = function () { document.querySelectorAll('form input[name=name], form.greenPostForm input[name=username]').forEach(function (n) { if (n.form && n.form.querySelector('input[type=file][name=upfile]')) add(n); }); };
     scan();
     new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 })();`;

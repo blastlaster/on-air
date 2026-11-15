@@ -234,9 +234,10 @@ the text-board style, with their drawings and last few replies. Click one to rea
 all and reply in the Interface. **[–]** hides one (it leaves a line to bring it back);
 **Hide all** tucks them all away until you press **Show**.
 
-**Draw**, beside the reply form's file field (and the Quick Reply's), opens the oekaki — the
-same one the Interface uses — over the whole window. **Finish** puts your drawing in the file
-field as `oekaki.png`, ready to post like any picture; **Draw** again before posting goes on from it.
+**🎨**, at the start of the reply form's Name row (beside the [s4s] interface's green **!**, in
+the Quick Reply and the green forms too), opens the oekaki — the same one the Interface uses —
+filling the window below its title bar. **Finish** puts your drawing in that form's file field as `oekaki.png`,
+ready to post like any picture; **🎨** again before posting goes on from it.
 
 **"Your IP range is blocked… verify your e-mail"?** The board window keeps its
 own cookies, so verifying in your browser doesn't count here. The window

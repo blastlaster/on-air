@@ -665,7 +665,10 @@
                 // Editing goes on from the drawing so far (made here, so nothing from outside gets in).
                 const was = get();
                 if (app.panelBig) app.panelBig(true);
-                const d = await Oekaki.open(was ? { width: was.width, height: was.height, start: was.png } : {}).finally(() => { if (app.panelBig) app.panelBig(false); });
+                // In a window of its own, the oekaki stays below the title bar (a drag region: it would take the menu's clicks).
+                const bar = !document.body.classList.contains('panel') && document.querySelector('.frame > .bar');
+                const top = bar && bar.offsetParent ? bar.getBoundingClientRect().bottom : 0;
+                const d = await Oekaki.open(was ? { width: was.width, height: was.height, start: was.png, top } : { top }).finally(() => { if (app.panelBig) app.panelBig(false); });
                 if (d) { set(d); show(); }
             });
             show();

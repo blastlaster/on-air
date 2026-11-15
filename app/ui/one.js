@@ -345,7 +345,10 @@
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (picking) pick(false); else if (fly) closeFly(); } });
             // The video, full screen: it fills the window (and the window the screen).
             // The Interface's oekaki: it takes the whole window while it's open.
-            if (app.onPanelFull) app.onPanelFull((id) => { document.body.classList.toggle('tv-full', id === 'tv'); document.body.classList.toggle('iface-big', id === 'interface'); moved(); });
+            if (app.onPanelFull) app.onPanelFull((id) => {
+                if (id === 'interface') document.body.style.setProperty('--head-h', Math.round($('.one-head').getBoundingClientRect().bottom) + 'px');
+                document.body.classList.toggle('tv-full', id === 'tv'); document.body.classList.toggle('iface-big', id === 'interface'); moved();
+            });
             const paintMax = (w) => { const m = $('.one-win [data-w="max"]'); m.textContent = w && w.max ? '🗗' : '▢'; m.title = w && w.max ? 'Restore' : 'Maximise'; document.body.classList.toggle('maxed', !!(w && w.max)); };
             paintMax(UI.me); app.onWin(paintMax);
             new ResizeObserver(sizeTv).observe(tvBox());

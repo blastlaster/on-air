@@ -33,6 +33,7 @@
 
             const root = document.createElement('div');
             root.className = 'ok-root';
+            if (opts.top) root.style.top = Math.round(opts.top) + 'px';         // below a window's title bar (it drags, so it takes clicks)
             root.innerHTML =
                 '<div class="ok-menu">' +
                     '<a data-k="new">New</a>' +

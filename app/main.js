@@ -669,13 +669,20 @@ ipcMain.on('board-oekaki', (e) => {
     if (!fromBoardView(e)) { e.returnValue = null; return; }
     try { e.returnValue = { js: fs.readFileSync(path.join(__dirname, 'ui', 'oekaki.js'), 'utf8'), css: fs.readFileSync(path.join(__dirname, 'ui', 'oekaki.css'), 'utf8') }; } catch { e.returnValue = null; }
 });
-ipcMain.on('board-big', (e, on) => {
+// The window below its title bar: a frameless window's title bar is a drag region, and it keeps catching
+// clicks even with the board laid over it (the oekaki's menu would be dead there).
+const titleBottom = (w) => w.webContents.executeJavaScript(
+    "Math.round(Math.max(0, ...Array.from(document.querySelectorAll('.one-head, .frame > .bar')).map(e => e.offsetParent ? e.getBoundingClientRect().bottom : 0)))"
+).then(n => Math.max(0, Math.min(200, Number(n) || 0)), () => 0);
+ipcMain.on('board-big', async (e, on) => {
     if (!fromBoardView(e) || !boardView) return;
     const w = oneWin() ? win : winOf('board');
     if (on && !boardBig && w && !w.isDestroyed()) {
         boardBig = { was: boardView.getBounds() };
+        const top = await titleBottom(w);
+        if (!boardBig || !boardView || w.isDestroyed()) return;
         const [width, height] = w.getContentSize();
-        boardView.setBounds({ x: 0, y: 0, width, height });
+        boardView.setBounds({ x: 0, y: top, width, height: height - top });
     } else if (!on && boardBig) {
         const was = boardBig.was; boardBig = null;
         boardView.setVisible(!!was); if (was) boardView.setBounds(was);

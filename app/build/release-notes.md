@@ -1,4 +1,4 @@
-## What's new in 0.5.51
+## What's new in 0.5.52
 
-- **[s4s] window — draw your post:** a **Draw** button beside the reply form's file field (and the Quick Reply's) opens the oekaki over the whole window, like /i/'s. **Finish** puts your drawing in the file field, ready to post.
-- **Oekaki:** New, Undo, Redo and Zoom in its top menu click again. The window's title bar was catching those clicks as drags.
+- **Oekaki:** it opens below the window's title bar, so New, Undo, Redo and Zoom in its menu take clicks. The title bar was catching them as drags.
+- **[s4s] window:** Draw is now a 🎨 in the reply form's Name row, next to the [s4s] interface's green **!**. It works in the Quick Reply and the green forms too, and no longer pushes the form out of shape.
