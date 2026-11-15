@@ -93,7 +93,7 @@ The community's own threads on the board, in the style of a text board
 `>>7xK2` shows in the same plain style. **Numberless on 4chan, every post with letters in
 its id**, quoted like `>>7xK2`.
 
-- **Drawings, and only drawings.** Starting a thread or replying in one, press **🎨 Draw** for the oekaki (like the board's own drawing tool): pencil, pen (it follows a tablet's pressure), airbrush, tone, eraser, bucket and pipette; size and alpha; a palette; layers; undo/redo (Ctrl+Z / Ctrl+Y); zoom; **New** for another canvas size (up to 800×800). **Finish** puts it on your post (**edit** goes back to it); a reply can be just a drawing. Every picture in a green thread was drawn there: there's no way to open, paste or drop a picture in.
+- **Drawings, and only drawings.** Starting a thread or replying in one, press **🎨 Draw** for the oekaki (like the board's own drawing tool): pencil, pen (it follows a tablet's pressure), airbrush, tone, eraser, bucket and pipette; size and alpha; a palette; layers; undo/redo (Ctrl+Z / Ctrl+Y); zoom (− / +, or Ctrl + the mouse wheel); **New** for another canvas size (up to 800×800). **Finish** puts it on your post (**edit** goes back to it); a reply can be just a drawing. Every picture in a green thread was drawn there: there's no way to open, paste or drop a picture in.
 
 - **Earned.** You need **level 11** to start one — before that, post in them. It takes a few days of real replies, which keeps drive-by spam out.
 - **One at a time.** While your thread is alive you can't start another. Green threads are meant to add to the board, not bury it.

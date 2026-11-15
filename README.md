@@ -26,7 +26,7 @@ in, request songs, play the albums — and do things a web page can't.
 
 ## 📻 The desktop app
 
-> Light enough for an old PC. The only sound it ever makes is the live ping.
+> Light enough for an old PC. Its only sounds are the live ping and, if you switch it on, a chime for new chat messages.
 
 <table><tr>
 <td><img src="docs/images/radio-win95.png" alt="Windows 95 look" width="360"></td>
@@ -43,11 +43,11 @@ in, request songs, play the albums — and do things a web page can't.
 - **🖥️ Or all in one window**, laid out like the station's site: Now Playing, the video and chat around a middle that holds [s4s], the Interface and blug.dj/jej — one of them, or two or three side by side (▦ picks the arrangement, ⤢ fills the middle with one, and one can sit under Now Playing).
 - **🕺 blug.dj/jej**, the station's pixel room: walk, dance and talk out of your character's mouth; hold and give any emoji or the station's own emotes; auras, glowsticks and unlockables; duels, rock paper scissors, board games, hot potato, and the host's Dodgeball and Burgertime.
 - **💬 Chat commands**: `/nick`, `/afk`, `/me`, `/np`, `/request`, `/who`, `/ignore`, `/roll` (check 'em), `/fortune` and `/help`.
-- **🎨 25 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese and Starry — and a see-through **HUD** that leaves only the words.
+- **🎨 31 looks**, per window if you like: the FunpostFM classic plus Windows 95, XP, Mac OS, DOS, Commodore 64, Matrix, Amber, Game Boy, GeoCities, Synthwave, Y2K, Teletext, Netscape, Glitch, Chinese, Japanese, Starry, **TopKek**, **Comic Strip** (Comic Sans), **Papyrus**, **Sketchbook** (Cabin Sketch), **AIM** and **ICQ** — the last two with their own message sounds, an IM "ba-ding" and an "uh-oh" — and a see-through **HUD** that leaves only the words.
 - **🎃 Holiday looks**, like the board's one-day-a-year themes: **Spooky** on Halloween (with a dancing skeleton), party hats for **4chan's birthday** (Oct 1) and **[s4s]'s birthday** (Apr 1), snow for **Crimbus**, plus New Year, Valentine's and St Patrick's. The app dresses up by itself on the day; wear them any day you like.
 - **📞 Call the show** or leave a voicemail, right from the desktop.
 - **📀 Albums**: play them in the app or download them to a folder.
-- **📋 The board** as a real browser view — the captcha works, so you can post. **Right-click** a picture to save it under the name it was posted with, or search for it. If 4chan blocks your connection's range, the window walks you through verifying your e-mail right there.
+- **📋 The board** as a real browser view — the captcha works, so you can post. The Interface's **green threads** are pinned on top of its index and catalog (hide one, or all). **🎨** by the name field opens an **oekaki** to draw your post's picture, like /i/'s. **Right-click** a picture to save it under the name it was posted with, or search for it. If 4chan blocks your connection's range, the window walks you through verifying your e-mail right there.
 - **🧩 Userscripts** (Tampermonkey-style), with the station's picks one click away: the [s4s] interface, [Better] [s4s], [s4s] Enhancer, reply helper, Get Watcher, New [s4s] fortunes and [s4s] colored text.
 - **🔄 Updates itself** from this repository's releases, and opens again on the new version.
 
@@ -84,8 +84,8 @@ with letters in their ids — that exist nowhere else.
 
 - **Everything without green fades into the background; green pops out.** Sort green to the top, show green only, or **search** the threads.
 - **🟩 Green only** inside a thread shows just its green posts. Leave a thread and you're back where you were in the list.
-- **Green posts with pictures**: pick one, paste it or drop it in. **↓ save** any picture, or right-click it to search for it.
-- **Green threads**: text only, quoted like `>>7xK2`, bumped by replies, archived after three days without one.
+- **Green posts with pictures**: pick one, paste it or drop it in — or **🎨 draw** one. **↓ save** any picture, or right-click it to search for it.
+- **Green threads**, pinned at the top with a green clover: read like a text board (world4ch) — numbered posts, *Name: Anonymous : date*, no screen effects over them — quoted like `>>7xK2`, bumped by replies, archived after three days without one. Their only pictures are **drawings made in the oekaki** (pencil, pen, airbrush, tone, layers, undo, zoom); nothing from elsewhere goes in. They show on the board window too.
 - **Levels.** You earn XP by posting, by being quoted, by landing repeating ids — and by **checking** other people's: dubs, trips, quads and up, in green threads *and* on the board itself. **Checking with a real reply on 4chan is worth double.** Level **11** lets you start a thread of your own (one at a time). The milestones are the numbers [s4s] cares about: **11, 22, 33… 111, 1111**, palindromes like **3113**, patterns like **1313**.
 - **(You)**, a watcher for threads (the same list as the board's Thread Watcher, and hidden threads are shared too), quote previews, tripcodes, the Options list, and moderation tools for the station.
 
