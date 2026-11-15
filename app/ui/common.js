@@ -161,8 +161,65 @@
         b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
     }
 
+    /* ---------- the new-message sound ----------
+       The look's own where it has one, made here (no sound files; sound-alikes, not the originals):
+       AIM's IM "ba-ding" and ICQ's "uh-oh". Any other look: the station's chime. At most one a
+       second and a half, like the chime. Each takes an audio context and a start time. */
+    const tone = (c, type, f, at, len, vol) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(vol, at + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+        o.connect(g); g.connect(c.destination);
+        o.start(at); o.stop(at + len + 0.02);
+    };
+    /** A voiced syllable: a buzz gliding from f0 to f1, shaped by vowel formants ([frequency, weight]). */
+    const syllable = (c, at, f0, f1, len, formants) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + len);
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.5, at + 0.025);
+        g.gain.setValueAtTime(0.5, at + len * 0.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+        o.connect(g);
+        for (const [f, w] of formants) {
+            const bp = c.createBiquadFilter(), v = c.createGain();
+            bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6; v.gain.value = w;
+            g.connect(bp); bp.connect(v); v.connect(c.destination);
+        }
+        o.start(at); o.stop(at + len + 0.02);
+    };
+    const SOUNDS = {
+        // AIM: a quick, bright two-note "ba-ding", the second a sixth up, bell-like.
+        aim: (c, t) => {
+            for (const [f, at, len] of [[659.25, 0, 0.22], [1108.73, 0.08, 0.5]]) { tone(c, 'triangle', f, t + at, len, 0.16); tone(c, 'sine', f * 2, t + at, len * 0.5, 0.04); }
+        },
+        // ICQ: "uh-oh", two voiced syllables falling about a fourth, with a catch between them.
+        icq: (c, t) => {
+            syllable(c, t, 310, 290, 0.16, [[700, 1], [1150, 0.55], [2500, 0.15]]);
+            syllable(c, t + 0.23, 240, 200, 0.3, [[480, 1], [850, 0.6], [2400, 0.12]]);
+        }
+    };
+    let sndCtx = null, sndAt = 0;
+    function chime() {
+        const s = SOUNDS[lookNow];
+        if (!s) { if (window.LT && LT.chime) LT.chime(); return; }
+        const now = Date.now();
+        if (now - sndAt < 1500) return;
+        sndAt = now;
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            sndCtx = sndCtx || new AC();
+            if (sndCtx.state === 'suspended') sndCtx.resume();
+            s(sndCtx, sndCtx.currentTime + 0.01);
+        } catch { /* no sound here */ }
+    }
+
     window.UI = {
-        $, esc, clock, mmss, init, setTitle, toast, sheet, closeSheet, askName, flash,
+        $, esc, clock, mmss, init, setTitle, toast, sheet, closeSheet, askName, flash, chime, SOUNDS,
         get info() { return info; }, get me() { return me; }, get skin() { return lookNow || ''; }, holidayOn, holiday,
         onUi: (f) => onUiFns.push(f),
         onLook: (f) => lookFns.push(f)

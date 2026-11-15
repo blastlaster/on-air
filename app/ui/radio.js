@@ -187,8 +187,9 @@
 
     // New chat while the chat window is away: a dot on its button.
     core.on('chat', (c) => { if (!c.add) return; if (one) return one.chatNew(); if (elState.chat !== 'open') { const b = $('.side [data-el="chat"]'); if (b) b.classList.add('new'); } });
-    // …and a chime, if it's switched on (only for other people's messages; the radio plays it for every window).
-    core.on('chat', (c) => { if (c.add && UI.info.ui.chatSound && c.add.role !== 'system' && c.add.name !== core.name && window.LT && LT.chime) LT.chime(); });
+    // …and a chime, if it's switched on (only for other people's messages; the radio plays it for every window;
+    // under the AIM and ICQ looks, their own sound).
+    core.on('chat', (c) => { if (c.add && UI.info.ui.chatSound && c.add.role !== 'system' && c.add.name !== core.name) UI.chime(); });
     core.on('toast', (m) => UI.toast(m));
     core.on('state', paint);
     app.onTogglePlay(() => core.toggle());

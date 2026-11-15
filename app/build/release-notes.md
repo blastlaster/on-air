@@ -1,4 +1,9 @@
-## What's new in 0.5.52
+## What's new in 0.5.53
 
-- **Oekaki:** it opens below the window's title bar, so New, Undo, Redo and Zoom in its menu take clicks. The title bar was catching them as drags.
-- **[s4s] window:** Draw is now a 🎨 in the reply form's Name row, next to the [s4s] interface's green **!**. It works in the Quick Reply and the green forms too, and no longer pushes the form out of shape.
+Five new looks (Settings, or right-click a window's title):
+
+- **Comic Strip:** the Sunday funnies in Comic Sans. Halftone dots, inked panels, buttons that press in.
+- **Papyrus:** a sheet of papyrus in lapis and gold. The font comes with Microsoft Office, and a classic serif stands in without it.
+- **Sketchbook:** graph paper, a red margin and wobbly pencil edges. Titles are in Cabin Sketch, which comes with the app.
+- **AIM:** AIM 5 on Windows XP. With the chat sound on, new messages make an IM "ba-ding".
+- **ICQ:** ICQ 2001b, in classic grey with bevelled buttons and the green flower. With the chat sound on, new messages say "uh-oh".

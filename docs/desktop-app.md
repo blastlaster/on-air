@@ -156,11 +156,16 @@ video, which stops the radio while it plays).
 <td><img src="images/radio-matrix.png" alt="Matrix" width="300"></td>
 </tr></table>
 
-26 looks — the FunpostFM classic, Windows 95, Windows XP, Mac OS Classic,
+31 looks — the FunpostFM classic, Windows 95, Windows XP, Mac OS Classic,
 MS-DOS, Commodore 64, Matrix, Amber terminal, Game Boy, GeoCities, Synthwave,
 Y2K Chrome, Teletext, Netscape Navigator, Glitch, Chinese, Japanese, Starry,
-**TopKek** (the pink cupcake wrapper and a black TOP KEK cap; strawberries fall on Mid) and
-the seven holiday looks below —
+**TopKek** (the pink cupcake wrapper and a black TOP KEK cap; strawberries fall on Mid),
+three built around a font — **Comic Strip** (the Sunday funnies in Comic Sans: halftone dots,
+inked panels), **Papyrus** (a papyrus sheet in lapis and gold; the font comes with Microsoft
+Office, and a classic serif stands in without it) and **Sketchbook** (graph paper, a red margin
+and wobbly pencil edges, titles in Cabin Sketch, which comes with the app), **AIM** (AIM 5 on
+Windows XP: blue title bars, white message panes, bold blue screen names) and **ICQ** (ICQ 2001b:
+classic grey Windows, bevelled buttons, navy title bars, the green flower) — and the seven holiday looks below —
 plus **HUD**, which leaves only the words over whatever is behind the window.
 Set one for the whole app (Settings) or per window (right-click its title). The
 chat room follows the look too.
@@ -195,11 +200,15 @@ one connection to the station, and a window that isn't open costs nothing.
 
 ## Live alerts and pings
 
-The app tells you, with a notification and a sound — **the only sound it ever
-makes** —
+The app tells you, with a notification and a sound —
 
 - when the station **goes live** (once per show), and
 - whenever the host presses **📣 Ping** in the studio, live or not.
+
+Besides those, the only sound is the chat's, if you switch it on (**🔔** on the chat
+window): a soft chime for other people's messages. Under the **AIM** look it's an IM
+"ba-ding", and under **ICQ** an "uh-oh" (both made by the app, in the spirit of the
+originals).
 
 There's no account and no push service: the app watches the station itself
 (at once while the radio is connected to the studio, otherwise every 30

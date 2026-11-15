@@ -23,7 +23,7 @@
         // 🔔: a sound for new chat messages (the same switch as Settings → Alerts).
         const sb = $('.bar [data-sound]');
         const paintSound = () => { const on = !!UI.info.ui.chatSound; sb.textContent = on ? '🔔' : '🔕'; sb.title = on ? 'A sound plays for new chat messages — click to turn it off' : 'Click for a sound when new chat messages come in'; };
-        sb.onclick = () => { const on = !UI.info.ui.chatSound; app.setUi({ chatSound: on }); if (on && window.LT && LT.chime) LT.chime(); };
+        sb.onclick = () => { const on = !UI.info.ui.chatSound; app.setUi({ chatSound: on }); if (on) UI.chime(); };
         paintSound(); UI.onUi(paintSound);
     }
     const body = $('.body');

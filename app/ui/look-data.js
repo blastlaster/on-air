@@ -130,6 +130,31 @@ window.LOOKS = {
    "id": "topkek",
    "name": "TopKek",
    "swatch": "linear-gradient(135deg,#e0218a 50%,#ffd400 50% 70%,#1a1a1a 70%)"
+  },
+  {
+   "id": "comic",
+   "name": "Comic Strip",
+   "swatch": "linear-gradient(135deg,#ffe600 50%,#e4002b 50% 70%,#00a0e6 70%)"
+  },
+  {
+   "id": "papyrus",
+   "name": "Papyrus",
+   "swatch": "linear-gradient(135deg,#e9d6a6 55%,#1d3b8f 55% 75%,#e6c25a 75%)"
+  },
+  {
+   "id": "sketch",
+   "name": "Sketchbook",
+   "swatch": "linear-gradient(135deg,#fbfaf4 60%,#2a2a2a 60% 70%,#9cb8e6 70%)"
+  },
+  {
+   "id": "aim",
+   "name": "AIM",
+   "swatch": "linear-gradient(135deg,#ffcc00 50%,#0b3d91 50%)"
+  },
+  {
+   "id": "icq",
+   "name": "ICQ",
+   "swatch": "linear-gradient(135deg,#72c83c 55%,#e0401c 55% 70%,#fff 70%)"
   }
  ],
  "chatLooks": {
@@ -457,6 +482,71 @@ window.LOOKS = {
    "inputText": "#fff4fa",
    "banner": "linear-gradient(90deg,#1a1a1a,#e0218a,#ffd400,#e0218a,#1a1a1a)",
    "time": "#ffb3da"
+  },
+  "comic": {
+   "bg": "#fffbe6",
+   "msg": "#ffffff",
+   "text": "#111111",
+   "name": "#e4002b",
+   "sent": "#00a0e6",
+   "line": "#111111",
+   "font": "\"Comic Sans MS\", \"Comic Neue\", cursive",
+   "input": "#ffffff",
+   "inputText": "#111111",
+   "banner": "linear-gradient(90deg,#e4002b,#ffe600,#00a0e6)",
+   "time": "#666666"
+  },
+  "papyrus": {
+   "bg": "#e9d6a6",
+   "msg": "rgba(255,248,225,0.7)",
+   "text": "#3b2a12",
+   "name": "#1d3b8f",
+   "sent": "#8a2f1a",
+   "line": "#a6782a",
+   "font": "Papyrus, Herculanum, \"Palatino Linotype\", serif",
+   "input": "#fbf3dc",
+   "inputText": "#3b2a12",
+   "banner": "linear-gradient(90deg,#10235a,#e6c25a,#10235a)",
+   "time": "#7a6440"
+  },
+  "sketch": {
+   "bg": "#fbfaf4",
+   "msg": "rgba(70,120,200,0.06)",
+   "text": "#2a2a2a",
+   "name": "#1f4fbf",
+   "sent": "#d33333",
+   "line": "#2a2a2a",
+   "font": "\"Segoe Print\", \"Comic Sans MS\", cursive",
+   "input": "#ffffff",
+   "inputText": "#2a2a2a",
+   "banner": "linear-gradient(90deg,#2a2a2a,#9cb8e6,#2a2a2a)",
+   "time": "#777777"
+  },
+  "aim": {
+   "bg": "#ffffff",
+   "msg": "#ffffff",
+   "text": "#000000",
+   "name": "#0000ff",
+   "sent": "#ff0000",
+   "line": "#7f9db9",
+   "font": "Tahoma, Arial, sans-serif",
+   "input": "#ffffff",
+   "inputText": "#000000",
+   "banner": "linear-gradient(180deg,#0997ff,#0053ee 10%,#0050ee 45%,#0066ff 88%,#003dd7)",
+   "time": "#808080"
+  },
+  "icq": {
+   "bg": "#ffffff",
+   "msg": "#ffffff",
+   "text": "#000000",
+   "name": "#0000cc",
+   "sent": "#1c8c1c",
+   "line": "#808080",
+   "font": "Tahoma, \"MS Sans Serif\", sans-serif",
+   "input": "#ffffff",
+   "inputText": "#000000",
+   "banner": "linear-gradient(90deg,#0a246a,#3a6ea5 70%,#a6caf0)",
+   "time": "#606060"
   }
  },
  "chattableCss": "\n/* Base */\nbody {\n    background: #0f0523 !important;\n    color: #f5f5ff !important;\n    font-family: system-ui, -apple-system, \"Segoe UI\", Helvetica, Arial, sans-serif !important;\n    font-size: 14px !important;\n    line-height: 1.4 !important;\n    margin: 0 !important;\n    padding: 0 !important;\n}\n#background {\n    background: #0f0523 !important;\n    padding: 4px 6px !important;\n}\n#top_banner {\n    background: linear-gradient(135deg, #ff2fa8, #00e0ff) !important;\n    height: 22px !important;\n    font-size: 12px !important;\n}\n\n/* Message block */\n.msgWrapper { display: block !important; margin: 0 !important; padding: 0 !important; }\n.allMessages {\n    display: block !important;\n    margin: 6px 4px !important;\n    padding: 6px 10px 8px !important;\n    background: rgba(255,255,255,0.05) !important;\n    border-radius: 10px !important;\n    border-left: 3px solid #ff2fa8 !important;\n    color: #f5f5ff !important;\n    max-width: none !important;\n    width: auto !important;\n}\n.allMessages.sent {\n    border-left-color: #00e0ff !important;\n    background: rgba(0,224,255,0.08) !important;\n}\n.allMessages.pm {\n    background: rgba(255,220,40,0.10) !important;\n    border-left-color: #ffdc28 !important;\n}\n\n/* LINE 1 — username */\n.senderInfo {\n    display: block !important;\n    font-weight: bold !important;\n    font-size: 0.92rem !important;\n    color: #ffa1e0 !important;\n    text-shadow: 0 0 4px rgba(255,47,168,0.4) !important;\n    margin: 0 0 3px !important;\n    padding: 0 !important;\n    line-height: 1.2 !important;\n    word-wrap: break-word !important;\n}\n.sent .senderInfo {\n    color: #7dfff2 !important;\n    text-shadow: 0 0 4px rgba(0,224,255,0.5) !important;\n}\n.owner, .mod, .beta {\n    display: inline-block !important;\n    font-size: 0.7rem !important;\n    padding: 1px 6px !important;\n    border-radius: 4px !important;\n    margin-left: 5px !important;\n    vertical-align: middle !important;\n    font-weight: bold !important;\n    text-shadow: none !important;\n}\n.owner { background: #f3ff52 !important; color: #1a0733 !important; }\n.mod   { background: #7dfff2 !important; color: #1a0733 !important; }\n.beta  { background: #b76dff !important; color: #fff !important; }\n\n/* LINE 2 — message body (indented) */\n.msgBody {\n    display: block !important;\n    margin: 0 0 0 18px !important;\n    padding: 0 !important;\n    color: #f5f5ff !important;\n    line-height: 1.45 !important;\n    word-wrap: break-word !important;\n    overflow-wrap: break-word !important;\n    font-size: 0.95rem !important;\n}\n.msgBody a { color: #7dfff2 !important; text-decoration: underline !important; }\n.msgBody a:hover { color: #ffdc28 !important; }\n.reply, .msgBody blockquote {\n    display: block !important;\n    margin: 4px 0 4px 6px !important;\n    padding: 3px 8px !important;\n    border-left: 3px solid #a8ffa5 !important;\n    color: #a8ffa5 !important;\n    background: rgba(168,255,165,0.06) !important;\n    font-size: 0.9rem !important;\n}\n.highlight {\n    background: rgba(255,220,40,0.30) !important;\n    color: #fff !important;\n    padding: 0 3px !important;\n    border-radius: 3px !important;\n}\n.emoji { height: 1.3em !important; vertical-align: middle !important; margin: 0 1px !important; }\n.allMessages.containsOnlyEmojis .emoji { height: 2.2em !important; margin: 0 3px !important; }\n\n/* ---------- Timestamp: always shown, out of the way ----------\n   Chattable keeps each message's time in a time=\"\" attribute and only\n   shows it on hover (there is no #timestamp element). This prints it\n   small and dim at the right end of the name line, so it costs no extra\n   line; long names wrap beside it. */\n.allMessages[time]::before {\n    content: attr(time) !important;\n    float: right !important;\n    margin: 2px 0 0 10px !important;\n    font-size: 0.68rem !important;\n    line-height: 1.2 !important;\n    color: rgba(245, 245, 255, 0.42) !important;\n    font-variant-numeric: tabular-nums !important;\n    white-space: nowrap !important;\n    pointer-events: none !important;\n}\n.allMessages.sent[time]::before {\n    color: rgba(125, 255, 242, 0.5) !important;\n}\n\n/* Input */\n#input {\n    /* Chattable sizes the box for its own small padding; ours is bigger. Full\n       width (so it sits centred), with room at the right end kept for the emoji button */\n    box-sizing: border-box !important;\n    width: 100% !important;\n    padding-right: 42px !important;\n    background: rgba(255,255,255,0.10) !important;\n    color: #fff !important;\n    border: 1px solid rgba(255,47,168,0.4) !important;\n    border-radius: 12px !important;\n    padding: 8px 12px !important;\n    font-size: 0.95rem !important;\n    caret-color: #ff2fa8 !important;\n    font-family: inherit !important;\n}\n#input:focus {\n    border-color: #00e0ff !important;\n    box-shadow: 0 0 8px rgba(0,224,255,0.4) !important;\n    outline: none !important;\n}\n#input:empty::before {\n    color: rgba(255,255,255,0.45) !important;\n    content: \"post it to funpostfm...\" !important;\n}\n\n#emojiTrayToggle {\n    right: 10px !important;\n    top: auto !important;\n    bottom: 8px !important;\n}\n\n/* Icons */\n#settings, #emojiTrayToggle {\n    /* the icons are drawn dark: turned light for a dark chat */\n    filter: invert(1) brightness(1.15) drop-shadow(0 0 2px rgba(255,255,255,0.45)) !important;\n    opacity: 0.9 !important;\n}\n#settings:hover, #emojiTrayToggle:hover {\n    opacity: 1 !important;\n    filter: brightness(1.7) drop-shadow(0 0 6px #ff2fa8) !important;\n}\n#emojiTray { background: rgba(15,5,35,0.95) !important; border: 1px solid rgba(255,47,168,0.4) !important; }\n\n/* Scroll-to-bottom / Load-more */\n#scrollToBottom, #loadMore {\n    background: linear-gradient(135deg, #ff2fa8, #00e0ff) !important;\n    color: #fff !important;\n    border: none !important;\n    border-radius: 12px !important;\n    padding: 4px 12px !important;\n    font-size: 0.8rem !important;\n    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;\n    cursor: pointer !important;\n}\n#scrollToBottom:hover, #loadMore:hover { filter: brightness(1.15) !important; }\n\n/* Right-click context menu */\n.ctxMenuOption {\n    background: #1a0733 !important;\n    color: #f5f5ff !important;\n    padding: 6px 12px !important;\n    font-size: 0.9rem !important;\n}\n.ctxMenuOption:hover { background: rgba(255,47,168,0.35) !important; }\n\n/* Settings menu */\n#settingsMenu, #settingsWindow {\n    background: rgba(15,5,35,0.98) !important;\n    color: #f5f5ff !important;\n}\n#settingsMenu input, #settingsMenu button,\n#save, #closeSettingsBtn, #account, #dltranscript {\n    background: rgba(255,255,255,0.10) !important;\n    color: #fff !important;\n    border: 1px solid rgba(255,47,168,0.5) !important;\n    border-radius: 8px !important;\n    padding: 5px 12px !important;\n}\n#save:hover, #closeSettingsBtn:hover, #account:hover, #dltranscript:hover {\n    background: rgba(255,47,168,0.3) !important;\n}\n\n/* Dialogs / typing / pinned / reply banner */\n.dialogueModal {\n    background: rgba(15,5,35,0.98) !important;\n    color: #f5f5ff !important;\n    border: 1px solid rgba(255,47,168,0.5) !important;\n    border-radius: 12px !important;\n}\n#is_typing {\n    background: rgba(255,47,168,0.2) !important;\n    color: #ffa1e0 !important;\n    font-size: 0.8rem !important;\n    padding: 3px 8px !important;\n    border-radius: 8px !important;\n}\n.pinned {\n    background: rgba(255,220,40,0.12) !important;\n    border-left-color: #ffdc28 !important;\n    border-left-width: 4px !important;\n}\n#replyBanner {\n    background: rgba(255,47,168,0.15) !important;\n    color: #ffa1e0 !important;\n    border-radius: 8px !important;\n    padding: 4px 10px !important;\n    font-size: 0.85rem !important;\n}\n        "

@@ -34,6 +34,12 @@ body.font-small { --fs: 12px; } body.font-large { --fs: 16px; } body.font-huge {
 /* Title bars look like each look's window titles, not its page header */
 body.skin-win95 { --bar-bg: linear-gradient(90deg, #000080, #1084d0); --bar-text: #fff; }
 body.skin-winxp { --bar-bg: linear-gradient(180deg, #2b7bf0, #0a4fc7 55%, #0b3fa8); --bar-text: #fff; }
+/* AIM (AIM 5 on Windows XP): XP's blue title bars, bold blue screen names.
+   ICQ (2001b, Windows 2000): navy-to-sky title bars, bevelled grey frames, blue names. */
+body.skin-aim { --bar-bg: linear-gradient(180deg, #0997ff 0%, #0053ee 10%, #0050ee 45%, #0066ff 88%, #003dd7 100%); --bar-text: #fff; --hd: #0000ff; --ln: #0000ff; }
+body.skin-icq { --bar-bg: linear-gradient(90deg, #0a246a, #3a6ea5 70%, #a6caf0); --bar-text: #fff; --hd: #0000cc; }
+body.skin-icq .frame { border-color: #e8e6e0 #404040 #404040 #e8e6e0; }
+body.skin-icq :is(input:not([type=checkbox], [type=radio], [type=range]), textarea, select) { background: #fff; border: 2px inset #808080; border-radius: 0; }
 body.skin-macos { --bar-bg: repeating-linear-gradient(180deg, #000 0 1px, #fff 1px 3px); --bar-text: #000; }
 body.skin-netscape { --bar-bg: linear-gradient(180deg, #000080, #1084d0); --bar-text: #fff; }
 body.skin-teletext { --bar-bg: #ffff00; --bar-text: #000; }
@@ -204,6 +210,20 @@ body.fx-mid.skin-newyear .frame::after { animation: twinkle 2.4s ease-in-out inf
 body.skin-crimbus { --fall: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' fill='white'><circle cx='14' cy='12' r='2'/><circle cx='70' cy='40' r='1.5'/><circle cx='120' cy='18' r='2.4'/><circle cx='40' cy='90' r='2'/><circle cx='100' cy='110' r='1.6'/><circle cx='150' cy='75' r='2'/><circle cx='20' cy='140' r='1.4'/><circle cx='80' cy='150' r='2.2'/></svg>"); }
 body:is(.skin-bday, .skin-s4sday) { --fall: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><rect x='12' y='10' width='4' height='7' fill='rgb(255,93,93)' transform='rotate(25 14 13)'/><rect x='70' y='38' width='4' height='7' fill='rgb(245,196,0)' transform='rotate(-30 72 41)'/><rect x='122' y='20' width='4' height='7' fill='rgb(63,169,245)' transform='rotate(60 124 23)'/><rect x='40' y='92' width='4' height='7' fill='rgb(120,153,34)' transform='rotate(-15 42 95)'/><rect x='100' y='108' width='4' height='7' fill='rgb(255,93,93)' transform='rotate(40 102 111)'/><rect x='148' y='74' width='4' height='7' fill='rgb(139,63,201)' transform='rotate(-50 150 77)'/><rect x='24' y='138' width='4' height='7' fill='rgb(245,196,0)' transform='rotate(15 26 141)'/></svg>"); }
 body.skin-valentine { --fall: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' font-family='Arial' fill='rgb(232,53,95)'><text x='10' y='24' font-size='14'>♥</text><text x='96' y='60' font-size='10'>♥</text><text x='50' y='110' font-size='16'>♥</text><text x='130' y='140' font-size='11'>♥</text></svg>"); }
+/* Cabin Sketch (the Sketchbook look's titles): carried with the app, SIL Open Font License (fonts/CabinSketch-OFL.txt) */
+@font-face { font-family: "Cabin Sketch"; font-weight: 400; font-display: swap; src: url("fonts/CabinSketch-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Cabin Sketch"; font-weight: 700; font-display: swap; src: url("fonts/CabinSketch-Bold.woff2") format("woff2"); }
+/* Comic Strip: inked like a comic panel; buttons sit on a hard shadow and press into it */
+body.skin-comic .card { box-shadow: 3px 3px 0 #111; }
+body.skin-comic :is(.btn, button.act) { box-shadow: 2px 2px 0 #111; font-weight: bold; }
+body.skin-comic :is(.btn, button.act):active { transform: translate(2px, 2px); box-shadow: none; }
+/* Sketchbook: every edge drawn by hand, a little wobbly */
+body.skin-sketch .frame { border-radius: 18px 6px 14px 8px / 6px 14px 8px 18px; }
+body.skin-sketch .card { border-radius: 12px 4px 10px 5px / 4px 10px 5px 12px; }
+body.skin-sketch :is(.btn, button.act) { border-radius: 15px 255px 15px 225px / 225px 15px 255px 15px; }
+body.skin-sketch .bar .t { letter-spacing: 0.04em; }
+/* Papyrus: titles spaced like an inscription */
+body.skin-papyrus .bar .t { letter-spacing: 0.08em; }
 /* TopKek: strawberries falling from the cupcake */
 body.skin-topkek { --fall: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' font-family='Segoe UI Emoji, Noto Color Emoji, sans-serif'><text x='10' y='24' font-size='14'>🍓</text><text x='96' y='60' font-size='11'>🍓</text><text x='48' y='112' font-size='15'>🍓</text><text x='130' y='142' font-size='10'>🍓</text></svg>"); }
 body.skin-paddy { --fall: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' font-family='Segoe UI Symbol, DejaVu Sans, sans-serif' fill='rgb(120,220,120)'><text x='10' y='24' font-size='14'>☘</text><text x='96' y='60' font-size='11'>☘</text><text x='48' y='112' font-size='15'>☘</text><text x='130' y='142' font-size='10'>☘</text></svg>"); }
