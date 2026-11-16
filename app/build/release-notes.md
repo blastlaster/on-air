@@ -1,3 +1,3 @@
-## What's new in 0.5.54
+## What's new in 0.5.55
 
-- **Interface — draw your green post:** 🎨 **Draw** sits next to 📎 Picture in a board thread's reply form. Your drawing becomes the post's picture, and **edit** goes back to it before you post.
+- **Oekaki — Ctrl + scroll to zoom:** hold Ctrl and turn the mouse wheel to zoom the canvas in and out, one step per notch. Once the canvas is bigger than the window, the spot under the pointer stays put. Works in the Interface and in [s4s].

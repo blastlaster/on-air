@@ -1,7 +1,7 @@
 {
   "name": "on-air-app",
   "productName": "On Air",
-  "version": "0.5.54",
+  "version": "0.5.55",
   "description": "The radio on your desktop: a small player with the station’s chat, requests, call-in, sign, albums, board and video as windows you arrange yourself.",
   "main": "main.js",
   "type": "commonjs",

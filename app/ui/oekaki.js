@@ -52,7 +52,7 @@
                         '<div class="ok-box"><div class="ok-h">Tools</div><div class="ok-tools">' + TOOLS.map(([k, n, key]) => '<a data-t="' + k + '" title="' + n + ' (' + key + ')">' + n + '</a>').join('') + '</div></div>' +
                         '<div class="ok-box"><div class="ok-h">Layers</div><div class="ok-lays"></div>' +
                             '<div class="ok-lbtn"><a data-k="ladd" title="New layer">+</a><a data-k="ldel" title="Delete layer">−</a><a data-k="lup" title="Move up">↑</a><a data-k="ldown" title="Move down">↓</a></div></div>' +
-                        '<div class="ok-note">Only what you draw: pictures can’t be brought in.<br>Ctrl+Z undo · Ctrl+Y redo · [ ] size</div>' +
+                        '<div class="ok-note">Only what you draw: pictures can’t be brought in.<br>Ctrl+Z undo · Ctrl+Y redo · [ ] size · Ctrl+wheel zoom</div>' +
                     '</div>' +
                 '</div>';
             document.body.appendChild(root);
@@ -132,6 +132,8 @@
                 cv.style.width = W * st.zoom + 'px'; cv.style.height = H * st.zoom + 'px';
                 $('.ok-zv').textContent = Math.round(st.zoom * 100) + '%';
             }
+            const zoomIn = () => setZoom(st.zoom >= 1 ? st.zoom + 1 : st.zoom * 2);
+            const zoomOut = () => setZoom(st.zoom > 1 ? st.zoom - 1 : st.zoom / 2);
 
             /* ---------- drawing ---------- */
             const at = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height, p: e.pointerType === 'pen' ? clamp(e.pressure || 0.5, 0.05, 1) : 1 }; };
@@ -251,6 +253,24 @@
             cv.addEventListener('contextmenu', (e) => e.preventDefault());
             // Nothing comes in from outside: no dropping or pasting pictures.
             for (const ev of ['dragover', 'drop', 'paste']) root.addEventListener(ev, (e) => e.preventDefault());
+            // Ctrl + the wheel zooms the canvas (not the page), keeping the spot under the pointer where it is.
+            // A step a notch; a trackpad's many small turns add up to one.
+            let wheel = 0;
+            root.addEventListener('wheel', (e) => {
+                if (!e.ctrlKey) return;
+                e.preventDefault();
+                wheel += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+                if (Math.abs(wheel) < 50) return;
+                const out = wheel > 0;
+                wheel = 0;
+                const area = $('.ok-area'), r = cv.getBoundingClientRect();
+                const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height, was = st.zoom;
+                if (out) zoomOut(); else zoomIn();
+                if (st.zoom === was) return;
+                const r2 = cv.getBoundingClientRect();
+                area.scrollLeft += r2.left + fx * r2.width - e.clientX;
+                area.scrollTop += r2.top + fy * r2.height - e.clientY;
+            }, { passive: false });
 
             function close(result) {
                 document.removeEventListener('keydown', onKey, true);
@@ -292,8 +312,8 @@
                     case 'new': return newCanvas();
                     case 'undo': return step(undo, redo, 'before');
                     case 'redo': return step(redo, undo, 'after');
-                    case 'zin': return setZoom(st.zoom >= 1 ? st.zoom + 1 : st.zoom * 2);
-                    case 'zout': return setZoom(st.zoom > 1 ? st.zoom - 1 : st.zoom / 2);
+                    case 'zin': return zoomIn();
+                    case 'zout': return zoomOut();
                     case 'finish': return finish();
                     case 'cancel': if (!st.dirty || confirm('Throw this drawing away?')) close(null); return;
                     case 'ladd': if (layers.length < MAX_LAYERS) layerChange(() => { const n = Math.max(0, ...layers.map(l => +(/\d+$/.exec(l.name) || [0])[0])) + 1; layers.splice(st.active + 1, 0, { c: mk(), name: 'Layer ' + n, vis: true }); st.active++; }); return;
