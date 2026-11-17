@@ -912,6 +912,8 @@
        quarter or half way round (whole quarter turns, so the pixels stay crisp). */
     const POSE = { w: 40, h: 44, cx: 20, cy: 30, fx: 20, fy: 38 };
     let poseCv = null, poseG = null, lieCv = null, lieG = null;
+    /** Which way a dab points: the way they face, then the other way, swapping every 0.6 s or so. */
+    const dabSide = (t, f) => (Math.floor(t / 0.6) % 2 ? -f : f);
     function floorMove(ctx, look, o, e) {
         if (!poseCv) {
             poseCv = document.createElement('canvas'); poseCv.width = POSE.w; poseCv.height = POSE.h; poseG = poseCv.getContext('2d');
@@ -1029,9 +1031,10 @@
             R(fwd < 0 ? x - 4 : x + 4, by + 1, 1, 2, sleeve); R(fwd < 0 ? x - 7 : x + 4, by + 3, 4, 1, sleeve); R(fwd < 0 ? x - 7 : x + 7, by + 3, 1, 1, skin);
         }
         else if (e === 'dab') {
-            // One arm flung up and out; the other bent across the face (drawn after the head).
-            for (let i = 0; i < 4; i++) R(x + f * (4 + i), by - i, 1, 1, i === 3 ? skin : sleeve);
-            R(f > 0 ? x - 4 : x + 4, by - 1, 1, 2, sleeve);
+            // One arm flung up and out, the other bent across the face (drawn after the head); then the other way, and back.
+            const d = dabSide(t, f);
+            for (let i = 0; i < 4; i++) R(x + d * (4 + i), by - i, 1, 1, i === 3 ? skin : sleeve);
+            R(d > 0 ? x - 4 : x + 4, by - 1, 1, 2, sleeve);
         }
         else if (e === '_brk') { armOut(-1); armOut(1); }
         else { armDown(-1); armDown(1); }
@@ -1124,7 +1127,7 @@
             l.restore();
             for (const ey of ex) { R(ey, hy + 2, 1, 2, '#ffe680'); R(ey, hy + 2, 1, 1, '#ffffff'); }
         }
-        if (e === 'dab') { R(f > 0 ? x - 4 : x + 1, hy + 2, 4, 1, sleeve); R(f > 0 ? x : x + 1, hy + 2, 1, 1, skin); }    // the elbow over the face
+        if (e === 'dab') { const d = dabSide(t, f); R(d > 0 ? x - 4 : x + 1, hy + 2, 4, 1, sleeve); R(d > 0 ? x : x + 1, hy + 2, 1, 1, skin); }    // the elbow over the face
         // Asleep (sitting, from an older room): Zs floating up.
         if (e === 'sleep') {
             const k = (t * 0.8) % 1;
