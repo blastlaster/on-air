@@ -16,7 +16,8 @@
 
     const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['jump', '⤴️', 'Jump'], ['sit', '🪑', 'Sit'], ['cheer', '🙌', 'Cheer'],
         ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep (lie down)'],
-        ['robot', '🤖', 'The robot'], ['worm', '🐛', 'The worm'], ['breakdance', '🌪️', 'Breakdance'], ['moonwalk', '🌙', 'Moonwalk'], ['dab', '💥', 'Dab']];
+        ['robot', '🤖', 'The robot'], ['worm', '🐛', 'The worm'], ['breakdance', '🌪️', 'Breakdance'], ['moonwalk', '🌙', 'Moonwalk'], ['dab', '💥', 'Dab'],
+        ['67', '⚖️', '67 (six seven)'], ['egyptian', '🏺', 'Walk like an Egyptian']];
     // Seconds; the rest (dance, sit, headbang, sleep) last until you move.
     // Poses stay on until you pick them again (or another one), and keep going while you walk.
     const ONE_SHOT = {};

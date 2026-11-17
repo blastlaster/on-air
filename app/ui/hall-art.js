@@ -951,7 +951,7 @@
     }
     /**
      * o = { x, y, face (1 right, -1 left), step (0/1 while walking), emote (wave dance jump sit cheer clap point spin headbang sleep
-     *       robot worm breakdance moonwalk dab), et (seconds into the emote), t, talk }
+     *       robot worm breakdance moonwalk dab 67 egyptian), et (seconds into the emote), t, talk }
      */
     function person(ctx, look, o) {
         l = ctx;
@@ -969,7 +969,9 @@
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
         else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
         else if (e === 'robot') lift = Math.floor(t * 3) % 2;                  // popping up and down, in steps
+        else if (e === '67') lift = Math.floor(t * 4) % 2;                     // bobbing with the hands
         if (e === 'moonwalk') x -= f * Math.round(2 * Math.sin(t * 3));         // gliding back the way they're facing
+        if (e === 'egyptian') x += f * Math.round(2 * Math.sin(t * 2.5));       // walking along the frieze, and back
         if (jumpT != null && jumpT >= 0 && jumpT < 0.6) lift = Math.max(lift, Math.round(Math.sin(jumpT / 0.6 * Math.PI) * 8));     // Space: a jump
         const ufo = L.ride === 1;
         if (ufo) lift += 2 + Math.round(Math.sin(t * 3) * 0.8 + 0.4) + Math.round(o.hover || 0);       // the UFO: always floating a little
@@ -988,7 +990,7 @@
             R(f > 0 ? x + 4 : x - 4, y - 3, 1, 2, '#15151c');
         } else {
             // Walking lifts one foot then the other; dancing too.
-            const step = e === 'moonwalk' ? Math.floor(t * 3) % 2 : o.step;           // the moonwalk: heel up, then the other
+            const step = e === 'moonwalk' ? Math.floor(t * 3) % 2 : e === 'egyptian' ? Math.floor(t * 5) % 2 : o.step;     // stepping in place
             const walk = step === 0 || step === 1, dance = e === 'dance' ? Math.floor(t * 4) % 2 : -1;
             const la = walk ? step : dance === 1 ? 1 : 0, ra = walk ? 1 - step : dance === 0 ? 1 : 0;
             if (e === '_brk') {                                         // breakdancing: legs kicked out wide
@@ -1037,9 +1039,29 @@
             R(d > 0 ? x - 4 : x + 4, by - 1, 1, 2, sleeve);
         }
         else if (e === '_brk') { armOut(-1); armOut(1); }
+        else if (e === '67') {
+            // Six, seven: both hands out in front, palms up, weighing it — one up while the other's down.
+            const k = Math.floor(t * 4) % 2;
+            for (const side of [-1, 1]) {
+                const dy = (side < 0) === !!k ? -2 : 0, sx = side < 0 ? x - 4 : x + 4;
+                R(sx, by + 1, 1, 2 + dy, sleeve);
+                R(side < 0 ? x - 6 : x + 4, by + 2 + dy, 3, 1, sleeve); R(side < 0 ? x - 7 : x + 6, by + 1 + dy, 2, 1, skin);   // forearm, the palm up
+            }
+        }
+        else if (e === 'egyptian') {
+            // Walk like an Egyptian: elbows bent at right angles, one hand up by the face and one down at the waist,
+            // both flat and pointing the way they're going; they swap now and then.
+            const k = Math.floor(t / 1.2) % 2, hi = k ? 1 : -1;
+            for (const side of [-1, 1]) {
+                const sx = side < 0 ? x - 4 : x + 4, up = side === hi;
+                if (up) { const ux = side < 0 ? x - 5 : x + 5; R(sx, by, 1, 1, sleeve); R(ux, by - 3, 1, 4, sleeve); R(f > 0 ? ux : ux - 3, by - 4, 4, 1, skin); }    // up: clear of the sliding head, hand flat over it
+                else { R(sx, by + 1, 1, 3, sleeve); R(f > 0 ? sx : sx - 3, by + 4, 4, 1, skin); }                   // down: hand flat at the hip
+            }
+        }
         else { armDown(-1); armDown(1); }
         // Head, face.
         const hy = by - 6 + (e === 'headbang' && Math.floor(t * 8) % 2 ? 2 : 0) + (e === 'dab' ? 1 : 0);
+        if (e === 'egyptian') x += Math.floor(t * 3) % 2 ? 1 : -1;          // the head sliding side to side (everything from here up)
         R(x - 3, hy, 7, 6, mood === 'sick' ? '#a8d08a' : skin);
         const ex = f > 0 ? [x, x + 2] : [x - 2, x];
         // Eyes, by how they feel.

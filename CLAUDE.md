@@ -325,7 +325,7 @@ the rest. Chat is the station's own `chat` — tag a Hall member's message with
 
 | app → engine | engine → app |
 |---|---|
-| `hall-join {look, v}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer clap point spin headbang sleep robot worm breakdance moonwalk dab` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n, c}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
+| `hall-join {look, v}` · `hall-go {x, y}` (0–1000) · `hall-emote {e}` (`wave dance jump sit cheer clap point spin headbang sleep robot worm breakdance moonwalk dab 67 egyptian` or `''`) · `hall-look {look}` · `hall-leave` | `hall-welcome {you, people, air, cap}` · `hall-add {p}` · `hall-del {h}` · `hall-at {at: {h: [x, y]}}` · `hall-emote {h, e}` · `hall-look {h, l}` · `hall-name {h, n, c}` · `hall-air {live, talking, music}` · `hall-closed {reason}` |
 
 `look` = `{ skin 0–12, hair 0–6, hairColor 0–8, shirt 0–9, pants 0–5, extra 0–16, top 0–5, face 0–5, back 0–6, ride 0–1 }`
 (`back`: wings, tails, capes; `ride`: the UFO); a person is `{ h, n, c, l, x, y, e, o, f, s, g, a, star, afk }`
