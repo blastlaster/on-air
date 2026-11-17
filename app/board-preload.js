@@ -116,51 +116,60 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     });
 })();
 
-// Watched threads: 4chan's Thread Watcher ('4chan-watch': "<thread>-<board>" → [label, last reply, new])
-// kept in step with the Interface's ★, the same way.
+// Watched threads: 4chan's Thread Watcher ('4chan-watch': "<thread>-<board>" → [label, last reply, new]) and
+// the catalog's pins ('4chan-pin-<board>': thread → its replies when pinned), kept in step with the
+// Interface's ★ the same way: watch, pin or ★ a thread in any of them and the others follow.
 (function watching() {
     const m = /^boards\.4chan(nel)?\.org$/i.test(location.hostname) && /^\/(\w{1,12})\//.exec(location.pathname);
     if (!m) return;
     const board = m[1];
     const shared = ipcRenderer.sendSync('board-watched-get', board);
     if (!shared) return;
-    const KEY = '4chan-watch', SEEN = 'onair-watch-' + board, tail = '-' + board;
-    const readAll = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-    const writeAll = (all) => { try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* storage off */ } };
+    const KEY = '4chan-watch', PINS = '4chan-pin-' + board, SEEN = 'onair-watch-' + board, tail = '-' + board;
+    const json = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || d) || JSON.parse(d); } catch { return JSON.parse(d); } };
+    const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage off */ } };
+    const readAll = () => json(KEY, '{}'), writeAll = (all) => put(KEY, all);
+    const readPins = () => { const p = json(PINS, '{}'); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; };
     const mine = () => { const all = readAll(), out = {}; for (const k of Object.keys(all)) if (k.endsWith(tail) && /^\d+$/.test(k.slice(0, -tail.length))) out[k.slice(0, -tail.length)] = all[k]; return out; };
+    const pinned = () => Object.keys(readPins()).filter(id => /^\d+$/.test(id));
     const label = (v) => String(Array.isArray(v) ? v[0] || '' : '').replace(/<[^>]*>/g, '').slice(0, 120);
+    const pinLabel = (id) => { const el = document.querySelector('#thread-' + id + ' .teaser'); return el ? el.textContent.trim().slice(0, 120) : ''; };
     const entry = (id, title) => [title || 'No.' + id, id, 0];
-    const remember = (ids) => { try { localStorage.setItem(SEEN, JSON.stringify(ids)); } catch { /* storage off */ } };
-    // Before 4chan's scripts start, the lists meet. In 4chan's list but not the app's: new here (to the app),
-    // or, if the app had it last time, unwatched in the Interface since (it goes). The app's go into 4chan's.
+    const remember = (ids) => put(SEEN, ids);
+    const union = () => [...new Set([...Object.keys(mine()), ...pinned()])];
+    // Before 4chan's scripts start, the lists meet. In 4chan's (watched or pinned) but not the app's: new here
+    // (to the app), or, if the app had it last time, unwatched in the Interface since (it goes). The app's go into both.
     let before = null;
     try { before = JSON.parse(localStorage.getItem(SEEN) || 'null'); } catch { /* none */ }
-    const all = readAll(), add = [];
-    for (const [id, v] of Object.entries(mine())) {
+    const all = readAll(), pins = readPins(), add = [], w0 = mine();
+    for (const id of union()) {
         if (shared[id]) continue;
-        if (Array.isArray(before) && before.includes(id)) delete all[id + tail];
-        else add.push({ id, on: true, title: label(v) });
+        if (Array.isArray(before) && before.includes(id)) { delete all[id + tail]; delete pins[id]; }
+        else { add.push({ id, on: true, title: label(w0[id]) }); if (!all[id + tail]) all[id + tail] = entry(id, label(w0[id])); if (!(pins[id] >= 0)) pins[id] = 0; }
     }
-    for (const [id, w] of Object.entries(shared)) if (!all[id + tail]) all[id + tail] = entry(id, w.title);
-    writeAll(all);
+    for (const [id, w] of Object.entries(shared)) { if (!all[id + tail]) all[id + tail] = entry(id, w.title); if (!(pins[id] >= 0)) pins[id] = 0; }
+    writeAll(all); put(PINS, pins);
     if (add.length) ipcRenderer.send('board-watched-set', board, add);
-    let seen = Object.keys(mine());
-    remember(seen);
-    // Watched or unwatched here (4chan's ★, or its watcher's ✕).
-    const check = () => {
-        const now = mine(), ops = [];
-        for (const id of Object.keys(now)) if (!seen.includes(id)) ops.push({ id, on: true, title: label(now[id]) });
-        for (const id of seen) if (!now[id]) ops.push({ id, on: false });
-        seen = Object.keys(now);
-        remember(seen);
-        if (ops.length) ipcRenderer.send('board-watched-set', board, ops);
+    let seenW = Object.keys(mine()), seenP = pinned();
+    remember(union());
+    const resync = () => { seenW = Object.keys(mine()); seenP = pinned(); remember(union()); };
+    // A pin set or cleared: on the catalog, through its own menu's handler (so it redraws, and its copy
+    // of the list doesn't put the old one back later); anywhere else, its list directly, for next time.
+    const pin = (o) => {
+        const p = readPins(), on = p[o.id] >= 0;
+        if (on === !!o.on) return;
+        if (/\/catalog\b/.test(location.pathname) && document.getElementById('thread-' + o.id)) {
+            const el = document.createElement('span');
+            el.setAttribute('data-pin', o.id); el.hidden = true;
+            document.body.appendChild(el); el.click(); el.remove();
+            if ((readPins()[o.id] >= 0) === !!o.on) return;
+        }
+        if (o.on) p[o.id] = 0; else delete p[o.id];
+        put(PINS, p);
     };
-    setInterval(check, 1500);
-    window.addEventListener('pagehide', check);
-    // Watched or unwatched in the Interface while this page is open: 4chan's watcher takes it (and redraws).
-    ipcRenderer.on('board-watched', (e, b, ops) => {
-        if (b !== board || !Array.isArray(ops)) return;
-        check();
+    // Into 4chan's watcher (it redraws) and the catalog's pins.
+    const apply = (ops) => {
+        for (const o of ops) pin(o);
         const js = `(function (ops, tail) {
     var W = window.ThreadWatcher;
     if (!W || !W.watched || !W.save) return;
@@ -174,10 +183,32 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
             const l = readAll();
             for (const o of ops) { if (o.on && !l[o.id + tail]) l[o.id + tail] = entry(o.id, o.title); if (!o.on) delete l[o.id + tail]; }
             writeAll(l);
-            seen = Object.keys(mine());
-            remember(seen);
+            resync();
         };
+        resync();
         webFrame.executeJavaScript(js).then(after, after);
+    };
+    // Watched, unwatched, pinned or unpinned here (4chan's ★, its watcher's ✕, the catalog's Pin).
+    const check = () => {
+        const nowW = mine(), nowP = pinned(), ops = [], done = new Set();
+        const op = (id, on, title) => { if (!done.has(id)) { done.add(id); ops.push(on ? { id, on, title } : { id, on }); } };
+        for (const id of Object.keys(nowW)) if (!seenW.includes(id)) op(id, true, label(nowW[id]));
+        for (const id of nowP) if (!seenP.includes(id)) op(id, true, label(nowW[id]) || pinLabel(id));
+        for (const id of seenW) if (!nowW[id]) op(id, false);
+        for (const id of seenP) if (!nowP.includes(id)) op(id, false);
+        seenW = Object.keys(nowW); seenP = nowP;
+        if (!ops.length) return;
+        remember(union());
+        ipcRenderer.send('board-watched-set', board, ops);
+        apply(ops);                                                   // and the other list here follows
+    };
+    setInterval(check, 1500);
+    window.addEventListener('pagehide', check);
+    // Watched or unwatched in the Interface while this page is open: 4chan's watcher and pins take it.
+    ipcRenderer.on('board-watched', (e, b, ops) => {
+        if (b !== board || !Array.isArray(ops)) return;
+        check();
+        apply(ops);
     });
 })();
 

@@ -62,7 +62,7 @@ its window is showing, and asks the station only *"anything new?"*.
 
 ## Reading
 
-- **[Top]** and **[Bottom]** by the thread's heading jump to either end of it. In a small panel (One window, beside the others) the toolbar folds into **⋯** and the posts fit the width.
+- **[Top]** and **[Bottom]** by the thread's heading jump to either end of it; **▲ / ▼** in the bottom corner do the same anywhere (the thread list too). In a small panel (One window, beside the others) the toolbar folds into **⋯** and the posts fit the width.
 - **Quotes** (`>>123`, `>>123-45`, `>>7xK2`) are links: hover for a preview, click to jump to the post (or open the thread it's in).
 - **Links** in posts open in your browser; `>>>/s4s/123` and `>>>/g/` open in the board window. YouTube links get an **[Embed]** to play them in the post.
 - **Pictures** from 4chan and funposters.club: click to see them full size, again to shrink. Videos play in place. **↓ save** next to a post's number saves its picture; right-click a picture to save it, copy its address, open it in your browser, or **search for it** (Google Lens, Yandex, SauceNAO, TinEye, IQDB, trace.moe).
@@ -186,9 +186,9 @@ reply's number counts too: if *it* lands dubs or better, that's your get.
 
 ## Watching and (You)
 
-- **☆ Watch** a thread (your own replies watch it for you); the **★** tab lists them with their new replies.
-  The 4chan threads you watch are the same list as the board window's Thread Watcher: watch or
-  unwatch in either and the other follows (as hidden threads do).
+- **☆ Watch** a thread (your own replies in a green thread watch it for you; a green post on a board thread doesn't); the **★** tab lists them with their new replies.
+  The 4chan threads you watch are the same list as the board window's Thread Watcher and the catalog's pinned threads:
+  watch, pin or unwatch in any of them and the others follow (as hidden threads do).
 - Your green-thread posts carry **(You)**, and so do quotes of them; a post that replies to you is outlined.
 - New replies to what you watch flash the window's title bar. Notifications are visual only — the app's one sound stays the live ping.
 

@@ -11,6 +11,11 @@
 .if-tabs .wn:empty { display: none; }
 .if-tabs .wn { color: var(--if-green); font-weight: bold; }
 .if-main { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; }
+.if-nav { position: fixed; z-index: 30; display: flex; flex-direction: column; gap: 3px; }
+.if-nav[hidden] { display: none; }
+.if-nav .btn { padding: 2px 7px; line-height: 1.2; opacity: 0.75; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.if-nav .btn:hover { opacity: 1; }
+.if-nav .btn:disabled { opacity: 0.3; }
 .if-load, .if-note { text-align: center; margin: 18px 8px; }
 
 /* the threads */

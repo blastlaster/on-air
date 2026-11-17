@@ -155,7 +155,8 @@
                   '<button type="button" class="btn go" data-v="new" title="Start a green thread (only on the Interface)">＋<span class="l"> Green thread</span></button>' +
                   '<button type="button" class="btn" data-v="refresh" title="Refresh">⟳</button>' +
                   '<button type="button" class="btn" data-v="set" title="Interface settings">⚙</button>' +
-                '</div><div class="if-main"></div>';
+                '</div><div class="if-main"></div>' +
+                '<div class="if-nav" hidden><button type="button" class="btn" data-nav="top" title="To the top">▲</button><button type="button" class="btn" data-nav="bottom" title="To the bottom">▼</button></div>';
             $('.sort', box).value = prefs.sort;
             $('.gonly', box).checked = prefs.greenOnly;
             $('.fade', box).value = prefs.fade;
@@ -189,6 +190,26 @@
                 try { if (window.frameElement) window.frameElement.classList.toggle('bbs-on', on); } catch { /* not the one window's */ }
             };
             new MutationObserver(bbsOn).observe($('.if-main', box), { childList: true });
+            // ▲ / ▼ in the corner of whatever scrolls (the list, or a thread's posts): to either end of it, from anywhere.
+            const scroller = () => (view === 'thread' ? $('.if-posts', box) : $('.if-main', box));
+            const placeNav = () => {
+                const n = $('.if-nav', box), s = scroller();
+                const can = !!s && s.isConnected && s.scrollHeight > s.clientHeight + 40;
+                n.hidden = !can;
+                if (!can) return;
+                const r = s.getBoundingClientRect();
+                n.style.right = (innerWidth - r.right + 12) + 'px';
+                n.style.bottom = (innerHeight - r.bottom + 10) + 'px';
+                $('[data-nav="top"]', n).disabled = s.scrollTop < 4;
+                $('[data-nav="bottom"]', n).disabled = s.scrollTop + s.clientHeight > s.scrollHeight - 4;
+            };
+            $('.if-nav', box).onclick = (e) => {
+                const b = e.target.closest('[data-nav]'), s = scroller();
+                if (b && s) s.scrollTo({ top: b.dataset.nav === 'top' ? 0 : s.scrollHeight });
+            };
+            box.addEventListener('scroll', placeNav, true);
+            new MutationObserver(placeNav).observe($('.if-main', box), { childList: true, subtree: true });
+            new ResizeObserver(placeNav).observe($('.if-main', box));
             $('.if-main', box).addEventListener('contextmenu', onContext);
             $('.if-main', box).addEventListener('mouseout', (e) => { if (e.target.closest('.ql')) hidePreview(); });
             UI.onUi(() => { $('[data-v="reports"]', box).hidden = !isAdmin(); });
@@ -494,11 +515,12 @@
                 const nu = tmp.firstChild;
                 old.className = nu.className;
                 old.replaceChild($('.if-thead', nu), $('.if-thead', old));
-                old.replaceChild($('.if-posts', nu), $('.if-posts', old));
+                mergePosts($('.if-posts', old), $('.if-posts', nu));
                 $('.if-posts', old).scrollTop = top;
                 return;
             }
             main.innerHTML = html;
+            for (const el of box.querySelectorAll('.if-posts > *')) madeAs.set(el, el.outerHTML);
             if (draft) { const f = $('.if-reply', box); if (f) { f.text.value = draft.text; f.name.value = draft.name; f.options.value = draft.opt; } }
             const sc = $('.if-posts', box);
             if (sc) sc.scrollTop = keepScroll ? top : threadTops.get(cur.key) || 0;
@@ -510,6 +532,27 @@
                 if (cur.kind === 'g') drawField(f, () => (replyDrawn.key === cur.key ? replyDrawn.d : null), (d) => { replyDrawn = { key: cur.key, d }; });
             }
 
+        }
+
+        // A refreshed thread keeps every post that hasn't changed as it is, where it is: a picture opened full size,
+        // a video or a YouTube player going (a frame that's moved starts over) all carry on. Only new or changed posts go in.
+        const madeAs = new WeakMap();                                 // a post's element → the HTML it was made from
+        function mergePosts(was, now) {
+            const free = new Map();
+            for (const el of was.children) { const h = madeAs.get(el); if (h && !free.has(h)) free.set(h, el); }
+            const want = [...now.children].map(el => {
+                const h = el.outerHTML, keep = free.get(h);
+                if (keep) { free.delete(h); return keep; }
+                madeAs.set(el, h);
+                return el;
+            });
+            const kept = new Set(want);
+            for (const el of [...was.children]) if (!kept.has(el)) el.remove();
+            let at = was.firstElementChild;
+            for (const el of want) {
+                if (el === at) { at = at.nextElementSibling; continue; }
+                was.insertBefore(el, at);                             // a new post (the ones kept never move)
+            }
         }
 
         function replyForm(cur) {
@@ -620,7 +663,7 @@
                 f.text.value = '';
                 if (pic) attached = null;
                 if (drawn) replyDrawn = { key: '', d: null };
-                setWatch(current.key, true, $('.if-thead b', box) ? $('.if-thead b', box).textContent : '');
+                if (current.kind === 'g') setWatch(current.key, true, $('.if-thead b', box) ? $('.if-thead b', box).textContent : '');   // a board thread is watched only when you ★ it
                 await loadThread(current, false);
                 const sc = $('.if-posts', box); if (sc) sc.scrollTop = sc.scrollHeight;
             } catch (e) { UI.toast(e.message); } finally { if (btn.isConnected) btn.disabled = false; }

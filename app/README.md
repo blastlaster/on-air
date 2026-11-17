@@ -35,7 +35,7 @@ builds Windows and Linux on GitHub's machines and publishes the release with
 | `preload.js` | The only bridge between the app's pages and the computer (`window.onairApp`). Sandboxed. |
 | `watch.js` | Finds a station from any address and watches whether it's live (plain Node). |
 | `updates.js` | electron-updater against GitHub releases. |
-| `userscripts.js` · `board-preload.js` | Board userscripts: install/update/remove, and the GM_* shim injected into the board's own view; the board preload also keeps 4chan's hidden and watched threads in step with the Interface, pins the green threads on top of the board's index and catalog, and puts a 🎨 (the oekaki) in the reply forms' Name row. |
+| `userscripts.js` · `board-preload.js` | Board userscripts: install/update/remove, and the GM_* shim injected into the board's own view; the board preload also keeps 4chan's hidden, watched and pinned (catalog) threads in step with the Interface, pins the green threads on top of the board's index and catalog, and puts a 🎨 (the oekaki) in the reply forms' Name row. |
 | `ui/` | The app's own pages, served from `onair://app/`. |
 | `ui/core.js` | The station client (ported from the listener page): one engine socket, the stream, the album player, calls. |
 | `ui/radio.*` | The main window. |

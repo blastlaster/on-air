@@ -100,7 +100,7 @@ show from his desk. Up to 40 people at once (the host can change that).
 - **Games**: rock paper scissors, **duels** (bonk, fish slap and snowball, best
   of three, on **J K L**), **🎲 board games** at tables (tic-tac-toe, checkers,
   Chinese checkers) and **hot potato** (give someone a 💣; **J** passes it on).
-  The host starts Dodgeball, Burgertime and **kart races**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
+  The host starts Dodgeball, Burgertime, **kart races** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
 - **Kart races**: when the host starts one, say *I'm in* (up to 8 racers) and race laps of the
   one of six tracks (Neon Loop, Sunset Speedway, Frostbite Hairpins, Burger Boulevard, Crop Circle
@@ -112,6 +112,16 @@ show from his desk. Up to 40 people at once (the host can change that).
   drift ends for an instant boost. **⌨ Keys** in the race's bar changes any of them (two keys for
   each; drift is Shift or K and nitro Space or L to start with). Everyone else watches, following the leader (**← →**
   picks another kart, **Esc** goes back to the room). First over the line gets the gold star.
+- **📻 Radioman, to the death**: when the host summons him, the room shatters and everyone in it flies a
+  little plane (your character in the cockpit) against a giant Le Radioman on his rocket desk — *"LE RADIOMAN
+  LOVES YOU!"*. He fires radio waves, notes, poop grenades and static, spirals in his last third
+  (*"SHOW ME YOUR TRUE POWER!"* at a third of his health), and a fart blast that pushes the planes back.
+  Fly with **WASD**, the arrows, a controller or by dragging; **Shift** flies slow; the plane shoots by
+  itself. **Space**, **B** or a double-tap drops a bomb (two each): it clears his bullets and hits him hard.
+  Three hits and you're a ghost; a plane that hovers over a ghost for a moment brings them back. His
+  health is 300 + 220 for each plane, and follows people coming and going (the damage done keeps its share).
+  Four minutes at most. Beat him (*"AAAAAAAAAAAAAAAAAA"*) and everyone still flying gets the gold star, and the
+  top damage is named; if he wins: *MUAHAHAHAHA*.
 - **Say "ayy lmao"** and alien heads rain down; now and then a UFO takes someone.
 - The room fills the width beside the chat; **⛶** stretches it to fill all the
   space (again: back to its shape). **💬** shows or hides the chat, which you can
