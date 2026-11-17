@@ -1,3 +1,3 @@
-## What's new in 0.5.58
+## What's new in 0.5.59
 
-- **Two more dances in blug.dj/jej:** **⚖️ the 67** (palms up, weighing it, one hand up while the other's down) and **🏺 walk like an Egyptian**. They're buttons in the room's actions, and `/67` and `/egyptian` in chat.
+- **🏒 Air hockey in blug.dj/jej**, one on one and arcade style: click someone and pick **Air hockey**. The table fills your screen (your goal on the left, a crowd behind the far rail) and your mallet follows the mouse. Hold the **right button** (or **Space**) to charge a **power shot**, swipe across the puck to **curve** it, and feel every hit land: a hit-stop, shake, sparks, the speed shouted out. Five seconds in one half and the puck goes to the other player. First to 7 takes the gold star.
