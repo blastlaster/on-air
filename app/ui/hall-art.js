@@ -1656,9 +1656,15 @@
         R(x - 12, y - 1, 25, 2, 'rgba(0,0,0,0.45)');
         const rider = (rx, ry, f) => person(ctx, L, { x: rx, y: ry, face: f, emote: 'sit', et: 0, t, noShadow: true });
         if (view === 0) {
+            const t3 = o.t3 || 0;
+            if (t3) {                                                        // turned a little: the side shows
+                const sx = t3 > 0 ? x - 16 : x + 10;
+                R(sx, y - 8, 7, 5, body); R(sx, y - 8, 7, 1, lite);
+                R(t3 > 0 ? x - 18 : x + 14, y - 6, 5, 6, tyre);
+            }
             R(x - 13, y - 7, 5, 7, tyre); R(x + 9, y - 7, 5, 7, tyre);
             R(x - 13, y - 6 + spin * 2, 5, 1, '#3a3846'); R(x + 9, y - 6 + spin * 2, 5, 1, '#3a3846');
-            rider(x + lean, y - 6, 1);
+            rider(x + lean, y - 6, t3 < 0 ? -1 : 1);
             // From behind: the back of their head (hair, or a bare head).
             const hc = L.hair ? (HAIR_COLOR[L.hairColor] || HAIR_COLOR[0]) : (SKIN[L.skin] || SKIN[0]);
             R(x + lean - 3, y - 19, 7, 4, hc); R(x + lean - 3, y - 15, 7, 1, SKIN[L.skin] || SKIN[0]);
@@ -1667,7 +1673,11 @@
             R(x - 10, y - 4, 21, 2, dark);
             R(x - 9, y - 8, 2, 1, '#ff4040'); R(x + 8, y - 8, 2, 1, '#ff4040');
             R(x - 5, y - 4, 2, 2, '#9a98a8'); R(x + 4, y - 4, 2, 2, '#9a98a8');
-            if (o.boost || (o.go && spin)) { R(x - 5, y - 2, 2, 2, o.boost ? '#7ef0ff' : '#ffb020'); R(x + 4, y - 2, 2, 2, o.boost ? '#7ef0ff' : '#ffb020'); }
+            if (o.boost) {                                                   // a boost: long blue flames
+                const fl = 3 + spin * 2;
+                R(x - 5, y - 2, 2, fl, '#7ef0ff'); R(x + 4, y - 2, 2, fl, '#7ef0ff'); R(x - 5, y - 2, 2, 1, '#ffffff'); R(x + 4, y - 2, 2, 1, '#ffffff');
+            } else if (o.go && spin) { R(x - 5, y - 2, 2, 2, '#ffb020'); R(x + 4, y - 2, 2, 2, '#ffb020'); }
+            if (o.drift) for (let i = 0; i < 3; i++) { l.globalAlpha = 0.5 - i * 0.12; R(x - 15 - i * 2 + ((t * 30 + i) % 2), y - 2 - i * 2, 3, 2, '#d8d4e4'); R(x + 13 + i * 2 - ((t * 30 + i) % 2), y - 2 - i * 2, 3, 2, '#d8d4e4'); l.globalAlpha = 1; }
             return y - 21;
         }
         if (view === 2) {
@@ -1686,7 +1696,30 @@
         R(f > 0 ? x - 15 : x + 12, y - 10, 3, 2, dark); R(f > 0 ? x - 14 : x + 13, y - 8, 1, 2, dark);     // the wing
         const back = x - 10 * f, front = x + 8 * f;
         for (const wx of [back, front]) { R(wx - 2, y - 4, 5, 4, tyre); R(wx - 1 + spin, y - 3, 1, 2, '#3a3846'); }
+        if (o.boost) { const fl = 4 + spin * 2; R(f > 0 ? x - 13 - fl : x + 13, y - 6, fl, 2, '#7ef0ff'); }
+        if (o.drift) { l.globalAlpha = 0.45; R(back - 5 * f - 2, y - 3 - spin, 4, 2, '#d8d4e4'); l.globalAlpha = 1; }
         return y - 20;
+    }
+    /** A boost: streaks flying past at the sides (blue for a nitro). */
+    function kartSpeed(ctx, t, nitro) {
+        l = ctx;
+        for (let i = 0; i < 10; i++) {
+            const side = i % 2 ? 1 : -1, k = ((t * 3 + i * 0.37) % 1), y = K7.hor + 6 + ((i * 37) % (H - K7.hor - 10)), len = 6 + k * 18;
+            const x = side < 0 ? 4 + k * 30 : W - 4 - k * 30 - len;
+            l.globalAlpha = 0.25 + k * 0.5; R(x, y, len, 1, nitro ? '#7ef0ff' : '#ffffff'); l.globalAlpha = 1;
+        }
+    }
+    /** The nitro gauge, bottom right: the bar filling as you drift, and a slot for each nitro you have. */
+    function kartGauge(ctx, x, y, gauge, have, max, t, gotAt) {
+        l = ctx;
+        R(x - 1, y - 1, 48, 8, '#000000'); R(x, y, 46, 6, '#1a1430');
+        const col = gauge > 0.66 ? '#7ef0ff' : gauge > 0.33 ? '#ffb020' : '#ffe14d';
+        R(x, y, Math.round(30 * gauge), 6, col); R(x, y, Math.round(30 * gauge), 1, '#ffffff');
+        for (let i = 0; i < max; i++) {
+            const sx = x + 32 + i * 7, on = i < have, flash = on && gotAt && t - gotAt < 0.6 && i === have - 1 && Math.floor(t * 12) % 2;
+            R(sx, y, 6, 6, on ? (flash ? '#ffffff' : '#ff4fd8') : '#3a2a66');
+            if (on) R(sx + 2, y + 1, 2, 4, '#ffe14d');
+        }
     }
     /** The little map in the corner: the track, and a dot for every kart (yours bigger). */
     let miniOf = null;
@@ -1727,5 +1760,5 @@
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
         afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
-        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini };
+        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge };
 })();

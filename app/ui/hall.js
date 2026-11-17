@@ -628,7 +628,7 @@
                 kNo = false; kWatch = true;
                 if (!quiet) { logLine({ text: '🏁 A kart race! Join in at the bottom of the room.' }, 'game'); U.toast('🏁 Kart race! Join in?'); }
             }
-            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; keys.clear(); }
+            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; }
             if (m.ms != null) kGoAt = now() - m.ms / 1000;                     // the race clock: the station's (someone coming in halfway too)
             if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) kTouch = { steer: 0, brake: 0 }; }
             const mine = (m.done || []).findIndex(d => d.h === me);
@@ -645,8 +645,8 @@
             const t = now();
             for (const [h, v] of Object.entries(m.at || {})) {
                 const q = kAt.get(h);
-                if (!q) kAt.set(h, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], gx: v[0], gy: v[1], ga: v[2], at: t });
-                else Object.assign(q, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], at: t });
+                if (!q) kAt.set(h, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], m: v[6] == null ? v[2] : v[6], f: v[5] || 0, gx: v[0], gy: v[1], ga: v[2], at: t });
+                else Object.assign(q, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], m: v[6] == null ? v[2] : v[6], f: v[5] || 0, at: t });
             }
             kPl = m.pl || kPl;
         }
@@ -663,11 +663,19 @@
             return best;
         }
         const kPad = () => (navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean)[0] : null);
+        /* Drifting (KartRider's): hold the drift key (Shift) while you steer at speed and the kart
+           slides — it points into the corner faster than it goes there. Sliding fills the nitro
+           gauge (a nitro every time it's full, two at most; Space fires one). Just as a drift ends,
+           a fresh tap on the gas is an instant boost. */
+        const KDRIFT = { minV: 220, turn: 0.95, grip: 12, slideGrip: 2.2, maxSlip: 0.7, bleed: 0.05, fill: 0.65, nitros: 2,
+            nitroS: 2.2, nitroUp: 1.35, ibWindow: 0.4, ibS: 0.8, ibUp: 1.22 };
+        const kBoost = { until: 0, up: 1, nitro: false }, kDrift = { on: false, dir: 0, gauge: 0, nitros: 0, endAt: -9, ibAt: -9, sparks: [] };
+        let kGasTap = -9, kPadWas = [];
         /** Your kart, every frame: the keys (or a controller, or the touch buttons), the road, the barrier, the others. */
         function kartDrive(dt) {
             if (!kTrack || !kRacing(me)) return;
             const t = now();
-            let steer = 0, gas = 0, brake = 0;
+            let steer = 0, gas = 0, brake = 0, drift = keys.has('shift'), nitro = false;
             if (keys.has('a') || keys.has('arrowleft')) steer -= 1;
             if (keys.has('d') || keys.has('arrowright')) steer += 1;
             if (keys.has('w') || keys.has('arrowup')) gas = 1;
@@ -678,27 +686,62 @@
                 if (Math.abs(ax) > 0.2) steer += ax;
                 if (bv(14)) steer -= 1; if (bv(15)) steer += 1;
                 gas = Math.max(gas, bv(0), bv(7)); brake = Math.max(brake, bv(1), bv(6));
+                drift = drift || bv(4) > 0.5 || bv(5) > 0.5;                        // a bumper: drift
+                const tap = bv(0) > 0.5 || bv(7) > 0.5, fire = bv(2) > 0.5 || bv(3) > 0.5;      // A / RT tapped: the gas; X / Y: nitro
+                if (tap && !kPadWas[0]) kGasTap = t;
+                if (fire && !kPadWas[1]) nitro = true;
+                kPadWas = [tap, fire];
             }
-            if (kTouch) { steer += kTouch.steer; gas = Math.max(gas, kTouch.brake ? 0 : 1); brake = Math.max(brake, kTouch.brake); }
+            if (kTouch) { steer += kTouch.steer; gas = Math.max(gas, kTouch.brake ? 0 : 1); brake = Math.max(brake, kTouch.brake); drift = drift || !!kTouch.drift; if (kTouch.nitro) { nitro = true; kTouch.nitro = false; } }
+            if (kNitroKey) { nitro = true; kNitroKey = false; }
             steer = Math.max(-1, Math.min(1, steer));
             kMe.steer += (steer - kMe.steer) * Math.min(1, dt * 10);
             kMe.go = gas > 0;
-            if (ks.state !== 'race') { kMe.v = 0; return; }
+            if (ks.state !== 'race') { kMe.v = 0; kMe.m = kMe.a; kDrift.on = false; return; }
+            if (kMe.m == null) kMe.m = kMe.a;
             if (kMe.i == null) kMe.i = kNear(kMe.x, kMe.y).i;
-            const near = kNear(kMe.x, kMe.y, kMe.i), top = KPHYS.maxV * (near.d > kTrack.w ? KPHYS.offV : 1);
+            // Nitro, and the instant boost (a fresh tap on the gas just as a drift ends).
+            if (nitro && kDrift.nitros > 0 && !(kBoost.nitro && kBoost.until > t)) { kDrift.nitros--; Object.assign(kBoost, { until: t + KDRIFT.nitroS, up: KDRIFT.nitroUp, nitro: true }); }
+            if (kGasTap > kDrift.endAt && kGasTap - kDrift.endAt < KDRIFT.ibWindow && kDrift.ibAt < kDrift.endAt) {
+                kDrift.ibAt = t;
+                if (!(kBoost.until > t && kBoost.up >= KDRIFT.ibUp)) Object.assign(kBoost, { until: t + KDRIFT.ibS, up: KDRIFT.ibUp, nitro: false });
+            }
+            const boosting = kBoost.until > t, up = boosting ? kBoost.up : 1;
+            const near = kNear(kMe.x, kMe.y, kMe.i), off = near.d > kTrack.w, top = KPHYS.maxV * up * (off ? (boosting ? 0.7 : KPHYS.offV) : 1);
             let v = kMe.v;
-            if (gas) v += KPHYS.accel * gas * dt * (v < 0 ? 3 : 1);
+            if ((gas || boosting) && v < top) v = Math.min(top, v + KPHYS.accel * Math.max(gas, boosting ? 1 : 0) * (boosting ? 2.5 : 1) * dt * (v < 0 ? 3 : 1));
             if (brake) v -= (v > 0 ? KPHYS.brake : KPHYS.accel * 0.6) * brake * dt;
-            if (!gas && !brake) v -= Math.sign(v) * Math.min(Math.abs(v), KPHYS.drag * dt);
+            if (!gas && !brake && !boosting) v -= Math.sign(v) * Math.min(Math.abs(v), KPHYS.drag * dt);
             if (v > top) v = Math.max(top, v - KPHYS.offDrag * dt);
             v = Math.max(-KPHYS.rev, v);
-            // Turning takes a bit of speed, and flat out it's a little less sharp.
+            // Into a drift: the drift key, steering, at speed. Out of it: let go, too slow, or braking.
+            if (!kDrift.on && drift && Math.abs(steer) > 0.3 && v > KDRIFT.minV) { kDrift.on = true; kDrift.dir = Math.sign(steer); }
+            else if (kDrift.on && (!drift || v < KDRIFT.minV * 0.7 || brake)) { kDrift.on = false; kDrift.endAt = t; }
             const sp = Math.abs(v), grip = Math.min(1, sp / 140) * (1 - 0.3 * Math.max(0, (sp - 300) / 220));
-            kMe.a += kMe.steer * KPHYS.turn * grip * (v < 0 ? -1 : 1) * dt;
-            kMe.x += Math.cos(kMe.a) * v * dt; kMe.y += Math.sin(kMe.a) * v * dt;
-            // The barrier: slide along it, slowed.
+            let slip = Math.atan2(Math.sin(kMe.a - kMe.m), Math.cos(kMe.a - kMe.m));
+            if (kDrift.on) {
+                // Steering into the drift tightens it, away from it widens it; it always turns the drift's way a bit.
+                const into = 0.55 + 0.45 * kMe.steer * kDrift.dir;
+                kMe.a += kDrift.dir * KPHYS.turn * KDRIFT.turn * Math.max(0.25, into) * dt;
+                slip = Math.atan2(Math.sin(kMe.a - kMe.m), Math.cos(kMe.a - kMe.m));
+                if (Math.abs(slip) > KDRIFT.maxSlip) { kMe.a = kMe.m + Math.sign(slip) * KDRIFT.maxSlip; slip = Math.sign(slip) * KDRIFT.maxSlip; }
+                kMe.m += slip * Math.min(1, KDRIFT.slideGrip * dt);
+                v -= v * KDRIFT.bleed * dt;
+                // The gauge: the more of a slide, the faster it fills.
+                if (!off && kDrift.nitros < KDRIFT.nitros) {
+                    kDrift.gauge += dt * KDRIFT.fill * Math.min(1, Math.abs(slip) / 0.45);
+                    if (kDrift.gauge >= 1) { kDrift.gauge = 0; kDrift.nitros++; kDrift.gotAt = t; }
+                }
+                if (Math.random() < dt * 40) kDrift.sparks.push({ at: t, side: Math.random() < 0.5 ? -1 : 1, dx: (Math.random() - 0.5) * 2 });
+            } else {
+                kMe.a += kMe.steer * KPHYS.turn * grip * (v < 0 ? -1 : 1) * dt;
+                kMe.m += Math.atan2(Math.sin(kMe.a - kMe.m), Math.cos(kMe.a - kMe.m)) * Math.min(1, KDRIFT.grip * dt);
+            }
+            while (kDrift.sparks.length && t - kDrift.sparks[0].at > 0.3) kDrift.sparks.shift();
+            kMe.x += Math.cos(kMe.m) * v * dt; kMe.y += Math.sin(kMe.m) * v * dt;
+            // The barrier: slide along it, slowed (and out of any drift).
             const at = kNear(kMe.x, kMe.y, near.i), lim = kTrack.w + kTrack.wall - 14;
-            if (at.d > lim) { const k = lim / at.d; kMe.x = at.px + (kMe.x - at.px) * k; kMe.y = at.py + (kMe.y - at.py) * k; v *= 0.55; kMe.bonk = t; }
+            if (at.d > lim) { const k = lim / at.d; kMe.x = at.px + (kMe.x - at.px) * k; kMe.y = at.py + (kMe.y - at.py) * k; v *= 0.55; kMe.bonk = t; if (kDrift.on) { kDrift.on = false; kDrift.endAt = -9; } }
             kMe.i = at.i;
             // Bumping into the others.
             for (const [h, q] of kAt) {
@@ -707,7 +750,21 @@
                 if (d > 0 && d < KPHYS.bump) { kMe.x += dx / d * (KPHYS.bump - d); kMe.y += dy / d * (KPHYS.bump - d); v *= 0.9; kMe.bonk = t; }
             }
             kMe.v = v;
-            if (t - kMe.sentAt > 0.1) { kMe.sentAt = t; core.send({ t: 'hall-kart-at', x: Math.round(kMe.x), y: Math.round(kMe.y), a: +kMe.a.toFixed(3), v: Math.round(v) }); }
+            const f = (kDrift.on ? 1 : 0) | (boosting ? 2 : 0);
+            if (t - kMe.sentAt > 0.1 || f !== kMe.f) {
+                kMe.sentAt = t; kMe.f = f;
+                core.send({ t: 'hall-kart-at', x: Math.round(kMe.x), y: Math.round(kMe.y), a: +kMe.a.toFixed(3), v: Math.round(v), m: +kMe.m.toFixed(3), ...(f ? { f } : {}) });
+            }
+        }
+        let kNitroKey = false;
+        /** Drift sparks from your back wheels: yellow, then orange, then blue as the gauge fills. */
+        function kartSparks(x, y, t) {
+            const col = kDrift.gauge > 0.66 ? ['#7ef0ff', '#ffffff'] : kDrift.gauge > 0.33 ? ['#ffb020', '#ffe14d'] : ['#ffe14d', '#ffffff'];
+            for (const s of kDrift.sparks) {
+                const k = (t - s.at) / 0.3;
+                lc.fillStyle = col[(s.dx > 0) | 0];
+                lc.fillRect(Math.round(x + s.side * 11 + s.dx * 6 * k + s.side * 4 * k), Math.round(y - 1 - k * 5 + k * k * 6), 1, 1);
+            }
         }
         /** Watching: the one the camera follows (your pick, or whoever's in front). */
         function kWatched() {
@@ -729,7 +786,9 @@
                 if (['a', 'arrowleft', 'd', 'arrowright'].includes(k)) { if (!e.repeat) kWatchStep(k === 'a' || k === 'arrowleft' ? -1 : 1); e.preventDefault(); return true; }
                 return false;
             }
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) { if (k !== ' ') keys.add(k); e.preventDefault(); return true; }
+            if (k === ' ') { if (!e.repeat) kNitroKey = true; e.preventDefault(); return true; }
+            if ((k === 'w' || k === 'arrowup') && !e.repeat) kGasTap = now();
+            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) { keys.add(k); e.preventDefault(); return true; }
             return false;
         }
         const kCv = document.createElement('canvas'); kCv.width = 40; kCv.height = 32;
@@ -738,16 +797,17 @@
         function drawRace(dt, t) {
             const racer = kRacer(me), P = kTrack.path;
             let fx, fy, fa, follow = me;
-            if (racer) { fx = kMe.x; fy = kMe.y; fa = kMe.a; }
+            // Behind where you're going (mostly), so in a drift you see the kart turned into the corner.
+            if (racer) { fx = kMe.x; fy = kMe.y; fa = kMe.m == null ? kMe.a : kMe.m + Math.atan2(Math.sin(kMe.a - kMe.m), Math.cos(kMe.a - kMe.m)) * 0.3; }
             else {
                 follow = kWatched();
                 const q = kAt.get(follow);
-                if (q) { fx = q.gx; fy = q.gy; fa = q.ga; } else { fx = P[0]; fy = P[1]; fa = Math.atan2(P[3] - P[1], P[2] - P[0]); }
+                if (q) { fx = q.gx; fy = q.gy; fa = q.m == null ? q.ga : q.m; } else { fx = P[0]; fy = P[1]; fa = Math.atan2(P[3] - P[1], P[2] - P[0]); }
             }
             // Everyone else: where the station last said, carried on the way they were going, eased in.
             for (const [h, q] of kAt) {
                 if (h === me && racer) continue;
-                const age = Math.min(0.25, t - q.at), tx = q.x + Math.cos(q.a) * q.v * age, ty = q.y + Math.sin(q.a) * q.v * age, e = Math.min(1, dt * 12);
+                const age = Math.min(0.25, t - q.at), tx = q.x + Math.cos(q.m) * q.v * age, ty = q.y + Math.sin(q.m) * q.v * age, e = Math.min(1, dt * 12);
                 q.gx += (tx - q.gx) * e; q.gy += (ty - q.gy) * e;
                 q.ga += Math.atan2(Math.sin(q.a - q.ga), Math.cos(q.a - q.ga)) * e;
             }
@@ -761,20 +821,21 @@
             for (const [h, q] of kAt) {
                 if (h === me && racer) continue;
                 const pr = A.kartProject(cam, q.gx, q.gy);
-                if (pr && pr.k < 5) list.push({ h, a: q.ga, v: q.v, pr, steer: 0 });
+                if (pr && pr.k < 5) list.push({ h, a: q.ga, v: q.v, pr, steer: 0, drift: !!(q.f & 1), boost: !!(q.f & 2) });
             }
-            if (racer) { const pr = A.kartProject(cam, kMe.x, kMe.y); if (pr) list.push({ h: me, a: kMe.a, v: kMe.v, pr, steer: kMe.steer, mine: true }); }
+            if (racer) { const pr = A.kartProject(cam, kMe.x, kMe.y); if (pr) list.push({ h: me, a: kMe.a, v: kMe.v, pr, steer: kMe.steer, mine: true, drift: kDrift.on, boost: kBoost.until > t }); }
             list.sort((a, b) => b.pr.z - a.pr.z);
             const tags = [];
             lc.imageSmoothingEnabled = false;
             for (const it of list) {
                 const p = people.get(it.h), look = p ? p.l : {}, rel = Math.atan2(Math.sin(it.a - cam.a), Math.cos(it.a - cam.a));
                 const view = Math.abs(rel) < Math.PI / 4 ? 0 : Math.abs(rel) > Math.PI * 3 / 4 ? 2 : rel > 0 ? 1 : -1;
-                const o = { steer: it.steer, go: it.mine ? kMe.go : it.v > 20 }, k = it.pr.k;
+                const o = { steer: it.drift ? Math.sign(Math.atan2(Math.sin(it.a - cam.a), Math.cos(it.a - cam.a))) * 1.5 : it.steer, go: it.mine ? kMe.go : it.v > 20, boost: it.boost, drift: it.drift, t3: Math.abs(rel) >= Math.PI / 12 && Math.abs(rel) < Math.PI / 4 ? Math.sign(rel) : 0 }, k = it.pr.k;
                 let bob = 0;
                 if (it.mine) { if (kMe.bonk && t - kMe.bonk < 0.2) bob = 1; else if (Math.abs(kMe.v) > 40 && kNear(kMe.x, kMe.y, kMe.i).d > kTrack.w) bob = Math.floor(t * 20) % 2; }
                 if (Math.abs(k - 1) < 0.08) {
                     const top = A.kart(lc, look, it.pr.sx, it.pr.sy - bob, view, t, o);
+                    if (it.mine) kartSparks(it.pr.sx, it.pr.sy, t);
                     if (!it.mine) tags.push({ h: it.h, x: it.pr.sx, y: top });
                 } else {
                     kCtx.clearRect(0, 0, 40, 32);
@@ -788,6 +849,8 @@
             for (const [h, q] of kAt) if (!(h === me && racer)) dots.push({ x: q.gx, y: q.gy, c: (people.get(h) || {}).c || '#e6e0f2', me: h === follow });
             if (racer) dots.push({ x: kMe.x, y: kMe.y, c: '#ffd34a', me: true });
             A.kartMini(lc, kTrack, 3, A.H - 47, 44, dots);
+            if (racer && kBoost.until > t) A.kartSpeed(lc, t, kBoost.nitro);
+            if (racer) A.kartGauge(lc, A.W - 50, 24, kDrift.gauge, kDrift.nitros, KDRIFT.nitros, t, kDrift.gotAt);
             // Onto the screen, then the words at screen size.
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(low, 0, 0, cv.width, cv.height);
@@ -824,8 +887,16 @@
             if (ks.state === 'count') {
                 const n = Math.ceil(kLeft());
                 txt(n > 3 ? 'GET READY' : String(n), cv.width / 2, c - big, big * (n > 3 ? 1 : 2), n > 3 ? '#ffffff' : '#ffd34a', 'center');
-                if (racer) txt('W/↑ go · S/↓ brake · A D/← → steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
+                if (racer) {
+                    txt('W/↑ go · S/↓ brake · A D/← → steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
+                    txt('Shift + steer: drift (fills nitro) · Space: nitro · tap ↑ as a drift ends: boost', cv.width / 2, c + big * 1.4 + small * 1.4, small * 0.9, '#c8c0ff', 'center');
+                }
             } else if (ks.state === 'race' && t - kGoAt < 1.2) txt('GO!', cv.width / 2, c - big, big * 2, '#4fd36e', 'center');
+            if (racer && ks.state === 'race' && doneI < 0) {
+                if (t - kDrift.ibAt < 0.7) txt('BOOST!', cv.width / 2, c + big * 1.2, small * 1.4, '#7ef0ff', 'center');
+                else if (kBoost.nitro && kBoost.until > t) txt('NITRO!', cv.width / 2, c + big * 1.2, small * 1.4, '#7ef0ff', 'center');
+                else if (kDrift.gotAt && t - kDrift.gotAt < 1.2) txt('+ NITRO (Space)', cv.width / 2, c + big * 1.2, small * 1.2, '#ffd34a', 'center');
+            }
             if (racer && ks.state === 'race') {
                 if (doneI >= 0) txt(t - kFinAt < 3 ? 'FINISH! ' + kNth(doneI + 1) : 'Waiting for the others… ' + Math.ceil(kLeft()) + 's', cv.width / 2, c - big, t - kFinAt < 3 ? big * 1.5 : small * 1.3, '#ffd34a', 'center');
                 else {
@@ -866,7 +937,7 @@
                 html = kWatch ? '<div><button type="button" class="btn" data-kwatch="0">🏠 Back to the room</button></div>'
                     : '<p>🏁 A kart race is on</p><div><button type="button" class="btn go" data-kwatch="1">📺 Watch it</button></div>';
             } else if (kRacing(me) && coarse) {
-                html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
+                html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="d">⤳</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="n">🔥</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
             }
             if (el.innerHTML !== html) el.innerHTML = html;
             el.hidden = !html;
@@ -879,9 +950,10 @@
             if (!b) return;
             e.preventDefault(); e.stopPropagation();
             kTouch = kTouch || { steer: 0, brake: 0 };
-            if (b.dataset.ktouch === 'b') kTouch.brake = 1; else kTouch.steer = Number(b.dataset.ktouch);
+            const kt = b.dataset.ktouch;
+            if (kt === 'b') kTouch.brake = 1; else if (kt === 'd') kTouch.drift = true; else if (kt === 'n') kTouch.nitro = true; else kTouch.steer = Number(kt);
         }, true);
-        const kUp = () => { if (kTouch) { kTouch.steer = 0; kTouch.brake = 0; } };
+        const kUp = () => { if (kTouch) { kTouch.steer = 0; kTouch.brake = 0; kTouch.drift = false; } };
         listen('pointerup', kUp); listen('pointercancel', kUp);
         const kT = setInterval(() => { if (ks.state) paintKart(); }, 250);
         offs.push(() => clearInterval(kT));
