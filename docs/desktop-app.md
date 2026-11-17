@@ -101,7 +101,9 @@ show from his desk. Up to 40 people at once (the host can change that).
   the UFO to ride.
 - **Games**: rock paper scissors, **duels** (bonk, fish slap and snowball, best
   of three, on **J K L**), **🎲 board games** at tables (tic-tac-toe, checkers,
-  Chinese checkers) and **hot potato** (give someone a 💣; **J** passes it on).
+  Chinese checkers), **hot potato** (give someone a 💣; **J** passes it on) and **🏒 air
+  hockey**, one on one: click someone, *Air hockey*; the table fills your screen, your goal on the
+  left, your mallet following the mouse or your finger (or WASD / the arrows). First to 7.
   The host starts Dodgeball, Burgertime, **kart races** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
 - **Kart races**: when the host starts one, say *I'm in* (up to 8 racers) and race laps of the

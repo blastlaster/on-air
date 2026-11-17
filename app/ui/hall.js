@@ -165,7 +165,7 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-kkeys" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-db hall-kart hall-hk" hidden></div><div class="hall-kkeys" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div><div class="hall-dpad" hidden></div></div>';
@@ -279,6 +279,7 @@
             if ((btStun.get(h) || 0) > t) return true;
             if (ayyAway.has(h)) return true;                                    // up in the UFO
             if (kRacing(h)) return true;                                        // in a kart
+            if (h === me && hkView()) return true;                              // at the air hockey table
             if (blasted.has(h) && blasted.get(h).end > t) return true;
             return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
@@ -330,7 +331,7 @@
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 7 })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 8 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -358,6 +359,8 @@
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
                     onKart(m.kart || { state: '' }, true);
+                    hks.clear();
+                    for (const g of m.hk || []) onHk(g, true);
                     onRm(m.rm || { state: '' }, true);
                     onBomb(m.bomb || { h: '' }, true);
                     ayyAway.clear(); ayyUfo = null; ayyMe = null;
@@ -366,6 +369,8 @@
                     break;
                 case 'hall-bt': onBt(m); break;
                 case 'hall-kart': onKart(m); break;
+                case 'hall-hk': onHk(m); break;
+                case 'hall-hk-at': onHkAt(m); break;
                 case 'hall-rm': case 'hall-rm-p': case 'hall-rm-at': case 'hall-rm-hp': case 'hall-rm-ouch': case 'hall-rm-bomb': case 'hall-rm-up': rmMsg(m); break;
                 case 'hall-kart-at': onKartAt(m); break;
                 case 'hall-kart-fix': kMe.x = m.x; kMe.y = m.y; kMe.a = m.a; kMe.v = 0; kMe.i = null; if (ks.state !== 'race') kMe.camA = m.a; break;
@@ -1429,6 +1434,7 @@
         function floorClick(e) {
             if (rmOn()) return;                                                 // in a plane: no walking
             if (kartView()) { if (!kRacer(me)) kWatchStep(1); return; }       // watching the race: the next kart
+            if (hkView()) return;                                              // at the air hockey table
             const p = mine();
             if (!p) return;
             const r = cv.getBoundingClientRect();
@@ -1973,6 +1979,197 @@
             }
         }
 
+        /* ---------- air hockey, one on one (engine/hall-hockey.js) ----------
+           Your screen is the table, seen from above, your goal on the left. Your mallet follows the
+           mouse or your finger (or WASD / the arrows). The station runs the puck; when your mallet hits
+           it here, it goes the moment you hit it (and the station's told: hall-hk-hit). */
+        const HKT = { w: 600, h: 1000, goal: 220, mr: 38, pr: 24, maxPuck: 2100, maxMallet: 3200, drag: 0.22, wallE: 0.9, hitE: 0.95, keyV: 900 };
+        const hks = new Map();                  // id → the station's hall-hk (end: when a finished one goes)
+        const hkL = { id: '', puck: null, mine: null, foe: null, foeTo: null, tgt: null, sentAt: 0, sent: '', hitAt: -9, ptr: false };
+        const myHk = () => { for (const g of hks.values()) if (g.a === me || g.b === me) return g; return null; };
+        const hkView = () => { const g = myHk(); return !!g && g.state !== 'asked' && g.state !== 'declined' && g.state !== 'expired' && (g.state !== 'over' || now() < g.end); };
+        const hkA = () => { const g = myHk(); return !!g && g.a === me; };            // a defends y = HKT.h
+        function onHk(m, quiet) {
+            const was = hks.get(m.id), t = now();
+            if (['declined', 'expired', 'gone'].includes(m.state)) {
+                hks.delete(m.id);
+                if (!quiet && m.state === 'declined' && m.a === me) logLine({ text: '🏒 ' + nameOf(m.b) + ' doesn’t want to play air hockey right now.' }, 'game');
+            } else hks.set(m.id, { ...m, end: t + (m.until || 0) / 1000 });
+            if (m.a !== me && m.b !== me) { if (!quiet && m.state === 'over' && !m.why) logLine({ text: '🏒 ' + nameOf(m.win) + ' wins at air hockey, ' + Math.max(...m.score) + '–' + Math.min(...m.score) + '!' }, 'game'); }
+            else {
+                if (m.state === 'asked' && !was && m.b === me && !quiet) U.toast('🏒 ' + nameOf(m.a) + ' challenges you to air hockey!');
+                if (m.state === 'ready' || m.state === 'goal') { hkL.puck = null; }
+                if (m.state === 'goal' && was && was.state !== 'goal') hkL.goalAt = t;
+                if (m.state === 'over' && (!was || was.state !== 'over') && !quiet) {
+                    const won = m.win === me, sc = (m.a === me ? m.score : [m.score[1], m.score[0]]).join('–');
+                    logLine({ text: '🏒 ' + (m.why === 'left' && won ? nameOf(m.a === me ? m.b : m.a) + ' left — you win!' : won ? 'You win at air hockey, ' + sc + '!' : nameOf(m.win) + ' wins at air hockey, ' + sc + '.') }, 'game');
+                }
+                if (hkL.id !== m.id) { hkL.id = m.id; hkL.puck = null; hkL.mine = null; hkL.foe = null; }
+            }
+            if (m.state === 'over' && !m.why) { const p = people.get(m.win); if (p) p.star = performance.now() + 15000; }
+            paintHk();
+        }
+        function onHkAt(m) {
+            const g = myHk();
+            if (!g || g.id !== m.id) return;
+            const t = now(), [x, y, vx, vy] = m.p, foeH = g.a === me ? g.b : g.a;
+            const f = m.m[foeH];
+            if (f) { hkL.foeTo = { x: f[0], y: f[1] }; if (!hkL.foe) hkL.foe = { x: f[0], y: f[1], vx: 0, vy: 0 }; }
+            if (!hkL.mine && m.m[me]) hkL.mine = { x: m.m[me][0], y: m.m[me][1], vx: 0, vy: 0 };
+            // The puck: where the station has it — except just after you've hit it here (yours is newer), and
+            // eased towards it rather than jumping, unless it's far out.
+            const P = hkL.puck;
+            if (!P || g.state !== 'playing' || Math.hypot(P.x - x, P.y - y) > 140) hkL.puck = { x, y, vx, vy };
+            else if (t - hkL.hitAt > 0.25) { P.x += (x - P.x) * 0.4; P.y += (y - P.y) * 0.4; P.vx = vx; P.vy = vy; }
+        }
+        /** Table ↔ the screen (room pixels): the table lies across the screen, your goal on the left. */
+        const HKS = { s: 0.21, ox: 15, oy: 18 };
+        function hkTo(x, y) { return hkA() ? [HKS.ox + (HKT.h - y) * HKS.s, HKS.oy + x * HKS.s] : [HKS.ox + y * HKS.s, HKS.oy + (HKT.w - x) * HKS.s]; }
+        function hkFrom(sx, sy) { const u = (sx - HKS.ox) / HKS.s, v = (sy - HKS.oy) / HKS.s; return hkA() ? [v, HKT.h - u] : [HKT.w - v, u]; }
+        function hkClamp(x, y) {
+            x = Math.max(HKT.mr, Math.min(HKT.w - HKT.mr, x));
+            y = hkA() ? Math.max(HKT.h / 2 + HKT.mr, Math.min(HKT.h - HKT.mr, y)) : Math.max(HKT.mr, Math.min(HKT.h / 2 - HKT.mr, y));
+            return [x, y];
+        }
+        function hkPointer(e) {
+            if (!hkView()) return false;
+            const [sx, sy] = roomXY(e);
+            hkL.tgt = hkClamp(...hkFrom(sx, sy)); hkL.ptr = true;
+            return true;
+        }
+        /** The puck off a mallet (the same sums as engine/hall-hockey.js hitOff). */
+        function hkHitOff(pk, m) {
+            const dx = pk.x - m.x, dy = pk.y - m.y, d = Math.hypot(dx, dy), min = HKT.mr + HKT.pr;
+            if (d >= min || d === 0) return false;
+            const nx = dx / d, ny = dy / d;
+            pk.x = m.x + nx * min; pk.y = m.y + ny * min;
+            const rvx = pk.vx - (m.vx || 0), rvy = pk.vy - (m.vy || 0), vn = rvx * nx + rvy * ny;
+            if (vn < 0) { pk.vx -= (1 + HKT.hitE) * vn * nx; pk.vy -= (1 + HKT.hitE) * vn * ny; }
+            const sp = Math.hypot(pk.vx, pk.vy);
+            if (sp > HKT.maxPuck) { pk.vx *= HKT.maxPuck / sp; pk.vy *= HKT.maxPuck / sp; }
+            return vn < 0;
+        }
+        /** Every frame at the table: your mallet, the other one's (eased), the puck (with your hits). */
+        function hkStep(dt) {
+            const g = myHk(), t = now();
+            if (!g) return;
+            if (!hkL.mine) { const y = hkA() ? HKT.h - 150 : 150; hkL.mine = { x: HKT.w / 2, y, vx: 0, vy: 0 }; }
+            const M = hkL.mine;
+            // Keys move where your mallet's going, the way they point on your screen.
+            let kx = 0, ky = 0;
+            if (keys.has('a') || keys.has('arrowleft')) kx -= 1; if (keys.has('d') || keys.has('arrowright')) kx += 1;
+            if (keys.has('w') || keys.has('arrowup')) ky -= 1; if (keys.has('s') || keys.has('arrowdown')) ky += 1;
+            if (kx || ky) {
+                const [sx, sy] = hkTo(...(hkL.tgt || [M.x, M.y])), k = HKT.keyV * HKS.s * dt;
+                hkL.tgt = hkClamp(...hkFrom(sx + kx * k, sy + ky * k)); hkL.ptr = false;
+            }
+            if (g.state === 'ready' || g.state === 'goal') { if (!hkL.tgt) hkL.tgt = [M.x, M.y]; }
+            const [tx, ty] = hkL.tgt || [M.x, M.y], dx = tx - M.x, dy = ty - M.y, d = Math.hypot(dx, dy), s = Math.min(d, HKT.maxMallet * dt);
+            const ux = d ? dx / d : 0, uy = d ? dy / d : 0;
+            M.vx = dt ? ux * s / dt : 0; M.vy = dt ? uy * s / dt : 0;
+            if (hkL.foe && hkL.foeTo) {
+                const F = hkL.foe, e = Math.min(1, dt * 14), ox = F.x, oy = F.y;
+                F.x += (hkL.foeTo.x - F.x) * e; F.y += (hkL.foeTo.y - F.y) * e;
+                F.vx = dt ? (F.x - ox) / dt : 0; F.vy = dt ? (F.y - oy) / dt : 0;
+            }
+            const P = g.state === 'playing' ? hkL.puck : null;
+            // In small steps, so a fast swing (or a slow frame) can't jump the mallet clean over the puck.
+            const n = Math.max(1, Math.ceil(Math.max(s, P ? Math.hypot(P.vx, P.vy) * dt : 0) / 20));
+            let hit = false;
+            for (let i = 0; i < n; i++) {
+                M.x += ux * s / n; M.y += uy * s / n;
+                if (!P) continue;
+                const h = dt / n;
+                P.x += P.vx * h; P.y += P.vy * h;
+                if (P.x < HKT.pr) { P.x = HKT.pr; P.vx = Math.abs(P.vx) * HKT.wallE; }
+                if (P.x > HKT.w - HKT.pr) { P.x = HKT.w - HKT.pr; P.vx = -Math.abs(P.vx) * HKT.wallE; }
+                const mouth = Math.abs(P.x - HKT.w / 2) < HKT.goal / 2 - HKT.pr * 0.3;
+                if (!mouth) {
+                    if (P.y < HKT.pr) { P.y = HKT.pr; P.vy = Math.abs(P.vy) * HKT.wallE; }
+                    if (P.y > HKT.h - HKT.pr) { P.y = HKT.h - HKT.pr; P.vy = -Math.abs(P.vy) * HKT.wallE; }
+                } else P.y = Math.max(-HKT.pr * 2, Math.min(HKT.h + HKT.pr * 2, P.y));      // in the goal: the station says so
+                if (hkHitOff(P, M)) hit = true;
+                if (hkL.foe) hkHitOff(P, hkL.foe);                      // theirs, as you see it (the station has the last word)
+            }
+            const key = Math.round(M.x) + ',' + Math.round(M.y);
+            if (key !== hkL.sent && t - hkL.sentAt > 0.04) { hkL.sent = key; hkL.sentAt = t; core.send({ t: 'hall-hk-m', id: g.id, x: Math.round(M.x), y: Math.round(M.y) }); }
+            if (!P) return;
+            if (hit && t - hkL.hitAt > 0.08) {
+                hkL.hitAt = t;
+                core.send({ t: 'hall-hk-hit', id: g.id, x: Math.round(P.x), y: Math.round(P.y), vx: Math.round(P.vx), vy: Math.round(P.vy) });
+            }
+            const k = Math.exp(-HKT.drag * dt); P.vx *= k; P.vy *= k;
+        }
+        /** The table, the mallets, the puck; the score and what's happening, at screen size. */
+        function hkFrame(dt, t) {
+            const g = myHk(), foeH = g.a === me ? g.b : g.a;
+            hkStep(dt);
+            lc.fillStyle = '#120c22'; lc.fillRect(0, 0, A.W, A.H);
+            const [x0, y0] = [HKS.ox, HKS.oy], W = HKT.h * HKS.s, H = HKT.w * HKS.s, gw = HKT.goal * HKS.s;
+            // The rails, the ice-white top with its air holes, the lines.
+            lc.fillStyle = '#39e6ff'; lc.fillRect(x0 - 4, y0 - 4, W + 8, H + 8);
+            lc.fillStyle = '#ff4fd8'; lc.fillRect(x0 - 2, y0 - 2, W + 4, H + 4);
+            lc.fillStyle = '#e8f2ff'; lc.fillRect(x0, y0, W, H);
+            lc.fillStyle = '#c8d8ec';
+            for (let i = 6; i < W; i += 8) for (let j = 6; j < H; j += 8) lc.fillRect(Math.round(x0 + i), Math.round(y0 + j), 1, 1);
+            lc.fillStyle = '#e8343c'; lc.fillRect(Math.round(x0 + W / 2), y0, 1, H);
+            lc.strokeStyle = '#e8343c'; lc.lineWidth = 1;
+            lc.beginPath(); lc.arc(x0 + W / 2 + 0.5, y0 + H / 2, 14, 0, Math.PI * 2); lc.stroke();
+            lc.strokeStyle = '#2f66b8';
+            for (const side of [0, 1]) { lc.beginPath(); lc.arc(side ? x0 + W : x0, y0 + H / 2, gw * 0.75, side ? Math.PI / 2 : -Math.PI / 2, side ? Math.PI * 1.5 : Math.PI / 2); lc.stroke(); }
+            // The goal mouths: a slot in each end.
+            lc.fillStyle = '#05030c'; lc.fillRect(x0 - 4, Math.round(y0 + H / 2 - gw / 2), 4, Math.round(gw)); lc.fillRect(x0 + W, Math.round(y0 + H / 2 - gw / 2), 4, Math.round(gw));
+            const disc = (x, y, r, fill, rim) => { lc.fillStyle = rim; lc.beginPath(); lc.arc(x, y, r, 0, Math.PI * 2); lc.fill(); lc.fillStyle = fill; lc.beginPath(); lc.arc(x, y, r - 1.2, 0, Math.PI * 2); lc.fill(); };
+            const shirt = (h) => { const p = people.get(h); return (A.PARTS.find(q => q.key === 'shirt').colors || [])[(p && p.l && p.l.shirt) || 0] || '#ff2f6e'; };
+            const mallet = (m, h) => { if (!m) return; const [sx, sy] = hkTo(m.x, m.y), r = HKT.mr * HKS.s; disc(sx, sy + 1, r, 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.25)'); disc(sx, sy, r, shirt(h), '#1a1430'); disc(sx, sy, r * 0.45, '#ffffff', '#1a1430'); };
+            mallet(hkL.foe, foeH); mallet(hkL.mine, me);
+            if (hkL.puck && g.state !== 'goal') { const [sx, sy] = hkTo(hkL.puck.x, hkL.puck.y); disc(sx, sy + 1, HKT.pr * HKS.s, 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.3)'); disc(sx, sy, HKT.pr * HKS.s, '#2a2834', '#000000'); }
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(low, 0, 0, cv.width, cv.height);
+            const u = cv.width / A.W, big = Math.max(14, Math.round(6 * u / dpr)) * dpr, small = Math.max(10, Math.round(3 * u / dpr)) * dpr;
+            const txt = (s, x, y, size, color) => {
+                ctx.font = 'bold ' + size + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = '#000'; ctx.strokeText(s, x, y); ctx.fillStyle = color; ctx.fillText(s, x, y);
+            };
+            const mineIdx = g.a === me ? 0 : 1, sc = g.score[mineIdx] + ' – ' + g.score[1 - mineIdx];
+            txt('🏒 You ' + sc + ' ' + nameOf(foeH), cv.width / 2, 8 * u, small * 1.2, '#ffffff');
+            const left = Math.max(0, g.end - t), mid = cv.height / 2;
+            if (g.state === 'ready') txt(left > 2.5 ? 'FIRST TO 7' : String(Math.max(1, Math.ceil(left))), cv.width / 2, mid, big * 1.6, '#ffd34a');
+            else if (g.state === 'goal') txt(g.by === me ? 'GOAL!' : 'THEY SCORE', cv.width / 2, mid, big * 1.6, g.by === me ? '#4fd36e' : '#ff4040');
+            else if (g.state === 'over') txt(g.win === me ? 'YOU WIN!' : g.why ? 'GAME OVER' : nameOf(g.win) + ' WINS', cv.width / 2, mid, big * 1.4, g.win === me ? '#ffd34a' : '#e6e0f2');
+            if (g.state === 'ready') txt((touch ? 'Drag your mallet' : 'Your mallet follows the mouse (or WASD / the arrows)') + ' · your goal’s on the left', cv.width / 2, cv.height - 6 * u, small, '#e6e0f2');
+        }
+        const hkEl = () => $('.hall-hk', box);
+        function paintHk() {
+            const el = hkEl();
+            if (!el) return;
+            const g = myHk(), t = now();
+            let html = '';
+            if (g) {
+                const foe = g.a === me ? g.b : g.a, F_ = '<b>' + esc(nameOf(foe)) + '</b>', left = Math.max(0, Math.ceil(g.end - t));
+                if (g.state === 'asked' && g.b === me) html = '<p>' + F_ + ' challenges you to air hockey! 🏒</p><div><button type="button" class="btn go" data-hkans="1">Play!</button><button type="button" class="btn" data-hkans="0">No thanks</button></div>';
+                else if (g.state === 'asked') html = '<p>Waiting for ' + F_ + ' to say yes to air hockey… (' + left + 's)</p><div><button type="button" class="btn" data-hkquit>Call it off</button></div>';
+                else if (g.state !== 'over') html = '<div><button type="button" class="btn" data-hkquit>Give up</button></div>';
+            }
+            if (el.innerHTML !== html) el.innerHTML = html;
+            el.hidden = !html;
+            el.classList.toggle('hk-race', !!g && g.state !== 'asked');
+            stage.classList.toggle('hall-hockey', hkView());
+        }
+        const hkPaintT = setInterval(() => { if (hks.size) paintHk(); for (const [id, g] of hks) if (g.state === 'over' && now() > g.end + 1) { hks.delete(id); paintHk(); } }, 250);
+        offs.push(() => clearInterval(hkPaintT));
+        box.addEventListener('click', (e) => {
+            const b = e.target.closest('.hall-hk [data-hkans], .hall-hk [data-hkquit]');
+            if (!b) return;
+            e.stopPropagation();
+            const g = myHk();
+            if (!g) return;
+            if (b.dataset.hkans != null) core.send({ t: 'hall-hk-answer', id: g.id, ok: b.dataset.hkans === '1' });
+            else core.send({ t: 'hall-hk-quit', id: g.id });
+        }, true);
+        stage.addEventListener('pointerdown', (e) => { if (hkPointer(e)) { e.preventDefault(); try { stage.setPointerCapture(e.pointerId); } catch { /* fine */ } } });
+        stage.addEventListener('pointermove', (e) => { if (hkView() && (e.pointerType === 'mouse' || e.buttons)) hkPointer(e); });
+
         /* ---------- rock paper scissors ---------- */
         // id → { id, a, b, state, picks, win, until }: shown over both players, finished ones for a few seconds.
         const games = new Map();
@@ -1985,6 +2182,7 @@
             popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (q.afk ? '<small class="hp-afk">💤 away' + (q.afk !== 'afk' ? ': ' + esc(q.afk) : '') + '</small>' : '') + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
                 (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
                 '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
+                (myHk() ? '' : '<button type="button" class="btn" data-hk="' + esc(q.h) + '">🏒 Air hockey</button>') +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
                     ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
                     : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
@@ -2004,6 +2202,8 @@
             if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
+            const hkb = e.target.closest('[data-hk]');
+            if (hkb) { popEl.hidden = true; return core.send({ t: 'hall-hk', to: hkb.dataset.hk }); }
             const du = e.target.closest('[data-duel]');
             if (du) { popEl.hidden = true; return core.send({ t: 'hall-duel', to: du.dataset.duel }); }
             const gv = e.target.closest('[data-give]');
@@ -3029,6 +3229,7 @@
             if (editingKeys && waitKey) { actionKey(e); return; }
             if (kartKeyPick(e)) return;
             if (kartView() && kartKey(e)) return;
+            if (hkView() && ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) { keys.add(e.key.toLowerCase()); e.preventDefault(); return; }
             if (rmOn() && e.key === 'Shift') { keys.add('shift'); return; }                               // the boss fight: Shift flies slow
             if (rmOn() && (e.key === ' ' || e.key.toLowerCase() === 'b')) { if (!e.repeat) rmBomb(); e.preventDefault(); return; }       // Space or B: a bomb
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
@@ -3173,7 +3374,7 @@
             const t = now(), p = mine();
             kartDrive(dt);
             if (rmOn()) { rmStep(dt); return; }                               // in a plane: no walking
-            if (p && !kartView()) {
+            if (p && !kartView() && !hkView()) {
                 const push = pushing();
                 // Sprinting starts or stops: the room's told (a walk to a clicked spot carries on, faster or slower).
                 if (breathe(dt, !!push || p.walking) && !push && p.walking && !held(me, t)) { lastSent = ''; sendGo(p.tx, p.ty); }
@@ -3340,6 +3541,7 @@
             last = ms;
             step(dt);
             if (kartView()) { drawRace(dt, now()); return; }
+            if (hkView()) { hkFrame(dt, now()); return; }
             if (rmOn()) { rmFrame(now(), dt); return; }
             const t = now(), s = core.state, tr = s.track;
             // In the room, the station says; outside it, the radio's own idea of what's on.

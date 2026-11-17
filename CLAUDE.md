@@ -331,7 +331,7 @@ the rest. Chat is the station's own `chat` — tag a Hall member's message with
 (`back`: wings, tails, capes; `ride`: the UFO); a person is `{ h, n, c, l, x, y, e, o, f, s, g, a, star, afk }`
 (name colour, what they hold, feeling, safe from hits, glowstick, aura, ms left of the Burgertime winner's star, away).
 `v` in `hall-join` is the app's room version: the engine leaves older rooms out of what they can't show
-(Dodgeball from 2, Burgertime from 4, duels from 3, the UFO taking you from 5, kart races from 6, the Radioman boss fight from 7; the app joins with 7). `air.talking`: someone is talking on air
+(Dodgeball from 2, Burgertime from 4, duels from 3, the UFO taking you from 5, kart races from 6, the Radioman boss fight from 7, air hockey from 8; the app joins with 8). `air.talking`: someone is talking on air
 (the studio's voice meter); `air.music`: music is playing. Guards: a cap on
 people (40), walking sent in one batch a few times a second and only when
 someone moved, per-person limits on moves, emotes and looks, and all of it
@@ -360,6 +360,7 @@ The rest is optional, and the app hides what a station doesn't send:
 | Stage effects and bursts | `hall-fx {k}` | `hall-fx {k, h}` (and `air.fx`) |
 | Who's on the line (the speaker boxes) | — | `hall-booth {host, calls, vm}` |
 | Host events: Dodgeball, Burgertime | `hall-db-*` · `hall-bt-tech` | `hall-db*` · `hall-bt*` |
+| Air hockey, one on one (the engine runs the puck; a player's own hits are claimed by their app and checked) | `hall-hk {to}` · `hall-hk-answer {id, ok}` · `hall-hk-quit {id}` · `hall-hk-m {id, x, y}` · `hall-hk-hit {id, x, y, vx, vy}` | `hall-hk {id, a, b, state, until, score, win, why, by}` · `hall-hk-at {id, p: [x, y, vx, vy], m}` (to the two) |
 | Kart races (host event; behind-the-kart, each app drives its own kart and the engine referees) | `hall-kart-join {yes}` · `hall-kart-at {x, y, a, v}` | `hall-kart {state, until, laps, track: {id, name, w, wall, look, path}, racers, done, ms?}` · `hall-kart-at {at: {h: [x, y, a, v, lap]}, pl}` · `hall-kart-fix {x, y, a}` |
 | Radioman boss fight (host event; everyone flies a plane against him; the engine keeps his health, lives, bombs and the result; the studio starts it with `hall.boss {on}`, and status `hall.boss` is its state; `hall-welcome.rm` is the fight's state for someone joining) | `hall-rm-at {x, y}` · `hall-rm-hit {n}` · `hall-rm-ouch` · `hall-rm-bomb` · `hall-rm-revive {to}` | `hall-rm {state: fall\|fly\|fight\|win\|lose\|land\|'', until, hp, max, phase 0–2, ft, fighters: {h: [lives, bombs]}, mvp?, stars?, dmg?}` · `hall-rm-p {k: wave\|notes\|poop\|fart\|static\|spiral, ft, x, y, tx, ty, seed}` · `hall-rm-at {at: {h: [x, y]}}` · `hall-rm-hp {hp, phase}` · `hall-rm-ouch {h, lives}` · `hall-rm-bomb {h, bombs}` · `hall-rm-up {h, by}` |
 
