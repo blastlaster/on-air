@@ -73,6 +73,10 @@
 /* The kart race's bar (app/ui/hall.js paintKart): over the race, just the buttons. */
 .hall-kart.hk-race { background: none; border: 0; box-shadow: none; padding: 0; }
 .hall-kart .hk-pad { gap: 16px; }
+.hall-kart .hk-tracks { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 520px; }
+.hall-kart .hk-tracks .btn { padding: 2px 7px; font-size: 12px; }
+.hall-kart .btn.on { background: var(--sk-btn-active, #ff2f6e); color: var(--sk-btn-active-text, #fff); }
+.hall-kart.hk-race p { text-shadow: 0 1px 2px #000; }
 .hall-racing .hall-log { opacity: 0.45; transition: opacity 0.2s; }
 .hall-hockey { touch-action: none; }
 .hall-hockey .hall-log { opacity: 0.45; }
@@ -80,6 +84,24 @@
 .hall-kkeys { position: absolute; z-index: 6; top: 6px; right: 6px; width: min(340px, calc(100% - 12px)); max-height: calc(100% - 12px); overflow-y: auto;
     padding: 8px 10px 10px; background: rgba(10, 8, 18, 0.95); border: 2px solid #fff; color: #fff; font: 13px system-ui, sans-serif; cursor: auto; box-sizing: border-box; }
 .hall-kkeys[hidden] { display: none; }
+/* 🎮 Games (app/ui/hall.js paintGm): every game, favourites first in the look's accent colour. */
+.hall-gm { position: absolute; z-index: 7; top: 6px; left: 50%; transform: translateX(-50%); width: min(520px, calc(100% - 12px)); max-height: calc(100% - 12px); overflow-y: auto;
+    padding: 8px 10px 10px; background: rgba(10, 8, 18, 0.96); border: 2px solid #fff; color: #fff; font: 13px system-ui, sans-serif; cursor: auto; box-sizing: border-box; }
+.hall-gm[hidden] { display: none; }
+.hall-gm .gm-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.hall-gm h3 { margin: 0; font-size: 15px; }
+.hall-gm .gm-head { margin: 8px 0 3px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; }
+.hall-gm .gm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.12); margin-bottom: 4px; }
+.hall-gm .gm-row.fav { border-color: var(--sk-btn-active, #ff2f6e); background: color-mix(in srgb, var(--sk-btn-active, #ff2f6e) 18%, transparent); }
+.hall-gm .gm-row.fav .gm-name { color: var(--sk-btn-active, #ff2f6e); font-weight: bold; }
+.hall-gm .gm-star { background: none; border: 0; color: #ffd34a; font-size: 18px; cursor: pointer; padding: 0 2px; line-height: 1; }
+.hall-gm .gm-name { min-width: 150px; font-weight: 600; }
+.hall-gm .gm-act { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; flex: 1; }
+.hall-gm .gm-sub { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; width: 100%; }
+.hall-gm .gm-race { display: inline-flex; gap: 3px; align-items: center; margin-right: 6px; }
+.hall-gm select { background: rgba(0, 0, 0, 0.4); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 5px; padding: 2px 4px; font: inherit; }
+.hall-gm .btn { padding: 3px 9px; }
+.hall-gm .hp-note { opacity: 0.7; font-size: 12px; }
 .hall-kkeys .btn { padding: 3px 9px; }
 .hall-kkeys h3 { margin: 0 0 6px; font-size: 14px; }
 .hall-kkeys table { border-collapse: collapse; margin-bottom: 6px; }

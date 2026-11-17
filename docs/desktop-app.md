@@ -99,10 +99,11 @@ show from his desk. Up to 40 people at once (the host can change that).
   tiara… up to the Heaven aura at 999); passing the hot potato earns *ebil* ones
   (fire, horns, a cape… up to the Crown of flames); five UFO abductions unlock
   the UFO to ride.
-- **Games**: rock paper scissors, **duels** (bonk, fish slap and snowball, best
+- **Games**: click someone and **🎮 Games** opens the list of them all — ☆ a game to keep it at the top
+  of the list, in your theme's colour. Rock paper scissors, **duels** (bonk, fish slap and snowball, best
   of three, on **J K L**), **🎲 board games** at tables (tic-tac-toe, checkers,
-  Chinese checkers), **hot potato** (give someone a 💣; **J** passes it on) and **🏒 air
-  hockey**, one on one, arcade style: click someone, *Air hockey*; the table fills your screen, your
+  Chinese checkers), **🏁 Super Nice Kart** (below), **hot potato** (give someone a 💣; **J** passes it on) and **🏒 air
+  hockey**, one on one, arcade style: pick the style and challenge them; the table fills your screen, your
   goal on the left, your mallet following the mouse (or WASD / the arrows, or a finger). Hold the
   **right button** (or **Space**) to charge a **power shot**; swipe across the puck as you hit it to
   **curve** it (charging slows your mallet right down for as long as you hold it). Hard hits land
@@ -112,18 +113,24 @@ show from his desk. Up to 40 people at once (the host can change that).
   three, or lock a mallet still); at 5–5 a giant one swallows you both into the white — a bigger,
   quicker board where the puck turns into a laser — and at 7 you float together, one cheering, one
   crying.
-  The host starts Dodgeball, Burgertime, **kart races** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
+  The host starts Dodgeball, Burgertime, the **station's kart race** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
-- **Kart races**: when the host starts one, say *I'm in* (up to 8 racers) and race laps of the
-  one of six tracks (Neon Loop, Sunset Speedway, Frostbite Hairpins, Burger Boulevard, Crop Circle
-  Raceway, Static Peaks) from behind your kart: **W**/**↑** goes, **S**/**↓** brakes, **A D**/**← →** steer (or a
+- **🏁 Super Nice Kart**: open a race from 🎮 Games — **public** (invite whoever you clicked; anyone
+  in the room can join while there's a seat, up to 8, or watch) or **practice** on your own (one
+  track as many times as you like, or a **circuit** of all six). The host of a public race presses
+  *Start*; someone who joins mid-race watches it and races the next. After each race the
+  leaderboard: points for your place (15, 12, 10, 8, 7, 6, 5, 4) adding up race after race, then
+  everyone votes on the next track. It goes on until the last racer leaves. When the host opens the
+  station's race the whole room is invited and it starts by itself. Six tracks (Neon Loop, Sunset
+  Speedway, Frostbite Hairpins, Burger Boulevard, Crop Circle Raceway, Static Peaks), each with
+  its own scenery, seen from behind your kart: **W**/**↑** goes, **S**/**↓** brakes, **A D**/**← →** steer (or a
   controller; on a touchscreen it drives itself and you hold ◀ ▶ to steer). Off the road
   is slow, and the barrier stops you. **Drift**: hold **Shift** (a bumper; ⤳ on a touchscreen)
   as you steer into a corner and the kart slides round it, filling the nitro gauge — a nitro
   each time it's full (two at most); **Space** (X or Y; 🔥) fires one. Tap **↑** again just as a
   drift ends for an instant boost. **⌨ Keys** in the race's bar changes any of them (two keys for
-  each; drift is Shift or K and nitro Space or L to start with). Everyone else watches, following the leader (**← →**
-  picks another kart, **Esc** goes back to the room). First over the line gets the gold star.
+  each; drift is Shift or K and nitro Space or L to start with). Watchers follow the leader (**← →**
+  picks another kart, **Esc** goes back to the room). Each race's winner gets the gold star.
 - **📻 Radioman, to the death**: when the host summons him, the room shatters and everyone in it flies a
   little plane (your character in the cockpit) against a giant Le Radioman on his rocket desk — *"LE RADIOMAN
   LOVES YOU!"*. He fires radio waves, notes, poop grenades and static, spirals in his last third

@@ -1683,11 +1683,30 @@
         road(); g.strokeStyle = L.road[0]; g.lineWidth = 2 * w; g.stroke();
         road(); g.strokeStyle = L.road[1]; g.lineWidth = 2 * w - 14; g.stroke();
         road(); g.strokeStyle = L.road[2]; g.lineWidth = 1; g.setLineDash([8, 10]); g.stroke(); g.setLineDash([]);
+        // Asphalt grain: specks of light and dark scattered over the road (the same every time).
+        let seed = 7;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        const n2 = P.length / 2;
+        for (let i = 0; i < n2; i++) for (let k = 0; k < 6; k++) {
+            const off = (rnd() * 2 - 1) * (w - 2), j = (i + 1) % n2, ax = P[i * 2], ay = P[i * 2 + 1], dx = P[j * 2] - ax, dy = P[j * 2 + 1] - ay, d = Math.hypot(dx, dy) || 1;
+            g.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.18)';
+            g.fillRect(Math.round(ax / S - dy / d * off + rnd() * dx / S), Math.round(ay / S + dx / d * off + rnd() * dy / S), 1, 1);
+        }
         // The start line: two rows of checks across the road.
         const a = Math.atan2(P[3] - P[1], P[2] - P[0]);
         g.save(); g.translate(P[0] / S, P[1] / S); g.rotate(a);
         for (let j = -Math.ceil(w); j < w; j += 3) for (let k = 0; k < 2; k++) { g.fillStyle = ((j / 3 | 0) + k) % 2 ? '#ffffff' : '#111111'; g.fillRect(-3 + k * 3, j, 3, 3); }
         g.restore();
+        // The grid: a painted box for each starting place behind the line (engine/hall-kart.js grid()).
+        g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1;
+        for (let row = 0; row < 4; row++) {
+            const idx = n2 - (row + 1) * 3, j = (idx + 1) % n2, ga = Math.atan2(P[j * 2 + 1] - P[idx * 2 + 1], P[j * 2] - P[idx * 2]);
+            for (const side of [-1, 1]) {
+                g.save(); g.translate(P[idx * 2] / S - Math.sin(ga) * side * w * 0.42, P[idx * 2 + 1] / S + Math.cos(ga) * side * w * 0.42); g.rotate(ga);
+                g.beginPath(); g.moveTo(4, -6); g.lineTo(-3, -6); g.lineTo(-3, 6); g.lineTo(4, 6); g.stroke();
+                g.restore();
+            }
+        }
         const data = new Uint32Array(g.getImageData(0, 0, N, N).data.buffer);
         return { canvas: c, data, n: N, s: S, void: data[0], look: L };
     }
@@ -1766,36 +1785,47 @@
                 R(sx, y - 8, 7, 5, body); R(sx, y - 8, 7, 1, lite);
                 R(t3 > 0 ? x - 18 : x + 14, y - 6, 5, 6, tyre);
             }
-            R(x - 13, y - 7, 5, 7, tyre); R(x + 9, y - 7, 5, 7, tyre);
-            R(x - 13, y - 6 + spin * 2, 5, 1, '#3a3846'); R(x + 9, y - 6 + spin * 2, 5, 1, '#3a3846');
+            // Fat tyres with treads rolling.
+            for (const tx of [x - 14, x + 9]) { R(tx, y - 8, 6, 8, '#000'); R(tx + 1, y - 7, 4, 7, tyre); for (let k = 0; k < 3; k++) R(tx + 1, y - 7 + ((k * 3 + spin * 2) % 7), 4, 1, '#3a3846'); R(tx + 1, y - 7, 1, 7, '#2a2834'); }
             rider(x + lean, y - 6, t3 < 0 ? -1 : 1);
             // From behind: the back of their head (hair, or a bare head).
             const hc = L.hair ? (HAIR_COLOR[L.hairColor] || HAIR_COLOR[0]) : (SKIN[L.skin] || SKIN[0]);
             R(x + lean - 3, y - 19, 7, 4, hc); R(x + lean - 3, y - 15, 7, 1, SKIN[L.skin] || SKIN[0]);
             R(x - 6, y - 12, 13, 4, dark); R(x - 6, y - 12, 13, 1, '#3a3846');
-            R(x - 9, y - 9, 19, 6, body); R(x - 9, y - 9, 19, 1, lite);
-            R(x - 10, y - 4, 21, 2, dark);
-            R(x - 9, y - 8, 2, 1, '#ff4040'); R(x + 8, y - 8, 2, 1, '#ff4040');
-            R(x - 5, y - 4, 2, 2, '#9a98a8'); R(x + 4, y - 4, 2, 2, '#9a98a8');
+            // The body: outlined, a racing stripe down the middle, a number plate, the tail lights.
+            R(x - 10, y - 10, 21, 8, '#000');
+            R(x - 9, y - 9, 19, 6, body); R(x - 9, y - 9, 19, 1, lite); R(x - 9, y - 4, 19, 1, 'rgba(0,0,0,0.35)');
+            R(x - 1, y - 9, 3, 5, lite); R(x, y - 9, 1, 5, '#ffffff');
+            R(x - 4, y - 7, 9, 3, '#000'); R(x - 3, y - 7, 7, 2, '#f4f2e8'); R(x - 2, y - 7, 1, 2, '#1a1430'); R(x + 1, y - 7, 2, 1, '#1a1430'); R(x + 2, y - 6, 1, 1, '#1a1430');
+            R(x - 10, y - 4, 21, 2, dark); R(x - 10, y - 4, 21, 1, '#4a4858');
+            R(x - 9, y - 8, 2, 2, '#ff4040'); R(x + 8, y - 8, 2, 2, '#ff4040'); R(x - 9, y - 8, 1, 1, '#ffb0b0'); R(x + 8, y - 8, 1, 1, '#ffb0b0');
+            // Chrome exhausts.
+            for (const ex of [x - 6, x + 4]) { R(ex, y - 4, 3, 2, '#c8c4d0'); R(ex + 1, y - 3, 1, 1, '#1a1430'); R(ex, y - 4, 3, 1, '#ffffff'); }
+            // The rear wing, up on two struts.
+            R(x - 7, y - 13, 1, 4, '#000'); R(x + 7, y - 13, 1, 4, '#000');
+            R(x - 11, y - 15, 23, 3, '#000'); R(x - 10, y - 14, 21, 1, body); R(x - 10, y - 14, 21, 1, lite); R(x - 2, y - 14, 5, 1, '#ffffff');
             if (o.boost) {                                                   // a boost: long blue flames
                 const fl = 3 + spin * 2;
-                R(x - 5, y - 2, 2, fl, '#7ef0ff'); R(x + 4, y - 2, 2, fl, '#7ef0ff'); R(x - 5, y - 2, 2, 1, '#ffffff'); R(x + 4, y - 2, 2, 1, '#ffffff');
-            } else if (o.go && spin) { R(x - 5, y - 2, 2, 2, '#ffb020'); R(x + 4, y - 2, 2, 2, '#ffb020'); }
+                R(x - 6, y - 2, 3, fl, '#7ef0ff'); R(x + 4, y - 2, 3, fl, '#7ef0ff'); R(x - 6, y - 2, 3, 1, '#ffffff'); R(x + 4, y - 2, 3, 1, '#ffffff');
+            } else if (o.go && spin) { R(x - 6, y - 2, 3, 2, '#ffb020'); R(x + 4, y - 2, 3, 2, '#ffb020'); R(x - 5, y - 2, 1, 1, '#ffe14d'); R(x + 5, y - 2, 1, 1, '#ffe14d'); }
             if (o.drift) for (let i = 0; i < 3; i++) { l.globalAlpha = 0.5 - i * 0.12; R(x - 15 - i * 2 + ((t * 30 + i) % 2), y - 2 - i * 2, 3, 2, '#d8d4e4'); R(x + 13 + i * 2 - ((t * 30 + i) % 2), y - 2 - i * 2, 3, 2, '#d8d4e4'); l.globalAlpha = 1; }
             return y - 21;
         }
         if (view === 2) {
-            R(x - 12, y - 6, 4, 6, tyre); R(x + 9, y - 6, 4, 6, tyre);
+            for (const tx of [x - 13, x + 9]) { R(tx, y - 7, 5, 7, '#000'); R(tx + 1, y - 6, 3, 6, tyre); R(tx + 1, y - 6 + spin * 2, 3, 1, '#3a3846'); }
             rider(x, y - 6, 1);
-            R(x - 8, y - 8, 17, 5, body); R(x - 8, y - 8, 17, 1, lite);
-            R(x - 7, y - 7, 2, 1, '#fff6a0'); R(x + 6, y - 7, 2, 1, '#fff6a0');
-            R(x - 9, y - 4, 19, 2, dark);
+            R(x - 9, y - 9, 19, 7, '#000');
+            R(x - 8, y - 8, 17, 5, body); R(x - 8, y - 8, 17, 1, lite); R(x - 1, y - 8, 3, 5, lite);
+            R(x - 7, y - 7, 3, 2, '#fff6a0'); R(x + 5, y - 7, 3, 2, '#fff6a0'); R(x - 7, y - 7, 1, 1, '#ffffff'); R(x + 5, y - 7, 1, 1, '#ffffff');
+            R(x - 11, y - 3, 23, 2, '#000'); R(x - 10, y - 3, 21, 1, dark); R(x - 10, y - 3, 21, 1, '#4a4858');
             return y - 21;
         }
         const f = view < 0 ? -1 : 1;
         R(x - 6 * f - (f < 0 ? 2 : 0), y - 11, 3, 4, dark);               // the seat back
         rider(x - 2 * f, y - 5, f);
-        R(x - 13, y - 7, 26, 4, body); R(x - 13, y - 7, 26, 1, lite);
+        R(x - 14, y - 8, 28, 6, '#000');
+        R(x - 13, y - 7, 26, 4, body); R(x - 13, y - 7, 26, 1, lite); R(x - 13, y - 5, 26, 1, lite);
+        R(x - 2, y - 7, 5, 4, '#000'); R(x - 1, y - 7, 3, 3, '#f4f2e8'); R(x, y - 6, 1, 2, '#1a1430');   // a number roundel
         R(f > 0 ? x + 13 : x - 15, y - 6, 2, 3, body);                       // the nose
         R(f > 0 ? x - 15 : x + 12, y - 10, 3, 2, dark); R(f > 0 ? x - 14 : x + 13, y - 8, 1, 2, dark);     // the wing
         const back = x - 10 * f, front = x + 8 * f;
@@ -1824,6 +1854,109 @@
             R(sx, y, 6, 6, on ? (flash ? '#ffffff' : '#ff4fd8') : '#3a2a66');
             if (on) R(sx + 2, y + 1, 2, 4, '#ffe14d');
         }
+    }
+    /* Scenery: what stands outside the barrier, each track its own (and chevrons on the tight corners, an arch
+       over the start). Each is drawn once into a canvas of its own, feet at the bottom middle, and scaled with
+       distance like the karts (k = 1: as big as the kart you drive). */
+    const DECOS = { neon: ['speaker', 'neonpole'], sunset: ['palm', 'cactus'], frost: ['pine', 'snowman'], burger: ['burger', 'ketchup'], crop: ['corn', 'silo'], static: ['tower', 'crt'] };
+    const ANIMATED = { speaker: 1, neonpole: 1, tower: 1, crt: 1 };
+    const decoCache = new Map();
+    /** Where the scenery goes along a track: every few points, either side, out past the barrier (never on another stretch). */
+    function kartDecos(track) {
+        const P = track.path, n = P.length / 2, R0 = track.w + track.wall + 60, kinds = DECOS[track.id] || DECOS.neon, out = [];
+        const nearest = (x, y) => { let d = Infinity; for (let i = 0; i < n; i++) d = Math.min(d, Math.hypot(P[i * 2] - x, P[i * 2 + 1] - y)); return d; };
+        const dirAt = (i) => { const j = (i + 1) % n; return Math.atan2(P[j * 2 + 1] - P[i * 2 + 1], P[j * 2] - P[i * 2]); };
+        for (let i = 6; i < n - 2; i += 7) {
+            const a = dirAt(i), side = (i / 7 | 0) % 2 ? 1 : -1, x = P[i * 2] - Math.sin(a) * side * R0, y = P[i * 2 + 1] + Math.cos(a) * side * R0;
+            if (nearest(x, y) < R0 - 12 || x < 30 || y < 30 || x > 2370 || y > 2370) continue;
+            out.push({ x, y, kind: kinds[(i / 7 | 0) % 2 ? 0 : 1] });
+        }
+        // Chevrons on the outside of the tight bends, pointing the way it turns.
+        for (let i = 0; i < n; i += 3) {
+            const turn = Math.atan2(Math.sin(dirAt((i + 4) % n) - dirAt((i - 4 + n) % n)), Math.cos(dirAt((i + 4) % n) - dirAt((i - 4 + n) % n)));
+            if (Math.abs(turn) < 0.5) continue;
+            const a = dirAt(i), side = turn > 0 ? -1 : 1, r = track.w + track.wall + 14, x = P[i * 2] - Math.sin(a) * side * r, y = P[i * 2 + 1] + Math.cos(a) * side * r;
+            if (nearest(x, y) < r - 6) continue;
+            out.push({ x, y, kind: 'chevron', turn: turn > 0 ? 1 : -1 });
+        }
+        out.push({ x: P[0], y: P[1], kind: 'arch' });
+        return out;
+    }
+    /** One piece of scenery's canvas (cached; the animated ones twice a second). */
+    function decoCanvas(kind, look, t, turn) {
+        const frame = ANIMATED[kind] ? Math.floor(t * 4) % 2 : 0, key = kind + frame + (turn || '') + (look ? look.barrier[0] : '');
+        let c = decoCache.get(key);
+        if (c) return c;
+        const arch = kind === 'arch';
+        c = document.createElement('canvas'); c.width = arch ? 150 : 40; c.height = arch ? 64 : 48;
+        const sv = l; l = c.getContext('2d');
+        const fx = c.width / 2, fy = c.height - 2, L = look || {}, b0 = (L.barrier || ['#39e6ff'])[0], b1 = (L.barrier || ['', '#ff4fd8'])[1];
+        const disc = (cx, cy, r, col) => { l.fillStyle = col; l.beginPath(); l.arc(cx, cy, r, 0, Math.PI * 2); l.fill(); };
+        R(fx - 8, fy - 1, 16, 2, 'rgba(0,0,0,0.35)');
+        switch (kind) {
+            case 'speaker':      // a speaker stack, cones thumping, a neon edge
+                R(fx - 8, fy - 30, 16, 30, '#000'); R(fx - 7, fy - 29, 14, 28, '#1a1228');
+                R(fx - 7, fy - 29, 14, 1, frame ? b1 : b0); R(fx - 7, fy - 2, 14, 1, frame ? b0 : b1);
+                disc(fx, fy - 21, frame ? 5 : 4, '#2e2448'); disc(fx, fy - 21, 2, '#4a3870'); disc(fx, fy - 8, frame ? 6 : 5, '#2e2448'); disc(fx, fy - 8, 2, '#4a3870'); break;
+            case 'neonpole':     // a pole with a neon bar, buzzing
+                R(fx - 1, fy - 34, 2, 34, '#2a2834'); R(fx - 7, fy - 36, 14, 4, '#000');
+                R(fx - 6, fy - 35, 12, 2, frame ? b0 : b1); l.globalAlpha = 0.3; R(fx - 9, fy - 38, 18, 8, frame ? b0 : b1); l.globalAlpha = 1; break;
+            case 'palm':
+                for (let k = 0; k < 7; k++) R(fx - 1 + Math.round(Math.sin(k * 0.4) * 2), fy - 4 - k * 4, 3, 4, k % 2 ? '#8a5a2a' : '#6a4420');
+                for (const [dx, dy] of [[-10, 2], [10, 2], [-7, -3], [7, -3], [0, -5]]) { l.strokeStyle = '#2f8f48'; l.lineWidth = 2; l.beginPath(); l.moveTo(fx, fy - 32); l.quadraticCurveTo(fx + dx * 0.6, fy - 36 + dy, fx + dx, fy - 30 + dy + 4); l.stroke(); }
+                disc(fx - 1, fy - 31, 2, '#7a4a20'); disc(fx + 2, fy - 31, 2, '#7a4a20'); break;
+            case 'cactus':
+                R(fx - 2, fy - 24, 5, 24, '#2f8f48'); R(fx - 8, fy - 16, 4, 8, '#2f8f48'); R(fx - 8, fy - 9, 7, 3, '#2f8f48'); R(fx + 4, fy - 20, 4, 9, '#2f8f48'); R(fx + 2, fy - 12, 6, 3, '#2f8f48');
+                R(fx - 1, fy - 24, 1, 24, '#4fd36e'); R(fx - 2, fy - 25, 5, 1, '#ff8ac8'); break;
+            case 'pine':
+                R(fx - 1, fy - 6, 3, 6, '#5a3a20');
+                for (let k = 0; k < 4; k++) { const wd = 16 - k * 3, yy = fy - 8 - k * 7; l.fillStyle = '#1f6a3a'; l.beginPath(); l.moveTo(fx - wd / 2, yy); l.lineTo(fx + wd / 2, yy); l.lineTo(fx, yy - 10); l.fill(); R(fx - wd / 2 + 1, yy - 1, wd - 2, 1, '#ffffff'); }
+                break;
+            case 'snowman':
+                disc(fx, fy - 6, 6, '#ffffff'); disc(fx, fy - 16, 5, '#ffffff'); disc(fx, fy - 24, 4, '#ffffff');
+                R(fx - 1, fy - 25, 1, 1, '#000'); R(fx + 1, fy - 25, 1, 1, '#000'); R(fx, fy - 23, 3, 1, '#ff8a2a');
+                R(fx - 4, fy - 29, 8, 1, '#1a1a1a'); R(fx - 3, fy - 33, 6, 4, '#1a1a1a'); R(fx - 3, fy - 30, 6, 1, '#c8432f');
+                R(fx - 1, fy - 17, 1, 1, '#000'); R(fx - 1, fy - 14, 1, 1, '#000'); break;
+            case 'burger':       // a giant burger on a pole
+                R(fx - 1, fy - 20, 2, 20, '#4a4858');
+                R(fx - 10, fy - 34, 20, 5, '#e8a040'); R(fx - 9, fy - 35, 18, 1, '#f0b860'); R(fx - 6, fy - 33, 1, 1, '#fff6d0'); R(fx + 3, fy - 33, 1, 1, '#fff6d0');
+                R(fx - 11, fy - 29, 22, 2, '#4fd36e'); R(fx - 10, fy - 27, 20, 2, '#ffd34a'); R(fx - 10, fy - 25, 20, 3, '#6a3a20'); R(fx - 10, fy - 22, 20, 3, '#e8a040'); break;
+            case 'ketchup':
+                R(fx - 4, fy - 22, 9, 22, '#000'); R(fx - 3, fy - 21, 7, 21, '#e8343c'); R(fx - 2, fy - 21, 1, 21, '#ff6a6a');
+                R(fx - 2, fy - 26, 5, 5, '#ffffff'); R(fx, fy - 29, 1, 3, '#ffffff'); R(fx - 2, fy - 14, 5, 4, '#fff6d0'); break;
+            case 'corn':
+                R(fx - 1, fy - 34, 2, 34, '#4f8a2a');
+                for (const [dx, yy] of [[-6, 10], [6, 16], [-6, 22], [6, 28]]) { l.strokeStyle = '#3f8a2a'; l.lineWidth = 2; l.beginPath(); l.moveTo(fx, fy - yy); l.lineTo(fx + dx, fy - yy + 4); l.stroke(); }
+                R(fx + 1, fy - 26, 3, 7, '#ffd34a'); R(fx + 1, fy - 26, 1, 7, '#ffe98a'); break;
+            case 'silo':
+                R(fx - 7, fy - 30, 14, 30, '#8a8a96'); R(fx - 7, fy - 30, 3, 30, '#a8a8b4'); disc(fx, fy - 30, 7, '#a8a8b4');
+                for (let k = 0; k < 5; k++) R(fx - 7, fy - 26 + k * 5, 14, 1, '#6a6a76'); break;
+            case 'tower':        // an antenna tower, its light blinking
+                l.strokeStyle = '#33ff66'; l.lineWidth = 1;
+                l.beginPath(); l.moveTo(fx - 7, fy); l.lineTo(fx, fy - 40); l.lineTo(fx + 7, fy); l.stroke();
+                for (let k = 1; k < 6; k++) { const yy = fy - k * 7, wd = 7 - k * 1.2; l.beginPath(); l.moveTo(fx - wd, yy); l.lineTo(fx + wd, yy - 3); l.stroke(); }
+                if (frame) { disc(fx, fy - 41, 2, '#ff3b3b'); l.globalAlpha = 0.35; disc(fx, fy - 41, 5, '#ff3b3b'); l.globalAlpha = 1; } break;
+            case 'crt':          // an old monitor, green static
+                R(fx - 9, fy - 20, 18, 16, '#000'); R(fx - 8, fy - 19, 16, 14, '#1a2a1a'); R(fx - 6, fy - 17, 12, 10, '#062a06');
+                for (let k = 0; k < 10; k++) R(fx - 6 + ((k * 5 + frame * 3) % 12), fy - 17 + ((k * 7) % 10), 1, 1, '#33ff66');
+                R(fx - 3, fy - 4, 6, 4, '#1a2a1a'); break;
+            case 'chevron':      // a sign with arrows, pointing round the bend
+                R(fx - 1, fy - 12, 2, 12, '#4a4858'); R(fx - 10, fy - 22, 20, 11, '#000'); R(fx - 9, fy - 21, 18, 9, b0);
+                for (let k = 0; k < 3; k++) { const cx = fx - 6 + k * 6, d = turn || 1; l.fillStyle = '#000'; l.beginPath(); l.moveTo(cx - 2 * d, fy - 20); l.lineTo(cx + 2 * d, fy - 17); l.lineTo(cx - 2 * d, fy - 14); l.lineTo(cx - 1 * d, fy - 17); l.fill(); }
+                break;
+            case 'arch': {       // over the start: two pillars and a chequered banner
+                R(fx - 70, fy - 50, 6, 50, '#000'); R(fx + 64, fy - 50, 6, 50, '#000'); R(fx - 69, fy - 49, 4, 49, b0); R(fx + 65, fy - 49, 4, 49, b0);
+                R(fx - 70, fy - 58, 140, 12, '#000');
+                for (let k = 0; k < 34; k++) for (let r = 0; r < 2; r++) R(fx - 68 + k * 4, fy - 56 + r * 4, 4, 4, (k + r) % 2 ? '#ffffff' : '#111111');
+                R(fx - 22, fy - 57, 44, 10, '#000'); R(fx - 21, fy - 56, 42, 8, b1);
+                text(l, 'START', fx - 9, fy - 54, '#ffffff');
+                break;
+            }
+        }
+        l = sv;
+        decoCache.set(key, c);
+        if (decoCache.size > 200) decoCache.clear();
+        return c;
     }
     /** The little map in the corner: the track, and a dot for every kart (yours bigger). */
     let miniOf = null;
@@ -2009,7 +2142,7 @@
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
         afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
-        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge,
+        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge, kartDecos, decoCanvas,
         rmSky: (ctx, t, k) => { l = ctx; rmSky(t, k); }, rmShatter: (ctx, img, s, back) => { l = ctx; rmShatter(img, s, back); },
         rmBoss: (ctx, x, y, t, o) => { l = ctx; return rmBoss(x, y, t, o || {}); }, rmPlane, rmBullet, rmFart };
 })();

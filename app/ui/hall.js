@@ -165,7 +165,7 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-db hall-kart hall-hk" hidden></div><div class="hall-kkeys" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-db hall-kart hall-hk" hidden></div><div class="hall-kkeys" hidden></div><div class="hall-gm" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div><div class="hall-dpad" hidden></div></div>';
@@ -331,7 +331,7 @@
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 9 })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 10 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -358,7 +358,9 @@
                     duels.clear();
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
-                    onKart(m.kart || { state: '' }, true);
+                    kLob.clear();
+                    for (const L of (Array.isArray(m.kart) ? m.kart : [])) onKart(L, true);
+                    kSync();
                     hks.clear();
                     for (const g of m.hk || []) onHk(g, true);
                     onRm(m.rm || { state: '' }, true);
@@ -373,7 +375,8 @@
                 case 'hall-hk-at': onHkAt(m); break;
                 case 'hall-rm': case 'hall-rm-p': case 'hall-rm-at': case 'hall-rm-hp': case 'hall-rm-ouch': case 'hall-rm-bomb': case 'hall-rm-up': rmMsg(m); break;
                 case 'hall-kart-at': onKartAt(m); break;
-                case 'hall-kart-fix': kMe.x = m.x; kMe.y = m.y; kMe.a = m.a; kMe.v = 0; kMe.i = null; if (ks.state !== 'race') kMe.camA = m.a; break;
+                case 'hall-kart-invite': if (!kMine()) { kInvite = { id: m.id, from: m.from }; U.toast(m.from ? '🏁 ' + nameOf(m.from) + ' invites you to Super Nice Kart!' : '🏁 A Super Nice Kart race is open for the room!'); paintKart(); } break;
+                case 'hall-kart-fix': if (m.id && m.id !== ks.id) break; kMe.x = m.x; kMe.y = m.y; kMe.a = m.a; kMe.v = 0; kMe.i = null; if (ks.state !== 'race') kMe.camA = m.a; break;
                 case 'hall-ayy': onAyy(m); break;
                 case 'hall-give': {
                     logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + holdName(m.o) }, 'game');
@@ -612,45 +615,60 @@
         /* ---------- moving ---------- */
         const keys = new Set();
         let sentAt = 0, lastSent = '', padWas = [];
-        /* ---------- the kart race (engine/hall-kart.js), seen from behind the kart ----------
-           Your app drives your kart (the station checks it and decides laps and places);
-           everyone else's comes from the station a few times a second and is smoothed. */
-        let ks = { state: '' }, ksAt = 0, kTrack = null, kTex = null, kPl = [], kWatch = true, kWatchH = '', kNo = false, kGoAt = 0, kFinAt = 0, kTouch = null;
+        /* ---------- Super Nice Kart (engine/hall-kart.js), seen from behind the kart ----------
+           Lobbies: open one from 🎮 Games (or the station opens one for the room); up to 8 race in it, one race
+           after another, a leaderboard adding up, a vote on the next track, until the last one leaves; anyone
+           can watch. Practice is a lobby of one. Your app drives your kart (the station checks it and decides
+           laps and places); everyone else's comes from the station a few times a second and is smoothed.
+           ks: the lobby you're in (or watching). */
+        const kLob = new Map();                 // id → the station's hall-kart for it (got: when it came)
+        let ks = { state: '' }, ksAt = 0, kTrack = null, kTex = null, kDecos = [], kPl = [], kWatchId = '', kWatchH = '', kInvite = null, kGoAt = 0, kFinAt = 0, kTouch = null;
         const kAt = new Map();                  // h → { x, y, a, v, lap, at } from the station, gx gy ga: as drawn
         const kMe = { x: 0, y: 0, a: 0, v: 0, i: null, camA: 0, steer: 0, go: false, sentAt: 0, bonk: 0 };
         // Flat out on the road (engine/hall-kart.js KART.maxV), off it, how fast it picks up and slows, how sharp it turns.
         const KPHYS = { maxV: 520, accel: 330, brake: 900, drag: 150, rev: 160, turn: 2.6, offV: 0.42, offDrag: 700, bump: 34 };
+        const KART_MAX = 8;
+        const TRACKS = [['neon', 'Neon Loop'], ['sunset', 'Sunset Speedway'], ['frost', 'Frostbite Hairpins'], ['burger', 'Burger Boulevard'], ['crop', 'Crop Circle Raceway'], ['static', 'Static Peaks']];
+        const trackName = (id) => (TRACKS.find(x => x[0] === id) || [id, id])[1];
         const kRacer = (h) => (ks.racers || []).includes(h);
+        const kSeated = (h, L = ks) => (L.seats || []).includes(h);
         const kRacing = (h) => (ks.state === 'count' || ks.state === 'race') && kRacer(h);
-        const kOn = () => ks.state === 'count' || ks.state === 'race' || ks.state === 'done';
-        /** The race fills the room: for the racers, and for anyone watching (the default; Esc goes back to the room). */
-        const kartView = () => !!kTex && kOn() && (kRacer(me) || kWatch);
+        const kOn = () => ks.state === 'count' || ks.state === 'race' || ks.state === 'results' || ks.state === 'vote';
+        const kMine = () => { for (const L of kLob.values()) if (kSeated(me, L)) return L; return null; };
+        /** The race fills the room: for those in the lobby, and for anyone watching it (Esc goes back to the room). */
+        const kartView = () => !!kTex && !!ks.id && kOn() && (kSeated(me) || kWatchId === ks.id);
         const kLeft = () => Math.max(0, (ks.until || 0) / 1000 - (now() - ksAt));
         const kTime = (ms) => { const s = ms / 1000; return Math.floor(s / 60) + ':' + (s % 60).toFixed(2).padStart(5, '0'); };
         const kNth = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+        const kHostName = (L) => (L.kind === 'station' ? 'the station’s' : L.kind === 'practice' ? 'practice' : nameOf(L.host) + '’s');
+        /** Which lobby the race view's about: yours, or the one you're watching. */
+        function kSync() {
+            const L = kMine() || (kWatchId && kLob.get(kWatchId)) || null, was = ks.id;
+            ks = L || { state: '' }; ksAt = L ? L.got : now();
+            if (ks.id !== was) { kAt.clear(); kPl = []; kWatchH = ''; kMe.i = null; }
+            if (L && L.track && (!kTrack || kTrack.id !== L.track.id || kTrack.path.length !== L.track.path.length)) { kTrack = L.track; kTex = A.kartTex(L.track); kDecos = A.kartDecos(L.track); kMe.i = null; }
+        }
         function onKart(m, quiet) {
-            const was = ks.state, wasDone = (ks.done || []).some(d => d.h === me);
-            ks = m; ksAt = now();
-            if (m.track && (!kTrack || kTrack.id !== m.track.id || kTrack.path.length !== m.track.path.length)) { kTrack = m.track; kTex = A.kartTex(m.track); kMe.i = null; }
-            if (!m.state) { kAt.clear(); kPl = []; kWatchH = ''; keys.clear(); kHeld.clear(); kTouch = null; }
-            if (m.state === 'join' && was !== 'join') {
-                kNo = false; kWatch = true;
-                if (!quiet) { logLine({ text: '🏁 A kart race! Join in at the bottom of the room.' }, 'game'); U.toast('🏁 Kart race! Join in?'); }
-            }
-            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); kHeld.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; }
+            const prev = kLob.get(m.id), was = prev ? prev.state : '', wasDone = !!prev && (prev.done || []).some(d => d.h === me);
+            if (!m.state) { kLob.delete(m.id); if (kWatchId === m.id) kWatchId = ''; if (kInvite && kInvite.id === m.id) kInvite = null; }
+            else kLob.set(m.id, { ...m, got: now() });
+            if (!prev && m.state === 'lobby' && m.kind === 'public' && !quiet && m.host !== me) logLine({ text: '🏁 ' + nameOf(m.host) + ' opened a Super Nice Kart race on ' + trackName(m.track.id) + ' — click them, 🎮 Games, to join.' }, 'game');
+            kSync();
+            if (ks.id !== m.id || !m.state) { if (!m.state) { keys.clear(); kHeld.clear(); kTouch = null; } paintKart(); return; }
+            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); kHeld.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; kFinAt = 0; }
             if (m.ms != null) kGoAt = now() - m.ms / 1000;                     // the race clock: the station's (someone coming in halfway too)
             if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) kTouch = { steer: 0, brake: 0 }; }
-            const mine = (m.done || []).findIndex(d => d.h === me);
-            if (mine >= 0 && !wasDone) kFinAt = now();
-            if (m.state === 'done' && was !== 'done' && !quiet) {
-                const w = (m.done || [])[0];
-                logLine({ text: w ? '🏆 ' + nameOf(w.h) + ' wins the kart race in ' + kTime(w.ms) + '!' : '🏁 The kart race is over — nobody made it round.' }, 'game');
+            if ((m.done || []).some(d => d.h === me) && !wasDone) kFinAt = now();
+            if (m.state === 'results' && was !== 'results' && !quiet && m.kind !== 'practice') {
+                const w = ((m.last && m.last.rows) || []).find(r => r.place === 1);
+                logLine({ text: w ? '🏆 ' + nameOf(w.h) + ' wins on ' + trackName(m.last.track) + ' in ' + kTime(w.ms) + '!' : '🏁 Nobody made it round ' + trackName(m.track.id) + '.' }, 'game');
                 const p = w && people.get(w.h);
-                if (p) p.star = performance.now() + 27000;                     // the gold star (engine/hall-kart.js KART.starMs: the results, then 15 s)
+                if (p) p.star = performance.now() + 22000;                     // the gold star (engine/hall-kart.js KART.starMs)
             }
             paintKart();
         }
         function onKartAt(m) {
+            if (m.id && m.id !== ks.id) return;
             const t = now();
             for (const [h, v] of Object.entries(m.at || {})) {
                 const q = kAt.get(h);
@@ -659,6 +677,8 @@
             }
             kPl = m.pl || kPl;
         }
+        /** Opening a lobby, joining one, leaving, starting, voting — to the station. */
+        const kSend = (t, o = {}) => core.send({ t: 'hall-kart-' + t, ...o });
         /** Nearest point of the road's middle to (x, y): looking near `hint` (a point of the path), or everywhere. */
         function kNear(x, y, hint) {
             const P = kTrack.path, n = P.length / 2, reach = hint == null ? n : 14, from = hint == null ? 0 : hint;
@@ -786,7 +806,7 @@
             const f = (kDrift.on ? 1 : 0) | (boosting ? 2 : 0);
             if (t - kMe.sentAt > 0.1 || f !== kMe.f) {
                 kMe.sentAt = t; kMe.f = f;
-                core.send({ t: 'hall-kart-at', x: Math.round(kMe.x), y: Math.round(kMe.y), a: +kMe.a.toFixed(3), v: Math.round(v), m: +kMe.m.toFixed(3), ...(f ? { f } : {}) });
+                core.send({ t: 'hall-kart-at', id: ks.id, x: Math.round(kMe.x), y: Math.round(kMe.y), a: +kMe.a.toFixed(3), v: Math.round(v), m: +kMe.m.toFixed(3), ...(f ? { f } : {}) });
             }
         }
         let kNitroKey = false;
@@ -815,7 +835,7 @@
         function kartKey(e) {
             const k = e.key.toLowerCase();
             if (!kRacing(me)) {
-                if (k === 'escape' && !kRacer(me)) { kWatch = false; paintKart(); return true; }
+                if (k === 'escape' && !kSeated(me)) { kWatchId = ''; kSync(); paintKart(); return true; }
                 const act = kActOf(e.key);
                 if (act === 'left' || act === 'right') { if (!e.repeat) kWatchStep(act === 'left' ? -1 : 1); e.preventDefault(); return true; }
                 return false;
@@ -859,10 +879,23 @@
                 if (pr && pr.k < 5) list.push({ h, a: q.ga, v: q.v, pr, steer: 0, drift: !!(q.f & 1), boost: !!(q.f & 2) });
             }
             if (racer) { const pr = A.kartProject(cam, kMe.x, kMe.y); if (pr) list.push({ h: me, a: kMe.a, v: kMe.v, pr, steer: kMe.steer, mine: true, drift: kDrift.on, boost: kBoost.until > t }); }
+            // The scenery, sorted in with the karts so a kart passes in front of a palm tree and behind the next.
+            for (const d of kDecos) {
+                const pr = A.kartProject(cam, d.x, d.y);
+                if (pr && pr.k < 4 && pr.k > 0.05 && pr.sx > -400 && pr.sx < lc.canvas.width + 400) list.push({ deco: d, pr });
+            }
             list.sort((a, b) => b.pr.z - a.pr.z);
             const tags = [];
             lc.imageSmoothingEnabled = false;
             for (const it of list) {
+                if (it.deco) {
+                    const c = A.decoCanvas(it.deco.kind, kTrack.look, t, it.deco.turn), d = it.deco;
+                    // The arch spans the road: its pillars stand on the barriers either side.
+                    const k = d.kind === 'arch' ? it.pr.k * (kTrack.w + kTrack.wall) * A.K7.focal / A.K7.back / 67 : it.pr.k;
+                    const w = Math.max(1, Math.round(c.width * k)), h = Math.max(1, Math.round(c.height * k));
+                    lc.drawImage(c, Math.round(it.pr.sx - w / 2), Math.round(it.pr.sy - h + 2 * k), w, h);
+                    continue;
+                }
                 const p = people.get(it.h), look = p ? p.l : {}, rel = Math.atan2(Math.sin(it.a - cam.a), Math.cos(it.a - cam.a));
                 const view = Math.abs(rel) < Math.PI / 4 ? 0 : Math.abs(rel) > Math.PI * 3 / 4 ? 2 : rel > 0 ? 1 : -1;
                 const o = { steer: it.drift ? Math.sign(Math.atan2(Math.sin(it.a - cam.a), Math.cos(it.a - cam.a))) * 1.5 : it.steer, go: it.mine ? kMe.go : it.v > 20, boost: it.boost, drift: it.drift, t3: Math.abs(rel) >= Math.PI / 12 && Math.abs(rel) < Math.PI / 4 ? Math.sign(rel) : 0 }, k = it.pr.k;
@@ -911,12 +944,13 @@
             const pad = 3 * u, who = racer ? me : follow, q = kAt.get(who), laps = ks.laps || 3;
             const doneI = (ks.done || []).findIndex(d => d.h === who);
             const lap = Math.min(laps, (q && q.lap) || 1);
-            if (ks.state !== 'done') {
+            if (ks.state === 'count' || ks.state === 'race') {
                 txt(doneI >= 0 ? 'DONE' : 'LAP ' + lap + '/' + laps, pad, pad, small * 1.3, '#ffffff');
                 const place = kPl.indexOf(who);
                 if (place >= 0 && ks.state === 'race') txt(kNth(place + 1), cv.width - pad, pad, big, ['#ffd34a', '#d8d8e8', '#e09a5a'][place] || '#ffffff', 'right');
                 if (ks.state === 'race') txt(kTime((t - kGoAt) * 1000), cv.width / 2, pad, small * 1.2, '#7ef0ff', 'center');
-                if (!racer) txt('📺 ' + nameOf(who) + ' · ← → switch · Esc: the room', cv.width / 2, pad + small * 1.6, small, '#e6e0f2', 'center');
+                if (!racer) txt('📺 ' + nameOf(who) + ' · ← → switch' + (kSeated(me) ? ' · you race the next one' : ' · Esc: the room'), cv.width / 2, pad + small * 1.6, small, '#e6e0f2', 'center');
+                if (ks.kind === 'practice' && ks.circuit) txt('CIRCUIT ' + (ks.circuit.i + 1) + '/' + ks.circuit.n, cv.width - pad, pad + big * 1.1, small, '#c8c0ff', 'right');
             }
             const c = A.K7.hor * u;
             if (ks.state === 'count') {
@@ -942,37 +976,78 @@
                     if (t - kLapShow < 2) txt('FINAL LAP!', cv.width / 2, c - big, big, '#ff4fd8', 'center');
                 }
             }
-            if (ks.state === 'done') {
-                const rows = (ks.done || []).map((d, i) => [kNth(i + 1), nameOf(d.h), kTime(d.ms), d.h]).concat((ks.racers || []).filter(h => !(ks.done || []).some(d => d.h === h)).map(h => ['—', nameOf(h), 'DNF', h]));
-                const lh = small * 1.5, w = Math.min(cv.width - 8 * u, 150 * u), h = lh * (rows.length + 2), x0 = (cv.width - w) / 2, y0 = Math.max(4 * u, (cv.height - h) / 2);
-                ctx.fillStyle = 'rgba(10,6,24,0.85)'; ctx.fillRect(x0, y0, w, h);
-                ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = Math.max(1, u / 2); ctx.strokeRect(x0, y0, w, h);
-                txt('🏁 RESULTS', cv.width / 2, y0 + lh * 0.3, small * 1.2, '#ffd34a', 'center');
-                rows.forEach((r, i) => {
-                    const y = y0 + lh * (i + 1.4), col = r[3] === me ? '#ffd34a' : '#e6e0f2';
-                    txt(r[0], x0 + 4 * u, y, small, col); txt(r[1].slice(0, 16), x0 + 18 * u, y, small, col); txt(r[2], x0 + w - 4 * u, y, small, col, 'right');
+            if (ks.state === 'results' || ks.state === 'vote') kartBoard(t, u, small, txt);
+        }
+        /** After a race: this race's places (time, points won) and the lobby's standings; in practice, your times. */
+        function kartBoard(t, u, small, txt) {
+            const last = ks.last || { rows: [] }, board = ks.board || [], practice = ks.kind === 'practice';
+            const won = Object.fromEntries((last.rows || []).map(r => [r.h, r]));
+            let title, head, rows;
+            if (practice) {
+                const r = (last.rows || [])[0] || {}, times = (ks.times || []).filter(x => x.track === last.track), best = times.reduce((a, x) => (a && a < x.ms ? a : x.ms), 0);
+                title = '🏁 ' + trackName(last.track).toUpperCase();
+                head = ['', 'TIME', ''];
+                rows = [['This race', r.ms ? kTime(r.ms) : 'DNF', '', me], ['Best lap', r.lap ? kTime(r.lap) : '—', '', ''], ['Best on this track', best ? kTime(best) : '—', '', '']];
+                if (ks.circuit) rows.push(['Circuit (' + (ks.circuit.i + 1) + '/' + ks.circuit.n + ')', kTime((ks.times || []).slice(-(ks.circuit.i + 1)).reduce((a, x) => a + x.ms, 0)), '', '']);
+            } else {
+                title = ks.state === 'vote' ? '🏆 STANDINGS · NEXT TRACK IN ' + Math.ceil(kLeft()) + 's' : '🏁 ' + trackName(last.track).toUpperCase() + ' · RACE ' + (ks.round || 1);
+                head = ['', 'THIS RACE', 'TOTAL'];
+                rows = board.map((b, i) => {
+                    const r = won[b.h];
+                    return [kNth(i + 1) + ' ' + nameOf(b.h).slice(0, 12), r ? (r.place ? kNth(r.place) + ' ' + kTime(r.ms) + ' +' + r.pts : 'DNF') : 'next race', b.pts + ' pts', b.h];
                 });
             }
+            const lh = small * 1.45, w = Math.min(cv.width - 8 * u, 190 * u), h = lh * (rows.length + 2.6), x0 = (cv.width - w) / 2, y0 = Math.max(16 * u, (cv.height - h) / 2 - 6 * u);
+            ctx.fillStyle = 'rgba(10,6,24,0.88)'; ctx.fillRect(x0, y0, w, h);
+            ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = Math.max(1, u / 2); ctx.strokeRect(x0, y0, w, h);
+            txt(title, cv.width / 2, y0 + lh * 0.3, small * 1.1, '#ffd34a', 'center');
+            txt(head[1], x0 + w * 0.62, y0 + lh * 1.25, small * 0.8, '#8a86a0', 'center'); txt(head[2], x0 + w - 4 * u, y0 + lh * 1.25, small * 0.8, '#8a86a0', 'right');
+            rows.forEach((r, i) => {
+                const y = y0 + lh * (i + 2), col = r[3] === me ? '#ffd34a' : i === 0 && !practice ? '#ffe9a0' : '#e6e0f2';
+                txt(r[0], x0 + 4 * u, y, small, col); txt(r[1], x0 + w * 0.62, y, small, col, 'center'); if (r[2]) txt(r[2], x0 + w - 4 * u, y, small, col, 'right');
+            });
         }
         let kLapAt = 0, kLapShow = -9;
         const kEl = () => $('.hall-kart', box);
         const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-        /** The bar at the bottom: joining in, watching or not, and the touch controls. */
+        const kBtn = (act, label, o = {}) => '<button type="button" class="btn' + (o.go ? ' go' : '') + (o.on ? ' on' : '') + '" data-kact="' + act + '"' + (o.id ? ' data-kid="' + esc(o.id) + '"' : '') + (o.track ? ' data-ktrack="' + o.track + '"' : '') + '>' + label + '</button>';
+        /** The track buttons: practice picks, the vote (with its count so far), the host's first pick. */
+        function kTrackBtns(act, votes) {
+            return TRACKS.concat([['random', '🎲 Random']]).map(([id, name]) => {
+                const n = votes ? Object.values(votes).filter(v => v === id).length : 0, mineV = votes && votes[me] === id;
+                return kBtn(act, esc(name) + (n ? ' <small>×' + n + '</small>' : ''), { id: ks.id, track: id, on: mineV });
+            }).join('');
+        }
+        /** The bar: the lobby (seats, start, leave), the vote, practice's picks, an invite, watching, the touch controls. */
         function paintKart() {
             const el = kEl();
             if (!el) return;
-            const left = Math.ceil(kLeft()), rs = ks.racers || [], inn = rs.includes(me);
+            const L = kMine(), t = now();
             let html = '';
-            if (ks.state === 'join') {
-                const full = rs.length >= 8 && !inn;
-                html = '<p>🏁 <b>Kart race!</b> ' + (ks.laps === 1 ? '1 lap' : (ks.laps || 3) + ' laps') + ' of the ' + esc((ks.track && ks.track.name) || 'track') + ' · ' +
-                    (inn ? 'You’re in — starting in ' + left + 's' : kNo ? 'You’re watching this one (' + left + 's)' : full ? 'It’s full (8) — watch it!' : 'Race? (' + left + 's)') + ' · ' + rs.length + ' in</p>' +
-                    (inn ? '<div><button type="button" class="btn" data-kart="0">Sit out</button>' + KEYS_BTN + '</div>' : full ? '' : '<div><button type="button" class="btn go" data-kart="1">I’m in</button>' + (kNo ? '' : '<button type="button" class="btn" data-kart="0">Just watch</button>') + KEYS_BTN + '</div>');
-            } else if (kOn() && !inn) {
-                html = kWatch ? '<div><button type="button" class="btn" data-kwatch="0">🏠 Back to the room</button></div>'
-                    : '<p>🏁 A kart race is on</p><div><button type="button" class="btn go" data-kwatch="1">📺 Watch it</button></div>';
-            } else if (kRacing(me) && coarse) {
+            if (L && L.state === 'lobby' && L.kind === 'practice') {
+                const last = (L.times || []).slice(-1)[0];
+                html = '<p>🏁 <b>Practice</b>' + (last ? ' · last: ' + esc(trackName(last.track)) + ' ' + kTime(last.ms) : '') + (L.circuit && last ? ' · circuit ' + kTime(L.times.slice(-L.circuit.n).reduce((a, x) => a + x.ms, 0)) : '') + '</p>' +
+                    '<div class="hk-tracks">' + kBtn('start', '🔁 ' + esc(trackName(L.track.id)) + ' again', { id: L.id, track: L.track.id, go: true }) + kBtn('start', '🏆 Circuit (all six)', { id: L.id, track: 'circuit' }) + '</div>' +
+                    '<div class="hk-tracks">' + TRACKS.map(([id, name]) => kBtn('start', esc(name), { id: L.id, track: id })).join('') + '</div>' +
+                    '<div>' + kBtn('leave', 'Leave', { id: L.id }) + KEYS_BTN + '</div>';
+            } else if (L && L.state === 'lobby') {
+                const host = L.host === me, left = Math.ceil(Math.max(0, (L.until || 0) / 1000 - (t - L.got)));
+                html = '<p>🏁 <b>Super Nice Kart</b> · ' + kHostName(L) + ' race · ' + esc(trackName(L.track.id)) + ' · ' + (L.laps === 1 ? '1 lap' : L.laps + ' laps') + ' · ' + L.seats.length + '/' + KART_MAX + '</p>' +
+                    '<p class="hg-dim">' + L.seats.map(h => esc(nameOf(h)) + (h === L.host ? ' ⭐' : '')).join(' · ') + '</p>' +
+                    (L.kind === 'station' ? '<p class="hg-dim">Starts in ' + left + 's</p>' : !host ? '<p class="hg-dim">Waiting for ' + esc(nameOf(L.host)) + ' to start it…</p>' : '<p class="hg-dim">Invite someone: click them → 🎮 Games → Super Nice Kart</p>') +
+                    '<div>' + (host && L.kind !== 'station' ? kBtn('start', '🏁 Start', { id: L.id, go: true }) : '') + kBtn('leave', 'Leave', { id: L.id }) + KEYS_BTN + '</div>';
+            } else if (L && L.state === 'vote') {
+                html = '<p>🗳 <b>Next track</b> · ' + Math.ceil(kLeft()) + 's</p><div class="hk-tracks">' + kTrackBtns('vote', L.votes || {}) + '</div><div>' + kBtn('leave', 'Leave', { id: L.id }) + '</div>';
+            } else if (L && (L.state === 'count' || L.state === 'race') && kRacer(me) && coarse) {
                 html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="d">⤳</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="n">🔥</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
+            } else if (L && (L.state === 'count' || L.state === 'race' || L.state === 'results')) {
+                html = '<div>' + kBtn('leave', 'Leave the race', { id: L.id }) + '</div>';
+            } else if (!L && kInvite && kLob.has(kInvite.id)) {
+                const I = kLob.get(kInvite.id), full = I.seats.length >= KART_MAX;
+                html = '<p>🏁 ' + (kInvite.from ? '<b>' + esc(nameOf(kInvite.from)) + '</b> invites you to <b>Super Nice Kart</b>' : 'A <b>Super Nice Kart</b> race is open for the room') + ' · ' + esc(trackName(I.track.id)) + ' · ' + I.seats.length + '/' + KART_MAX + '</p>' +
+                    '<div>' + (full ? '' : kBtn('join', 'Join', { id: I.id, go: true })) + kBtn('watch', '📺 Watch', { id: I.id }) + kBtn('nothanks', 'No thanks') + '</div>';
+            } else if (!L && kartView()) {
+                html = '<div>' + (ks.kind !== 'practice' && (ks.seats || []).length < KART_MAX ? kBtn('join', '🏁 Join (next race)', { id: ks.id, go: true }) : '') + kBtn('unwatch', '🏠 Back to the room') + '</div>';
             }
             if (el.innerHTML !== html) el.innerHTML = html;
             el.hidden = !html;
@@ -1031,7 +1106,7 @@
         }
         listen('keyup', (e) => { const a = kActOf(e.key); if (a) kHeld.delete(a); });
         listen('blur', () => kHeld.clear());
-        const kT = setInterval(() => { if (ks.state) paintKart(); }, 250);
+        const kT = setInterval(() => { if (ks.state || kInvite || kMine()) paintKart(); }, 250);
         offs.push(() => clearInterval(kT));
 
         /* ---------- RADIOMAN: TO THE DEATH (engine/hall-boss.js) ----------
@@ -2757,6 +2832,91 @@
         listen('keyup', (e) => { if (e.key === ' ') hkL.charging = false; });
         listen('blur', () => { hkL.charging = false; });
 
+        /* ---------- 🎮 Games: everything you can play with someone, in one menu (favourites at the top) ---------- */
+        const gmEl = () => $('.hall-gm', box);
+        let gmTo = '', gmFavs = [];
+        try { gmFavs = JSON.parse(localStorage.getItem('ltl.gameFavs') || '[]') || []; } catch { /* none yet */ }
+        const GM_GAMES = [['kart', '🏁', 'Super Nice Kart'], ['hockey', '🏒', 'Air hockey'], ['duel', '⚔', 'Duel'], ['rps', '✊', 'Rock paper scissors'],
+            ['ttt', '⭕', 'Tic-tac-toe'], ['checkers', '⛀', 'Checkers'], ['chinese', '✡', 'Chinese checkers']];
+        function gmOpen(h) { gmTo = h; popEl.hidden = true; gmEl().hidden = false; paintGm(); }
+        /** What you can do for each game, with whoever you clicked. */
+        function gmActions(id, q) {
+            const b = (attrs, label, go) => '<button type="button" class="btn' + (go ? ' go' : '') + '" ' + attrs + '>' + label + '</button>';
+            const note = (s) => '<span class="hp-note">' + s + '</span>';
+            const qn = esc(q.n);
+            if (id === 'rps') return b('data-gmact="rps"', 'Challenge ' + qn, true);
+            if (id === 'duel') return safe ? note('Bonks and slaps are off for you (🎨 Look)') : q.s ? note(qn + ' doesn’t want to be hit') : duelOf(me) ? note('You’re in a duel') : b('data-gmact="duel"', 'Challenge ' + qn, true);
+            if (id === 'hockey') return myHk() ? note('You’re at a table already') : b('data-gmact="hk" data-mode="classic"', '🏒 Classic', true) + b('data-gmact="hk" data-mode="space"', '🌌 Forever 2: Air in Space Time', true);
+            if (id === 'kart') {
+                const theirs = [...kLob.values()].find(L => kSeated(q.h, L)), mineL = kMine();
+                let html = '';
+                if (theirs && theirs.kind !== 'practice') html += (theirs !== mineL && theirs.seats.length < KART_MAX ? b('data-gmact="kjoin" data-kid="' + theirs.id + '"', 'Join their race', true) : '') + b('data-gmact="kwatch" data-kid="' + theirs.id + '"', '📺 Watch');
+                if (!mineL) {
+                    html += '<div class="gm-sub"><select name="gmTrack">' + '<option value="random">🎲 Any track</option>' + TRACKS.map(([t, n]) => '<option value="' + t + '">' + esc(n) + '</option>').join('') + '</select>' +
+                        '<select name="gmLaps"><option value="1">1 lap</option><option value="3" selected>3 laps</option><option value="5">5 laps</option></select>' +
+                        b('data-gmact="krace"', 'Race ' + qn, true) + '</div>' +
+                        '<div class="gm-sub"><select name="gmPTrack">' + TRACKS.map(([t, n]) => '<option value="' + t + '">' + esc(n) + '</option>').join('') + '<option value="circuit">🏆 Circuit (all six)</option></select>' +
+                        b('data-gmact="kpractice"', 'Practice on your own') + '</div>';
+                } else html += note('You’re in a race lobby');
+                const open = [...kLob.values()].filter(L => L.kind !== 'practice' && L !== theirs);
+                if (open.length) html += '<div class="gm-sub"><small>Races now:</small> ' + open.map(L => '<span class="gm-race">' + esc(trackName(L.track.id)) + ' · ' + L.seats.length + '/' + KART_MAX +
+                    (L !== mineL && L.seats.length < KART_MAX && !mineL ? b('data-gmact="kjoin" data-kid="' + L.id + '"', 'Join') : '') + b('data-gmact="kwatch" data-kid="' + L.id + '"', '📺') + '</span>').join('') + '</div>';
+                return html;
+            }
+            // Board games: their table (join or watch), or a new one.
+            const their = tableOf(q.h);
+            if (their && their.g === id) return their.state === 'waiting' && their.seats.includes('') && !tableOf(me) ? b('data-gmact="tjoin" data-tid="' + their.id + '"', 'Join their table', true) : b('data-gmact="twatch" data-tid="' + their.id + '"', '🎲 Watch their game');
+            if (tableOf(me)) return note('You’re at a table');
+            if (id === 'chinese') return '<small>Players:</small> ' + [2, 3, 4, 6].map(n => b('data-gmact="tnew" data-g="chinese" data-n="' + n + '"', String(n))).join('');
+            return b('data-gmact="tnew" data-g="' + id + '" data-n="2"', 'Open a table', true);
+        }
+        function paintGm() {
+            const el = gmEl(), q = people.get(gmTo);
+            if (!el || el.hidden) return;
+            if (!q) { el.hidden = true; return; }
+            const games = GM_GAMES.slice().sort((a, c) => (gmFavs.includes(c[0]) - gmFavs.includes(a[0])) || GM_GAMES.indexOf(a) - GM_GAMES.indexOf(c));
+            const keep = {};
+            for (const s of el.querySelectorAll('select')) keep[s.name] = s.value;
+            el.innerHTML = '<div class="gm-top"><h3>🎮 Games with ' + esc(q.n) + '</h3><button type="button" class="btn" data-gmclose title="Close">✕</button></div>' +
+                games.map(([id, icon, name], i) => {
+                    const fav = gmFavs.includes(id), first = fav && i === 0, after = !fav && i > 0 && gmFavs.includes(games[i - 1][0]);
+                    return (first ? '<div class="gm-head">★ Favourites</div>' : after ? '<div class="gm-head">More games</div>' : '') +
+                        '<div class="gm-row' + (fav ? ' fav' : '') + '"><button type="button" class="gm-star" data-gmfav="' + id + '" title="' + (fav ? 'Not a favourite' : 'Favourite') + '">' + (fav ? '★' : '☆') + '</button>' +
+                        '<span class="gm-name">' + icon + ' ' + esc(name) + '</span><span class="gm-act">' + gmActions(id, q) + '</span></div>';
+                }).join('');
+            for (const s of el.querySelectorAll('select')) if (keep[s.name]) s.value = keep[s.name];
+        }
+        box.addEventListener('click', (e) => {
+            const el = gmEl();
+            if (!el || !el.contains(e.target)) return;
+            e.stopPropagation();
+            const b = e.target.closest('button');
+            if (!b) return;
+            const d = b.dataset, to = gmTo, field = (n) => (el.querySelector('[name="' + n + '"]') || {}).value;
+            if ('gmclose' in d) { el.hidden = true; return; }
+            if (d.gmfav) {
+                gmFavs = gmFavs.includes(d.gmfav) ? gmFavs.filter(x => x !== d.gmfav) : gmFavs.concat(d.gmfav);
+                try { localStorage.setItem('ltl.gameFavs', JSON.stringify(gmFavs)); } catch { /* full */ }
+                return paintGm();
+            }
+            const close = () => { el.hidden = true; };
+            switch (d.gmact) {
+                case 'rps': close(); return core.send({ t: 'hall-rps', to });
+                case 'duel': close(); return core.send({ t: 'hall-duel', to });
+                case 'hk': close(); return core.send({ t: 'hall-hk', to, mode: d.mode || 'classic' });
+                case 'krace': close(); return kSend('new', { mode: 'public', track: field('gmTrack') || 'random', laps: Number(field('gmLaps')) || 3, invite: to });
+                case 'kpractice': close(); return kSend('new', { mode: 'practice', track: field('gmPTrack') || 'neon', laps: Number(field('gmLaps')) || 3 });
+                case 'kjoin': close(); kInvite = null; return kSend('join', { id: d.kid });
+                case 'kwatch': close(); kWatchId = d.kid; kSync(); return paintKart();
+                case 'tnew': close(); return core.send({ t: 'hall-table-new', g: d.g, n: Number(d.n) || 2 });
+                case 'tjoin': close(); return core.send({ t: 'hall-table-sit', id: d.tid });
+                case 'twatch': close(); view = d.tid; sel = null; hops = []; gamesEl.hidden = false; return paintGames();
+            }
+        }, true);
+        listen('keydown', (e) => { if (e.key === 'Escape' && gmEl() && !gmEl().hidden) gmEl().hidden = true; });
+        const gmT = setInterval(() => { const el = gmEl(); if (el && !el.hidden && !el.querySelector('select:focus')) paintGm(); }, 1000);
+        offs.push(() => clearInterval(gmT));
+
         /* ---------- rock paper scissors ---------- */
         // id → { id, a, b, state, picks, win, until }: shown over both players, finished ones for a few seconds.
         const games = new Map();
@@ -2768,15 +2928,10 @@
             const mineHeld = (mine() || {}).o;
             popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (q.afk ? '<small class="hp-afk">💤 away' + (q.afk !== 'afk' ? ': ' + esc(q.afk) : '') + '</small>' : '') + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
                 (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
-                '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
-                (myHk() ? '' : '<button type="button" class="btn" data-hk="' + esc(q.h) + '">🏒 Air hockey</button><button type="button" class="btn" data-hk="' + esc(q.h) + '" data-hkmode="space">🌌 Air Hockey Forever 2: Air in Space Time</button>') +
-                (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
-                    ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
-                    : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
+                '<button type="button" class="btn go" data-gmto="' + esc(q.h) + '">🎮 Games</button>' +
                 (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
                     : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
-                    : (duelOf(me) ? '' : '<button type="button" class="btn go" data-duel="' + esc(q.h) + '">⚔ Duel</button>') +
-                      HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
+                    : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
             popEl.style.left = Math.min(sr.width - 220, Math.max(4, e.clientX - sr.left + 8)) + 'px';
             popEl.style.top = Math.max(4, e.clientY - sr.top - 30) + 'px';
             popEl.hidden = false;
@@ -2789,6 +2944,8 @@
             if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
+            const gmb = e.target.closest('[data-gmto]');
+            if (gmb) return gmOpen(gmb.dataset.gmto);
             const hkb = e.target.closest('[data-hk]');
             if (hkb) { popEl.hidden = true; return core.send({ t: 'hall-hk', to: hkb.dataset.hk, mode: hkb.dataset.hkmode || 'classic' }); }
             const du = e.target.closest('[data-duel]');
@@ -3139,11 +3296,17 @@
             rpsEl.dataset.id = g ? g.id : done ? done.id : '';
         }
         box.addEventListener('click', (e) => {
-            const k = e.target.closest('.hall-kart [data-kart], .hall-kart [data-kwatch]');
+            const k = e.target.closest('.hall-kart [data-kact]');
             if (k) {
                 e.stopPropagation();
-                if (k.dataset.kart != null) { kNo = k.dataset.kart !== '1'; core.send({ t: 'hall-kart-join', yes: !kNo }); }
-                else { kWatch = k.dataset.kwatch === '1'; }
+                const act = k.dataset.kact, id = k.dataset.kid || ks.id, track = k.dataset.ktrack;
+                if (act === 'join') { kSend('join', { id }); kInvite = null; }
+                else if (act === 'leave') kSend('leave', { id });
+                else if (act === 'start') kSend('start', { id, ...(track ? { track } : {}) });
+                else if (act === 'vote') kSend('vote', { id, track });
+                else if (act === 'watch') { kWatchId = id; kInvite = null; kSync(); }
+                else if (act === 'unwatch') { kWatchId = ''; kSync(); }
+                else if (act === 'nothanks') kInvite = null;
                 paintKart();
                 return;
             }
