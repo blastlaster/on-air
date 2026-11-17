@@ -331,7 +331,7 @@
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 8 })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 9 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -1984,22 +1984,32 @@
            behind the far rail. Your mallet follows the mouse (or WASD / the arrows); hold the right
            button (or Space) to charge a power shot; swipe across the puck as you hit it to curve it.
            Every hit lands: a hit-stop, shake, sparks, the puck hopping, the speed shouted out.
-           The station runs the puck; your own hits go the moment you make them (hall-hk-hit). */
+           Air Hockey Forever 2: Air in Space Time adds judgement (the board falls away into space; black
+           holes), the white (a giant black hole; a bigger, quicker, quiet board; the puck a laser at speed)
+           and an ending (the two floating together). The station runs the pucks; your own hits go the
+           moment you make them (hall-hk-hit). */
         const HKT = { w: 600, h: 1000, goal: 220, mr: 38, pr: 24, maxPuck: 2100, maxMallet: 3200, drag: 0.22, wallE: 0.9, hitE: 0.95, keyV: 900,
             maxPower: 2900, powerUp: 1.35, spinPer: 1 / 900, spinMax: 2.6, spinDecay: 1.8, freezeFrom: 1300, freezeMax: 110,   // as engine/hall-hockey.js HK
+            holeR: 50, pull: 170, pullA: 1100, laser: 2300, overSpace: 9,
             chargeS: 0.7, chargeSlow: 0.18, stallS: 5 };                           // a full charge takes this long, and slows your mallet this much (as long as you hold it);
                                                                                      // the puck can't stay in one half longer than stallS (engine/hall-hockey.js HK.stallMs)
+        const HK_WHITE = { maxPuck: 2600, maxPower: 3500 };
         const hkFreezeFor = (s) => (s < HKT.freezeFrom ? 0 : Math.min(HKT.freezeMax, 40 + (s - HKT.freezeFrom) / (HKT.maxPower - HKT.freezeFrom) * (HKT.freezeMax - 40)));
         const hks = new Map();                  // id → the station's hall-hk (end: when a finished one goes)
-        const hkL = { id: '', puck: null, mine: null, foe: null, foeTo: null, tgt: null, sentAt: 0, sent: '', hitAt: -9, freeze: 0, lastN: 0,
-            charging: false, charge: 0, powerUntil: 0, hop: null, streak: { h: '', n: 0 }, goalAt: -9, goStart: -9, beep: -1, railAt: 0 };
-        const hkFx = { shake: 0, flash: 0, flashC: '#ffffff', sparks: [], rings: [], words: [], trail: [], confetti: [], crowdUp: 0 };
-        const myHk = () => { for (const g of hks.values()) if (g.a === me || g.b === me) return g; return null; };
+        const hkL = { id: '', pucks: new Map(), mine: null, foe: null, foeTo: null, foeV: null, tgt: null, sentAt: 0, sent: '', hitAt: -9, freeze: 0, lastN: 0,
+            charging: false, charge: 0, powerUntil: 0, hop: null, streak: { h: '', n: 0 }, fire: '', fireAt: -9, goalAt: -9, goStart: -9, beep: -1, railAt: 0,
+            holes: [], locks: {}, lockGot: {}, phase: 'normal', phaseStart: -9, overStart: -9 };
+        const hkFx = { shake: 0, flash: 0, flashC: '#ffffff', sparks: [], rings: [], words: [], confetti: [], crowdUp: 0, warps: [] };
+        // The game you're in: one being played wins over one that's only asking (someone challenging you meanwhile).
+        const myHk = () => { let asked = null; for (const g of hks.values()) if (g.a === me || g.b === me) { if (g.state !== 'asked') return g; asked = asked || g; } return asked; };
         const hkView = () => { const g = myHk(); return !!g && g.state !== 'asked' && g.state !== 'declined' && g.state !== 'expired' && (g.state !== 'over' || now() < g.end); };
         const hkA = () => { const g = myHk(); return !!g && g.a === me; };            // a defends y = HKT.h
         const hkMph = (s) => Math.round(s * 0.04);
         // How hard: the trail's colour, the word shouted.
-        const hkTier = (s, pw) => (pw ? ['#7ef0ff', 'SUPER SHOT!!'] : s >= 2000 ? ['#ff3b3b', 'MAX POWER!'] : s >= 1500 ? ['#ff8a2a', 'BLAZING!'] : s >= 1000 ? ['#ffe14d', 'FAST!'] : ['#ffffff', '']);
+        const hkTier = (s, pw) => (pw ? ['#7ef0ff', 'SUPER SHOT!!'] : s >= 2400 ? ['#ff4fd8', 'HYPERSPEED!!'] : s >= 2000 ? ['#ff3b3b', 'MAX POWER!'] : s >= 1500 ? ['#ff8a2a', 'BLAZING!'] : s >= 1000 ? ['#ffe14d', 'FAST!'] : ['#ffffff', '']);
+        const hkCaps = () => (hkL.phase === 'white' ? HK_WHITE : HKT);
+        /** The table's size now (the white's is bigger), from the station. */
+        function hkDims(g) { const d = (g && g.dims) || {}; HKT.w = d.w || 600; HKT.h = d.h || 1000; HKT.goal = d.goal || 220; }
 
         /* The sounds: made on the spot (no files), at the radio's volume. */
         let hkAc = null, hkOut = null;
@@ -2033,7 +2043,14 @@
             rail: (s) => { hkTone('square', 520 + s / 8, 300, 0.06, 0.18); hkNoise(0.04, 0.25, 3000); },
             goal: () => { hkTone('sawtooth', 220, 210, 0.9, 0.35); hkTone('sawtooth', 277, 270, 0.9, 0.3); hkTone('sawtooth', 330, 325, 0.9, 0.25); hkNoise(0.9, 0.35, 900, 0.05); },
             beep: (hi) => hkTone('square', hi ? 1320 : 660, hi ? 1320 : 660, hi ? 0.35 : 0.12, 0.25),
-            charged: () => hkTone('triangle', 600, 1500, 0.15, 0.25)
+            charged: () => hkTone('triangle', 600, 1500, 0.15, 0.25),
+            fire: () => { hkNoise(1.1, 0.7, 500); hkTone('sawtooth', 110, 440, 0.8, 0.35); },
+            warp: () => { hkTone('sine', 200, 1600, 0.25, 0.4); hkTone('sine', 1600, 300, 0.2, 0.3, 0.2); },
+            split: () => { hkTone('square', 900, 1200, 0.07, 0.25); hkTone('square', 900, 1400, 0.07, 0.25, 0.08); hkTone('square', 900, 1600, 0.07, 0.25, 0.16); },
+            lock: () => { hkTone('triangle', 2400, 300, 0.5, 0.35); hkNoise(0.3, 0.3, 5000); },
+            fall: () => { hkNoise(2.2, 0.8, 120); hkTone('sine', 300, 40, 2.2, 0.6); },
+            white: () => { hkNoise(2.4, 0.7, 80); hkTone('sine', 60, 30, 2.4, 0.7); for (const [f, at] of [[523, 2.6], [659, 2.75], [784, 2.9], [1047, 3.05]]) hkTone('sine', f, f, 1.6, 0.18, at); },
+            end: () => { for (const [f, at] of [[523, 0], [659, 0.2], [784, 0.4], [1047, 0.6], [1319, 0.8]]) hkTone('triangle', f, f, 1.2, 0.2, at); }
         };
 
         function onHk(m, quiet) {
@@ -2042,17 +2059,36 @@
                 hks.delete(m.id);
                 if (!quiet && m.state === 'declined' && m.a === me) logLine({ text: '🏒 ' + nameOf(m.b) + ' doesn’t want to play air hockey right now.' }, 'game');
             } else hks.set(m.id, { ...m, end: t + (m.until || 0) / 1000 });
-            if (m.a !== me && m.b !== me) { if (!quiet && m.state === 'over' && !m.why) logLine({ text: '🏒 ' + nameOf(m.win) + ' wins at air hockey, ' + Math.max(...m.score) + '–' + Math.min(...m.score) + '!' }, 'game'); }
+            const space = m.mode === 'space', title = space ? 'Air Hockey Forever 2' : 'air hockey';
+            if (m.a !== me && m.b !== me) { if (!quiet && m.state === 'over' && !m.why) logLine({ text: '🏒 ' + nameOf(m.win) + ' wins at ' + title + ', ' + Math.max(...m.score) + '–' + Math.min(...m.score) + '!' }, 'game'); }
             else {
-                if (hkL.id !== m.id) { Object.assign(hkL, { id: m.id, puck: null, mine: null, foe: null, lastN: 0, streak: { h: '', n: 0 }, charge: 0 }); hkFx.trail = []; }
-                if (m.state === 'asked' && !was && m.b === me && !quiet) U.toast('🏒 ' + nameOf(m.a) + ' challenges you to air hockey!');
-                if (m.state === 'ready') { hkL.puck = null; hkFx.trail = []; hkL.beep = -1; hkL.side = ''; if (m.fault && was && was.state === 'playing') { hkSfx.rail(200); hkFx.shake = 3; } }
+                const playing = myHk();
+                if (playing && playing.id !== m.id && playing.state !== 'asked') {         // a challenge while you're at the table: just the toast
+                    if (m.state === 'asked' && m.b === me && !quiet) U.toast('🏒 ' + nameOf(m.a) + ' wants a game next.');
+                    return paintHk();
+                }
+                if (hkL.id !== m.id) {
+                    Object.assign(hkL, { id: m.id, mine: null, foe: null, lastN: 0, streak: { h: '', n: 0 }, fire: '', charge: 0, holes: [], locks: {}, phase: m.phase || 'normal', phaseStart: t - (m.phaseAgo || 0) / 1000 - 99 });
+                    hkL.pucks.clear();
+                }
+                hkDims(m);
+                if (m.phase && m.phase !== hkL.phase) {                         // judgement, or the white
+                    hkL.phase = m.phase; hkL.phaseStart = t - (m.phaseAgo || 0) / 1000;
+                    hkL.mine = null; hkL.foe = null; hkL.tgt = null; hkL.holes = [];
+                    if (!quiet) { if (m.phase === 'space') hkSfx.fall(); else if (m.phase === 'white') hkSfx.white(); hkFx.shake = 6; }
+                }
+                if (m.state === 'asked' && !was && m.b === me && !quiet) U.toast('🏒 ' + nameOf(m.a) + ' challenges you to ' + (space ? 'Air Hockey Forever 2: Air in Space Time!' : 'air hockey!'));
+                if (m.state === 'ready') { hkL.pucks.clear(); hkL.beep = -1; hkL.side = ''; hkL.holes = []; hkL.locks = {}; if (m.fault && was && was.state === 'playing') { hkSfx.rail(200); hkFx.shake = 3; } }
                 if (m.state === 'playing' && was && was.state !== 'playing') { hkL.goStart = t; hkSfx.beep(true); }
                 if (m.state === 'goal' && was && was.state !== 'goal') hkGoal(m.by, t);
-                if (m.state === 'over' && (!was || was.state !== 'over') && !quiet) {
-                    const won = m.win === me, sc = (m.a === me ? m.score : [m.score[1], m.score[0]]).join('–');
-                    logLine({ text: '🏒 ' + (m.why === 'left' && won ? nameOf(m.a === me ? m.b : m.a) + ' left — you win!' : won ? 'You win at air hockey, ' + sc + '!' : nameOf(m.win) + ' wins at air hockey, ' + sc + '.') }, 'game');
-                    if (won) { hkFx.flash = 0.4; hkFx.flashC = '#ffd34a'; hkConfetti(A.W / 2, 40, 90); }
+                if (m.state === 'over' && (!was || was.state !== 'over')) {
+                    hkL.overStart = t;
+                    if (!quiet) {
+                        const won = m.win === me, sc = (m.a === me ? m.score : [m.score[1], m.score[0]]).join('–');
+                        logLine({ text: '🏒 ' + (m.why === 'left' && won ? nameOf(m.a === me ? m.b : m.a) + ' left — you win!' : won ? 'You win at ' + title + ', ' + sc + '!' : nameOf(m.win) + ' wins at ' + title + ', ' + sc + '.') }, 'game');
+                        if (won) { hkFx.flash = 0.4; hkFx.flashC = '#ffd34a'; hkConfetti(A.W / 2, 40, 90); }
+                        if (space && !m.why) hkSfx.end();
+                    }
                 }
             }
             if (m.state === 'over' && !m.why) { const p = people.get(m.win); if (p) p.star = performance.now() + 15000; }
@@ -2061,42 +2097,88 @@
         function onHkAt(m) {
             const g = myHk();
             if (!g || g.id !== m.id) return;
-            const t = now(), [x, y, vx, vy, sp] = m.p, foeH = g.a === me ? g.b : g.a;
+            const t = now(), foeH = g.a === me ? g.b : g.a;
+            // Their mallet: where it is, and how it's moving (so it can be drawn a little ahead, not behind).
             const f = m.m[foeH];
-            if (f) { hkL.foeTo = { x: f[0], y: f[1] }; if (!hkL.foe) hkL.foe = { x: f[0], y: f[1], vx: 0, vy: 0 }; }
+            if (f) {
+                if (hkL.foeTo) { const dtm = Math.max(0.016, t - hkL.foeTo.at); hkL.foeV = { x: (f[0] - hkL.foeTo.x) / dtm, y: (f[1] - hkL.foeTo.y) / dtm }; }
+                hkL.foeTo = { x: f[0], y: f[1], at: t };
+                if (!hkL.foe) hkL.foe = { x: f[0], y: f[1], vx: 0, vy: 0 };
+            }
             if (!hkL.mine && m.m[me]) hkL.mine = { x: m.m[me][0], y: m.m[me][1], vx: 0, vy: 0 };
+            hkL.holes = (m.holes || []).map(([id, x, y, kind, left, old]) => ({ id, x, y, kind, end: t + left / 1000, start: t - old / 1000 }));
+            const locks = {};
+            for (const [h, ms] of Object.entries(m.locks || {})) locks[h] = t + ms / 1000;
+            hkL.locks = locks;
+            const holed = new Set();
+            for (const e of m.ev || []) { hkEvent(e, t); if (e.k === 'warp' || e.k === 'split') holed.add(e.pid); }
             // A hit the station counted: mine (it took my word for it), or theirs — that one lands here now,
             // from where the station has it, with its bang and hit-stop.
-            const newHit = (m.n || 0) > hkL.lastN, echo = newHit && m.hb === me, theirs = newHit && m.hb !== me, srv = { x, y, vx, vy, spin: (sp || 0) / 100 };
+            const newHit = (m.n || 0) > hkL.lastN, theirs = newHit && m.hb !== me;
             if (newHit) hkL.lastN = m.n;
-            const P = hkL.puck;
-            if (theirs) {
-                hkL.puck = srv; hkL.freeze = t + (m.fz || 0) / 1000; hkL.foeWait = 0; hkL.hitAt = -9;
-                hkBang(x, y, m.hs || Math.hypot(vx, vy), !!m.pw, false);
-                return;
+            const list = m.ps || [[0, ...m.p]], seen = new Set();
+            for (const [pid, x, y, vx, vy, sp] of list) {
+                seen.add(pid);
+                const srv = { x, y, vx, vy, spin: (sp || 0) / 100 };
+                let P = hkL.pucks.get(pid);
+                if (!P) { hkL.pucks.set(pid, { id: pid, ...srv, trail: [], hitAt: -9, wait: 0 }); continue; }
+                if (theirs && (m.hp === pid || !m.hp)) {
+                    Object.assign(P, srv); hkL.freeze = t + (m.fz || 0) / 1000; P.wait = 0; P.hitAt = -9;
+                    hkBang(x, y, m.hs || Math.hypot(vx, vy), !!m.pw, false);
+                    continue;
+                }
+                if (holed.has(pid)) { Object.assign(P, srv); P.wait = 0; P.hitAt = -9; P.holeAt = t; continue; }     // a black hole had it: where it came out
+                if (newHit && m.hb === me && m.hp === pid) P.hitAt = -9;       // confirmed: back to following the station
+                if (g.state !== 'playing') { Object.assign(P, srv); continue; }
+                // Waiting on the other one's hit, or a black hole (the puck reached it here): hold it until the news comes.
+                if (P.wait && t - P.wait < 0.45) { if (Math.hypot(P.x - x, P.y - y) > 60) { Object.assign(P, srv); P.wait = 0; } continue; }
+                // Just after my own hit, mine is the newer news: keep it until the station says it took it (or ~0.6 s).
+                if (t - P.hitAt < 0.6) continue;
+                // Otherwise the station's puck: eased into, unless it's well out.
+                if (Math.hypot(P.x - x, P.y - y) > 140) Object.assign(P, srv);
+                else { P.x += (x - P.x) * 0.4; P.y += (y - P.y) * 0.4; P.vx = vx; P.vy = vy; P.spin = srv.spin; }
             }
-            if (echo) hkL.hitAt = -9;                                    // confirmed: back to following the station
-            // Just after my own hit, mine is the newer news: keep it until the station says it took it (or ~0.6 s).
-            if (P && g.state === 'playing' && t - hkL.hitAt < 0.6) return;
-            // Waiting on the other one's hit (the puck reached their mallet here): hold it until it comes.
-            if (P && g.state === 'playing' && hkL.foeWait && t - hkL.foeWait < 0.35) return;
-            // Otherwise the station's puck: eased into, unless it's well out.
-            if (!P || g.state !== 'playing' || Math.hypot(P.x - x, P.y - y) > 140) hkL.puck = srv;
-            else { P.x += (x - P.x) * 0.4; P.y += (y - P.y) * 0.4; P.vx = vx; P.vy = vy; P.spin = srv.spin; }
+            for (const pid of [...hkL.pucks.keys()]) if (!seen.has(pid)) hkL.pucks.delete(pid);
+        }
+        /** Black holes doing their thing: the flash, the word, the sound. */
+        function hkEvent(e, t) {
+            const [sx, sy] = hkTo(e.x, e.y);
+            if (e.k === 'warp') {
+                const [tx, ty] = hkTo(e.to[0], e.to[1]);
+                hkFx.rings.push({ x: sx, y: sy, at: t, c: '#b88cf2', big: 1.2 }, { x: tx, y: ty, at: t + 0.05, c: '#ffffff', big: 1.2 });
+                hkFx.warps.push({ x: sx, y: sy, tx, ty, at: t });
+                hkFx.words.push({ x: tx, y: ty - 8, at: t, mph: 'WARP!', word: '', c: '#b88cf2', big: false });
+                hkSfx.warp();
+            } else if (e.k === 'split') {
+                hkFx.rings.push({ x: sx, y: sy, at: t, c: '#4fd36e', big: 1.6 });
+                for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; hkFx.sparks.push({ x: sx, y: sy, vx: Math.cos(a) * 70, vy: Math.sin(a) * 45, at: t, life: 0.5, c: i % 2 ? '#4fd36e' : '#ffffff' }); }
+                hkFx.words.push({ x: sx, y: sy - 8, at: t, mph: 'SPLIT!', word: 'x3', c: '#4fd36e', big: false });
+                hkSfx.split();
+            } else if (e.k === 'lock') {
+                hkL.lockGot[e.h] = t;
+                const M = e.h === me ? hkL.mine : hkL.foe, [mx, my] = M ? hkTo(M.x, M.y) : [sx, sy];
+                hkFx.rings.push({ x: mx, y: my, at: t, c: '#7ef0ff', big: 1.4 });
+                hkFx.words.push({ x: mx, y: my - 10, at: t, mph: e.h === me ? 'LOCKED!' : 'THEY’RE LOCKED!', word: '', c: '#7ef0ff', big: e.h === me });
+                hkSfx.lock();
+            } else if (e.k === 'pop') {
+                hkFx.rings.push({ x: sx, y: sy, at: t, c: '#ffffff', big: 0.5 });
+            }
         }
 
         /* The table on the screen: lying across it (your goal on the left), tilted towards you — the far rail
-           narrower, everything smaller the further back it is. u: along the table from your goal (0–1000),
-           v: across it from the far rail (0–600). */
-        const HKS = { cx: 120, y0: 44, th: 80, s: 0.205, far: 0.8 };
+           narrower, everything smaller the further back it is. u: along the table from your goal (0–h),
+           v: across it from the far rail (0–w). The white's table is bigger, so it's drawn a little bigger. */
+        const HKS = { cx: 120, y0: 44, th: 80, len: 205, far: 0.8 };
+        function hkFit() { const white = hkL.phase === 'white'; HKS.y0 = white ? 40 : 44; HKS.th = white ? 88 : 80; HKS.len = white ? 218 : 205; }
         const hkUV = (x, y) => (hkA() ? [HKT.h - y, x] : [y, HKT.w - x]);
         const hkXY = (u, v) => (hkA() ? [v, HKT.h - u] : [HKT.w - v, u]);
-        function hkScr(u, v) { const f = v / HKT.w, k = HKS.far + (1 - HKS.far) * f; return [HKS.cx + (u - HKT.h / 2) * HKS.s * k, HKS.y0 + f * HKS.th, k]; }
+        function hkScr(u, v) { const f = v / HKT.w, k = HKS.far + (1 - HKS.far) * f, s = HKS.len / HKT.h; return [HKS.cx + (u - HKT.h / 2) * s * k, HKS.y0 + f * HKS.th, k * s / 0.205]; }
         function hkTo(x, y) { return hkScr(...hkUV(x, y)); }
         function hkFrom(sx, sy) {
-            const f = Math.max(-0.2, Math.min(1.2, (sy - HKS.y0) / HKS.th)), k = HKS.far + (1 - HKS.far) * f;
-            return hkXY((sx - HKS.cx) / (HKS.s * k) + HKT.h / 2, f * HKT.w);
+            const f = Math.max(-0.2, Math.min(1.2, (sy - HKS.y0) / HKS.th)), k = HKS.far + (1 - HKS.far) * f, s = HKS.len / HKT.h;
+            return hkXY((sx - HKS.cx) / (s * k) + HKT.h / 2, f * HKT.w);
         }
+        const hkR = (r, k) => r * 0.205 * k;                                    // a radius on the table, on the screen
         function hkClamp(x, y) {
             x = Math.max(HKT.mr, Math.min(HKT.w - HKT.mr, x));
             y = hkA() ? Math.max(HKT.h / 2 + HKT.mr, Math.min(HKT.h - HKT.mr, y)) : Math.max(HKT.mr, Math.min(HKT.h / 2 - HKT.mr, y));
@@ -2121,7 +2203,7 @@
             pk.spin = Math.max(-HKT.spinMax, Math.min(HKT.spinMax, across * HKT.spinPer));
             let sp = Math.hypot(pk.vx, pk.vy);
             if (power > 0) { const k = 1 + (HKT.powerUp - 1) * Math.min(1, power); pk.vx *= k; pk.vy *= k; sp *= k; }
-            const max = power > 0 ? HKT.maxPower : HKT.maxPuck;
+            const caps = hkCaps(), max = power > 0 ? caps.maxPower : caps.maxPuck;
             if (sp > max) { pk.vx *= max / sp; pk.vy *= max / sp; sp = max; }
             return sp;
         }
@@ -2131,6 +2213,14 @@
             const a = s * h, c = Math.cos(a), si = Math.sin(a), vx = pk.vx;
             pk.vx = vx * c - pk.vy * si; pk.vy = vx * si + pk.vy * c;
             pk.spin = Math.abs(s) < 0.02 ? 0 : s * Math.exp(-HKT.spinDecay * h);
+        }
+        function hkPull(pk, h) {
+            for (const q of hkL.holes) {
+                const dx = q.x - pk.x, dy = q.y - pk.y, d = Math.hypot(dx, dy);
+                if (d < 1 || d > HKT.pull) continue;
+                const a = HKT.pullA * (1 - d / HKT.pull) * h;
+                pk.vx += dx / d * a; pk.vy += dy / d * a;
+            }
         }
 
         /* ---- the bangs ---- */
@@ -2154,21 +2244,39 @@
             const t = now(), C = ['#ff4fd8', '#39e6ff', '#ffe14d', '#4fd36e', '#ff8a2a', '#ffffff'];
             for (let i = 0; i < n; i++) hkFx.confetti.push({ x: sx, y: sy, vx: (Math.random() - 0.5) * 160, vy: -40 - Math.random() * 120, at: t, c: C[i % C.length], spin: Math.random() * 6 });
         }
+        /** Where a player stands (or floats): at their end, or (the ending) drifting into the middle. */
+        function hkSpot(h, t) {
+            const g = myHk(), left = h === me, home = [left ? 9 : A.W - 9, HKS.y0 + HKS.th * 0.75];
+            if (!g || g.state !== 'over' || g.mode !== 'space' || g.why) return home;
+            const k = Math.min(1, Math.max(0, (t - hkL.overStart - 0.6) / 2.2)), e = k * k * (3 - 2 * k);
+            const mid = [A.W / 2 + (left ? -16 : 16), A.H / 2 + 14];
+            return [home[0] + (mid[0] - home[0]) * e, home[1] + (mid[1] - home[1]) * e];
+        }
         function hkGoal(by, t) {
             hkL.goalAt = t;
             hkL.streak = hkL.streak.h === by ? { h: by, n: hkL.streak.n + 1 } : { h: by, n: 1 };
-            const P = hkL.puck, [sx, sy] = P ? hkTo(P.x, P.y) : [A.W / 2, 80];
+            const P = [...hkL.pucks.values()][0], [sx, sy] = P ? hkTo(P.x, P.y) : [A.W / 2, 80];
             hkFx.shake = 9; hkFx.flash = 0.35; hkFx.flashC = by === me ? '#4fd36e' : '#ff4040'; hkFx.crowdUp = 1.6;
             hkConfetti(sx < A.W / 2 ? 12 : A.W - 12, sy, 70);
+            const [ax, ay] = hkSpot(by, t);
+            hkConfetti(ax, ay - 14, 30);                                         // the scorer's own cheer
             hkSfx.goal();
+            if (hkL.fire && hkL.fire !== by) hkL.fire = '';                      // the other one's put the fire out
+            if (hkL.streak.n >= 3 && hkL.fire !== by) {
+                // ON FIRE: they burst into flames.
+                hkL.fire = by; hkL.fireAt = t;
+                hkFx.flash = 0.5; hkFx.flashC = '#ff8a2a'; hkFx.shake = 12;
+                for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 90; hkFx.sparks.push({ x: ax, y: ay - 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, at: t, life: 0.6 + Math.random() * 0.6, c: ['#ffe14d', '#ff8a2a', '#ff3b3b', '#ffffff'][i % 4] }); }
+                hkSfx.fire();
+            }
         }
 
-        /** Every frame at the table: your mallet (and charge), the other one's (eased), the puck (spin, hit-stop, your hits). */
+        /** Every frame at the table: your mallet (and charge), the other one's (ahead a little), the pucks (spin, the pull, hit-stop, your hits). */
         function hkStep(dt) {
             const g = myHk(), t = now();
             if (!g) return;
             if (!hkL.mine) { const y = hkA() ? HKT.h - 150 : 150; hkL.mine = { x: HKT.w / 2, y, vx: 0, vy: 0 }; }
-            const M = hkL.mine;
+            const M = hkL.mine, lockedMe = (hkL.locks[me] || 0) > t;
             // Keys: your mallet goes the way they point on your screen.
             let kx = 0, ky = 0;
             if (keys.has('a') || keys.has('arrowleft')) kx -= 1; if (keys.has('d') || keys.has('arrowright')) kx += 1;
@@ -2181,119 +2289,235 @@
             const was = hkL.charge;
             hkL.charge = hkL.charging && g.state === 'playing' ? Math.min(1, hkL.charge + dt / HKT.chargeS) : 0;
             if (was < 1 && hkL.charge >= 1) hkSfx.charged();
-            const [tx, ty] = hkL.tgt || [M.x, M.y], dx = tx - M.x, dy = ty - M.y, d = Math.hypot(dx, dy);
-            const s = Math.min(d, HKT.maxMallet * (hkL.charging ? HKT.chargeSlow : 1) * dt), ux = d ? dx / d : 0, uy = d ? dy / d : 0;
+            const [tx, ty] = hkL.tgt ? hkClamp(...hkL.tgt) : [M.x, M.y], dx = tx - M.x, dy = ty - M.y, d = Math.hypot(dx, dy);
+            const s = lockedMe ? 0 : Math.min(d, HKT.maxMallet * (hkL.charging ? HKT.chargeSlow : 1) * dt), ux = d ? dx / d : 0, uy = d ? dy / d : 0;
             M.vx = dt ? ux * s / dt : 0; M.vy = dt ? uy * s / dt : 0;
+            // Theirs: towards where it was last heard of, carried on the way it was going (a little), quickly.
             const F = hkL.foe;
             let fdx = 0, fdy = 0;
             if (F && hkL.foeTo) {
-                const e = Math.min(1, dt * 20);
-                fdx = (hkL.foeTo.x - F.x) * e; fdy = (hkL.foeTo.y - F.y) * e;
+                const age = Math.min(0.08, t - hkL.foeTo.at), v = (hkL.locks[g.a === me ? g.b : g.a] || 0) > t ? { x: 0, y: 0 } : hkL.foeV || { x: 0, y: 0 };
+                const gx = hkL.foeTo.x + v.x * age, gy = hkL.foeTo.y + v.y * age, e = Math.min(1, dt * 30);
+                fdx = (gx - F.x) * e; fdy = (gy - F.y) * e;
                 F.vx = dt ? fdx / dt : 0; F.vy = dt ? fdy / dt : 0;
             }
-            if (hkL.foeWait && t - hkL.foeWait >= 0.35) hkL.foeWait = 0;
-            const P = g.state === 'playing' ? hkL.puck : null, frozen = t < hkL.freeze || !!hkL.foeWait;
-            // In small steps, so a fast swing (or a slow frame) can't jump the mallet clean over the puck.
-            const n = Math.max(1, Math.ceil(Math.max(s, P && !frozen ? Math.hypot(P.vx, P.vy) * dt : 0) / 20));
-            let hit = 0, rail = 0;
+            const frozen = t < hkL.freeze, live = g.state === 'playing' ? [...hkL.pucks.values()] : [];
+            for (const P of live) if (P.wait && t - P.wait >= 0.45) P.wait = 0;
+            // In small steps, so a fast swing (or a slow frame) can't jump the mallet clean over a puck.
+            const fastest = live.reduce((a, P) => Math.max(a, P.wait || frozen ? 0 : Math.hypot(P.vx, P.vy) * dt), 0);
+            const n = Math.max(1, Math.ceil(Math.max(s, fastest) / 20));
+            let hit = 0, hitP = null, rail = 0, railP = null;
             for (let i = 0; i < n; i++) {
                 M.x += ux * s / n; M.y += uy * s / n;
                 if (F) { F.x += fdx / n; F.y += fdy / n; }
-                if (!P || frozen) continue;
+                if (frozen) continue;
                 const h = dt / n;
-                hkCurve(P, h);
-                P.x += P.vx * h; P.y += P.vy * h;
-                if (P.x < HKT.pr) { P.x = HKT.pr; P.vx = Math.abs(P.vx) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vx)); }
-                if (P.x > HKT.w - HKT.pr) { P.x = HKT.w - HKT.pr; P.vx = -Math.abs(P.vx) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vx)); }
-                const mouth = Math.abs(P.x - HKT.w / 2) < HKT.goal / 2 - HKT.pr * 0.3;
-                if (!mouth) {
-                    if (P.y < HKT.pr) { P.y = HKT.pr; P.vy = Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
-                    if (P.y > HKT.h - HKT.pr) { P.y = HKT.h - HKT.pr; P.vy = -Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
-                } else P.y = Math.max(-HKT.pr * 2, Math.min(HKT.h + HKT.pr * 2, P.y));      // in the goal: the station says so
-                // (Not again straight after your hit: the puck sits still for the hit-stop while your mallet carries on,
-                // and touching it then would shove it out backwards.)
-                const pw = hkL.charge >= 0.25 ? hkL.charge : 0, got = t >= (hkL.noHitUntil || 0) ? hkHitOff(P, M, pw) : 0;
-                if (got) { hit = got; if (pw) { hkL.pw = true; hkL.charge = 0; } else hkL.pw = false; break; }
-                // Their mallet reaching it, as you see it: hold the puck there till the station says where they sent it.
-                if (F && !hkL.foeWait && t - (hkL.foeHeld || 0) > 0.5) {
-                    const dx2 = P.x - F.x, dy2 = P.y - F.y, d2 = Math.hypot(dx2, dy2), min = HKT.mr + HKT.pr;
-                    if (d2 < min && d2 > 0 && (P.vx - F.vx) * dx2 + (P.vy - F.vy) * dy2 < 0) {
-                        P.x = F.x + dx2 / d2 * min; P.y = F.y + dy2 / d2 * min;
-                        hkL.foeWait = hkL.foeHeld = t;
-                        break;
+                for (const P of live) {
+                    if (P.wait) continue;
+                    hkCurve(P, h); hkPull(P, h);
+                    P.x += P.vx * h; P.y += P.vy * h;
+                    const r0 = rail;
+                    if (P.x < HKT.pr) { P.x = HKT.pr; P.vx = Math.abs(P.vx) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vx)); }
+                    if (P.x > HKT.w - HKT.pr) { P.x = HKT.w - HKT.pr; P.vx = -Math.abs(P.vx) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vx)); }
+                    const mouth = Math.abs(P.x - HKT.w / 2) < HKT.goal / 2 - HKT.pr * 0.3;
+                    if (!mouth) {
+                        if (P.y < HKT.pr) { P.y = HKT.pr; P.vy = Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
+                        if (P.y > HKT.h - HKT.pr) { P.y = HKT.h - HKT.pr; P.vy = -Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
+                    } else P.y = Math.max(-HKT.pr * 2, Math.min(HKT.h + HKT.pr * 2, P.y));      // in the goal: the station says so
+                    if (rail > r0) railP = P;
+                    // Into a black hole, as you see it: it waits there till the station says what happened.
+                    if (t - (P.holeAt || 0) > 0.7 && hkL.holes.some(q => Math.hypot(q.x - P.x, q.y - P.y) < HKT.holeR * 0.7)) { P.wait = P.holeAt = t; continue; }
+                    // (Not again straight after your hit: the puck sits still for the hit-stop while your mallet carries on,
+                    // and touching it then would shove it out backwards.)
+                    const pw = hkL.charge >= 0.25 ? hkL.charge : 0, got = t >= (hkL.noHitUntil || 0) ? hkHitOff(P, M, pw) : 0;
+                    if (got) { hit = got; hitP = P; hkL.pw = pw > 0; if (pw) hkL.charge = 0; break; }
+                    // Their mallet reaching it, as you see it: hold the puck there till the station says where they sent it.
+                    if (F && t - (P.foeHeld || 0) > 0.5) {
+                        const dx2 = P.x - F.x, dy2 = P.y - F.y, d2 = Math.hypot(dx2, dy2), min = HKT.mr + HKT.pr;
+                        if (d2 < min && d2 > 0 && (P.vx - F.vx) * dx2 + (P.vy - F.vy) * dy2 < 0) {
+                            P.x = F.x + dx2 / d2 * min; P.y = F.y + dy2 / d2 * min;
+                            P.wait = P.foeHeld = t;
+                        }
                     }
                 }
+                if (hit) break;
             }
             const key = Math.round(M.x) + ',' + Math.round(M.y);
-            if (key !== hkL.sent && t - hkL.sentAt > 0.028) { hkL.sent = key; hkL.sentAt = t; core.send({ t: 'hall-hk-m', id: g.id, x: Math.round(M.x), y: Math.round(M.y) }); }
-            if (!P) return;
+            if (key !== hkL.sent && t - hkL.sentAt > 0.016) { hkL.sent = key; hkL.sentAt = t; core.send({ t: 'hall-hk-m', id: g.id, x: Math.round(M.x), y: Math.round(M.y) }); }
             if (hit && t - hkL.hitAt > 0.08) {
-                hkL.hitAt = t; hkL.freeze = t + hkFreezeFor(hit) / 1000; hkL.noHitUntil = hkL.freeze + 0.15;
-                core.send({ t: 'hall-hk-hit', id: g.id, x: Math.round(P.x), y: Math.round(P.y), vx: Math.round(P.vx), vy: Math.round(P.vy), spin: +(P.spin || 0).toFixed(3), pw: !!hkL.pw });
-                hkBang(P.x, P.y, hit, !!hkL.pw, true);
+                hkL.hitAt = hitP.hitAt = t; hkL.freeze = t + hkFreezeFor(hit) / 1000; hkL.noHitUntil = hkL.freeze + 0.15;
+                core.send({ t: 'hall-hk-hit', id: g.id, pid: hitP.id, x: Math.round(hitP.x), y: Math.round(hitP.y), vx: Math.round(hitP.vx), vy: Math.round(hitP.vy), spin: +(hitP.spin || 0).toFixed(3), pw: !!hkL.pw });
+                hkBang(hitP.x, hitP.y, hit, !!hkL.pw, true);
             }
-            if (rail > 500 && t - hkL.railAt > 0.08) {
+            if (rail > 500 && railP && t - hkL.railAt > 0.08) {
                 hkL.railAt = t; hkSfx.rail(rail);
-                const [sx, sy] = hkTo(P.x, P.y);
-                hkFx.rings.push({ x: sx, y: sy, at: t, c: '#ffffff', big: 0.35 });
+                const [sx, sy] = hkTo(railP.x, railP.y);
+                hkFx.rings.push({ x: sx, y: sy, at: t, c: hkL.phase === 'white' ? '#c8c4d0' : '#ffffff', big: 0.35 });
                 hkFx.shake = Math.max(hkFx.shake, rail / 900);
             }
-            if (!frozen) { const k = Math.exp(-HKT.drag * dt); P.vx *= k; P.vy *= k; }
+            if (!frozen) { const k = Math.exp(-HKT.drag * dt); for (const P of live) if (!P.wait) { P.vx *= k; P.vy *= k; } }
         }
 
-        /** The arena: crowd, table, players, mallets, puck and its trail, the bangs; then the words at screen size. */
-        function hkFrame(dt, t) {
-            const g = myHk(), foeH = g.a === me ? g.b : g.a;
-            hkStep(dt);
-            const L = lc, P = hkL.puck;
-            // The arena: dark, two spotlights sweeping, a crowd of heads behind the far rail.
+        /* ---- the scenes ---- */
+        const STARS = Array.from({ length: 90 }, (_, i) => [(i * 97.3) % 240, (i * 53.7 + (i % 7) * 11) % 150, i % 5]);
+        function hkSpaceBg(L, t, a = 1) {
+            L.globalAlpha = a;
+            L.fillStyle = '#05030f'; L.fillRect(0, 0, A.W, A.H);
+            for (const [cx, cy, r, c] of [[50, 40, 70, 'rgba(184,140,242,0.18)'], [190, 110, 80, 'rgba(57,230,255,0.12)'], [150, 30, 50, 'rgba(255,79,216,0.12)']]) {
+                const gr = L.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)');
+                L.fillStyle = gr; L.fillRect(cx - r, cy - r, r * 2, r * 2);
+            }
+            for (const [x, y, k] of STARS) { L.fillStyle = (k + Math.floor(t * 3)) % 5 ? '#c8c0ff' : '#ffffff'; L.fillRect(Math.round((x - t * (1 + k)) % 240 + 240) % 240, y, 1, 1); }
+            L.globalAlpha = 1;
+        }
+        function hkWhiteBg(L, t) {
+            L.fillStyle = '#ffffff'; L.fillRect(0, 0, A.W, A.H);
+            L.globalAlpha = 0.25;
+            for (let i = 0; i < 6; i++) { const x = (i * 47 + t * 4) % 260 - 10; L.fillStyle = '#e8e4f8'; L.beginPath(); L.ellipse(x, 30 + i * 18, 30, 6, 0, 0, Math.PI * 2); L.fill(); }
+            L.globalAlpha = 1;
+        }
+        function hkArenaBg(L, t) {
             L.fillStyle = '#140b26'; L.fillRect(0, 0, A.W, A.H);
             L.globalAlpha = 0.12; L.fillStyle = '#ff4fd8';
             for (const [ox, sp] of [[60, 0.7], [180, -0.6]]) { const sw = Math.sin(t * sp) * 30; L.beginPath(); L.moveTo(ox + sw - 6, 0); L.lineTo(ox + sw + 6, 0); L.lineTo(ox + sw * 2 + 40, A.H); L.lineTo(ox + sw * 2 - 40, A.H); L.fill(); L.fillStyle = '#39e6ff'; }
             L.globalAlpha = 1;
-            hkFx.crowdUp = Math.max(0, hkFx.crowdUp - dt);
+        }
+        function hkCrowd(L, t, dy = 0, a = 1) {
+            hkFx.crowdUp = Math.max(0, hkFx.crowdUp - 1 / 60);
             const CROWD = ['#ff8a9a', '#ffd34a', '#7ef0ff', '#b88cf2', '#4fd36e', '#ff8a2a', '#e8e4f0'];
+            L.globalAlpha = a;
             for (let i = 0; i < 34; i++) {
                 const x = 4 + i * 7 + (i % 2) * 3, jump = hkFx.crowdUp > 0 ? Math.abs(Math.sin(t * 14 + i)) * 5 * Math.min(1, hkFx.crowdUp) : Math.abs(Math.sin(t * 2 + i * 1.7)) * 1.2;
-                const y = 30 + (i % 3) * 3 - jump;
+                const y = 30 + (i % 3) * 3 - jump + dy * (0.6 + (i % 4) * 0.2);
                 L.fillStyle = '#2a1f48'; L.fillRect(x - 3, y + 3, 7, 8);
                 L.fillStyle = CROWD[i % CROWD.length]; L.fillRect(x - 2, y - 2, 5, 5);
-                if (hkFx.crowdUp > 0.3 && i % 2) { L.fillRect(x - 4, y - 4 - jump * 0.3, 1, 3); L.fillRect(x + 4, y - 4 - jump * 0.3, 1, 3); }     // arms up
+                if (hkFx.crowdUp > 0.3 && i % 2) { L.fillRect(x - 4, y - 4 - jump * 0.3, 1, 3); L.fillRect(x + 4, y - 4 - jump * 0.3, 1, 3); }
             }
-            // The table: the rails' front face (it has some depth), the top, the ends, the markings.
+            L.globalAlpha = 1;
+        }
+        /** The table: rails, top, markings, goal mouths — in the arena's colours, space's, or the white's. */
+        function hkTable(L, t, style, g) {
             const c = (u, v) => hkScr(u, v);
             const [flx, fly] = c(0, 0), [frx] = c(HKT.h, 0), [nlx, nly] = c(0, HKT.w), [nrx] = c(HKT.h, HKT.w);
             const quad = (pts, fill) => { L.fillStyle = fill; L.beginPath(); L.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) L.lineTo(p[0], p[1]); L.closePath(); L.fill(); };
-            quad([[nlx - 6, nly + 4], [nrx + 6, nly + 4], [nrx + 6, nly + 12], [nlx - 6, nly + 12]], '#1a1430');                 // the table's side, below the near rail
-            quad([[nlx - 6, nly + 4], [nrx + 6, nly + 4], [nrx + 5, nly + 9], [nlx - 5, nly + 9]], '#ff4fd8');
-            quad([[flx - 5, fly - 4], [frx + 5, fly - 4], [nrx + 6, nly + 4], [nlx - 6, nly + 4]], '#000000');                  // outline
-            quad([[flx - 4, fly - 3], [frx + 4, fly - 3], [nrx + 5, nly + 3], [nlx - 5, nly + 3]], '#39e6ff');                  // rails
-            quad([[flx, fly], [frx, fly], [nrx, nly], [nlx, nly]], '#eaf6ff');                                                    // the top
-            L.fillStyle = '#cfe2f6';
-            for (let u = 40; u < HKT.h; u += 50) for (let v = 30; v < HKT.w; v += 50) { const [x, y] = c(u, v); L.fillRect(Math.round(x), Math.round(y), 1, 1); }
+            const S = style === 'space' ? { side: 'rgba(30,20,70,0.6)', side2: '#39e6ff', out: '#000', rail: '#b88cf2', top: 'rgba(20,12,50,0.55)', dots: 'rgba(126,240,255,0.35)', mid: '#ff4fd8', lines: '#39e6ff', slot: '#000' }
+                : style === 'white' ? { side: '#eceaf4', side2: '#d8d4e8', out: '#c8c4d8', rail: '#e8e4f4', top: '#fbfaff', dots: '#ece8f6', mid: '#e8c8e0', lines: '#d8dcf0', slot: '#c8c4d8' }
+                : { side: '#1a1430', side2: '#ff4fd8', out: '#000000', rail: '#39e6ff', top: '#eaf6ff', dots: '#cfe2f6', mid: '#e8343c', lines: '#2f66b8', slot: '#05030c' };
+            if (style !== 'white') {
+                quad([[nlx - 6, nly + 4], [nrx + 6, nly + 4], [nrx + 6, nly + 12], [nlx - 6, nly + 12]], S.side);
+                quad([[nlx - 6, nly + 4], [nrx + 6, nly + 4], [nrx + 5, nly + 9], [nlx - 5, nly + 9]], S.side2);
+            }
+            quad([[flx - 5, fly - 4], [frx + 5, fly - 4], [nrx + 6, nly + 4], [nlx - 6, nly + 4]], S.out);
+            quad([[flx - 4, fly - 3], [frx + 4, fly - 3], [nrx + 5, nly + 3], [nlx - 5, nly + 3]], S.rail);
+            quad([[flx, fly], [frx, fly], [nrx, nly], [nlx, nly]], S.top);
+            if (style === 'space') {                                            // a glowing grid on the dark
+                L.strokeStyle = 'rgba(57,230,255,0.18)'; L.lineWidth = 1;
+                for (let u = 0; u <= HKT.h; u += 100) { const [a, b] = c(u, 0), [d, e] = c(u, HKT.w); L.beginPath(); L.moveTo(a, b); L.lineTo(d, e); L.stroke(); }
+                for (let v = 0; v <= HKT.w; v += 100) { const [a, b] = c(0, v), [d, e] = c(HKT.h, v); L.beginPath(); L.moveTo(a, b); L.lineTo(d, e); L.stroke(); }
+            } else {
+                L.fillStyle = S.dots;
+                for (let u = 40; u < HKT.h; u += 50) for (let v = 30; v < HKT.w; v += 50) { const [x, y] = c(u, v); L.fillRect(Math.round(x), Math.round(y), 1, 1); }
+            }
             const line = (u, col) => { const [a, b] = c(u, 0), [d, e] = c(u, HKT.w); L.strokeStyle = col; L.lineWidth = 1; L.beginPath(); L.moveTo(a, b); L.lineTo(d, e); L.stroke(); };
-            line(HKT.h / 2, '#e8343c'); line(HKT.h * 0.3, '#2f66b8'); line(HKT.h * 0.7, '#2f66b8');
+            line(HKT.h / 2, S.mid); line(HKT.h * 0.3, S.lines); line(HKT.h * 0.7, S.lines);
             const oval = (u, v, ru, rv, col, from = 0, to = Math.PI * 2) => {
                 L.strokeStyle = col; L.beginPath();
                 for (let i = 0; i <= 24; i++) { const a = from + (to - from) * i / 24, [x, y] = c(u + Math.cos(a) * ru, v + Math.sin(a) * rv); i ? L.lineTo(x, y) : L.moveTo(x, y); }
                 L.stroke();
             };
-            oval(HKT.h / 2, HKT.w / 2, 80, 80, '#e8343c');
-            oval(0, HKT.w / 2, 150, 150, '#2f66b8', -Math.PI / 2, Math.PI / 2); oval(HKT.h, HKT.w / 2, 150, 150, '#2f66b8', Math.PI / 2, Math.PI * 1.5);
-            for (const u of [0, HKT.h]) {                                       // the goal mouths: dark slots, glowing on a goal
-                const [x1, y1] = c(u, HKT.w / 2 - HKT.goal / 2), [x2, y2] = c(u, HKT.w / 2 + HKT.goal / 2), glow = t - hkL.goalAt < 1 && ((u === 0) === (g.by !== me));
-                L.strokeStyle = glow && Math.floor(t * 12) % 2 ? '#ffe14d' : '#05030c'; L.lineWidth = 4;
+            oval(HKT.h / 2, HKT.w / 2, 80, 80, S.mid);
+            oval(0, HKT.w / 2, 150, 150, S.lines, -Math.PI / 2, Math.PI / 2); oval(HKT.h, HKT.w / 2, 150, 150, S.lines, Math.PI / 2, Math.PI * 1.5);
+            for (const u of [0, HKT.h]) {
+                const [x1, y1] = c(u, HKT.w / 2 - HKT.goal / 2), [x2, y2] = c(u, HKT.w / 2 + HKT.goal / 2), glow = g && t - hkL.goalAt < 1 && ((u === 0) === (g.by !== me));
+                L.strokeStyle = glow && Math.floor(t * 12) % 2 ? '#ffe14d' : S.slot; L.lineWidth = 4;
                 L.beginPath(); L.moveTo(x1 + (u ? 2 : -2), y1); L.lineTo(x2 + (u ? 2 : -2), y2); L.stroke(); L.lineWidth = 1;
             }
-            // The two players, at their ends, behind their goals: cheering a goal, gutted letting one in.
-            const pl = (h, left) => {
+        }
+        /** A black hole: a swirling disc, its ring in its kind's colour, opening and closing. */
+        function hkHole(L, q, t) {
+            const [sx, sy, k] = hkTo(q.x, q.y), grow = Math.min(1, (t - q.start) / 0.4, Math.max(0, (q.end - t) / 0.4)), r = hkR(HKT.holeR, k) * grow;
+            if (r < 0.5) return;
+            const col = q.kind === 'warp' ? '#b88cf2' : q.kind === 'split' ? '#4fd36e' : '#7ef0ff';
+            L.save();
+            L.globalAlpha = 0.35; L.fillStyle = col; L.beginPath(); L.ellipse(sx, sy, r * 1.9, r * 1.05, 0, 0, Math.PI * 2); L.fill();
+            L.globalAlpha = 1;
+            for (let i = 0; i < 3; i++) {                                       // the swirl
+                L.strokeStyle = i % 2 ? col : '#ffffff'; L.lineWidth = 1;
+                L.beginPath(); L.ellipse(sx, sy, r * (1.45 - i * 0.3), r * (0.8 - i * 0.17), 0, t * (4 + i * 2) + i, t * (4 + i * 2) + i + Math.PI * 1.3); L.stroke();
+            }
+            L.fillStyle = '#000000'; L.beginPath(); L.ellipse(sx, sy, r * 0.8, r * 0.45, 0, 0, Math.PI * 2); L.fill();
+            L.restore();
+            // Bits being drawn in.
+            if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2; hkFx.sparks.push({ x: sx + Math.cos(a) * r * 2.2, y: sy + Math.sin(a) * r * 1.2, vx: -Math.cos(a) * r * 4, vy: -Math.sin(a) * r * 2.2, at: t, life: 0.45, c: col }); }
+        }
+        /** The players at their ends (floating in space), cheering, gutted, on fire. */
+        function hkPlayers(L, g, t, foeH, style) {
+            for (const h of [me, foeH]) {
                 const p = people.get(h);
-                if (!p) return;
-                const scored = t - hkL.goalAt < 2 && g.by === h, lost = t - hkL.goalAt < 2 && g.by && g.by !== h, won = g.state === 'over' && g.win === h;
-                A.person(L, p.l, { x: left ? 7 : A.W - 7, y: HKS.y0 + HKS.th * 0.75, face: left ? 1 : -1, emote: scored || won ? 'cheer' : g.state === 'over' ? 'sit' : '', et: t - hkL.goalAt, t, mood: lost ? 'angry' : scored ? 'happy' : '' });
-            };
-            pl(me, true); pl(foeH, false);
-            // Mallets and puck, back to front: a disc with a side to it, a knob on top, a shadow.
+                if (!p) continue;
+                const [x, y0] = hkSpot(h, t), bob = style !== 'normal' ? Math.round(Math.sin(t * 2 + (h === me ? 0 : 1.5)) * 2) : 0, y = y0 + bob;
+                const scored = t - hkL.goalAt < 2 && g.by === h, lost = t - hkL.goalAt < 2 && g.by && g.by !== h;
+                const won = g.state === 'over' && g.win === h, beaten = g.state === 'over' && g.win && g.win !== h;
+                const cheer = scored || won;
+                const po = { x, y, face: h === me ? 1 : -1, emote: cheer ? 'cheer' : beaten && g.mode !== 'space' ? 'sit' : '', et: t - hkL.goalAt, t,
+                    mood: beaten ? 'cry' : lost ? 'angry' : cheer ? 'happy' : '', noShadow: style !== 'normal' };
+                const onFire = hkL.fire === h;
+                if (onFire) A.aura(L, 'fire', '', x, y, t, false, p.l, po);
+                A.person(L, p.l, po);
+                if (onFire) A.aura(L, 'fire', '', x, y, t, true, p.l, po);
+                if (cheer) {                                                    // a cheer: sparkles round them, the odd streamer
+                    for (let i = 0; i < 6; i++) {
+                        const a = t * 4 + i * Math.PI / 3, rx = x + Math.cos(a) * 10, ry = y - 12 + Math.sin(a) * 6;
+                        L.fillStyle = ['#ffe14d', '#ffffff', '#ff4fd8', '#7ef0ff'][i % 4];
+                        L.fillRect(Math.round(rx), Math.round(ry), 1, 1);
+                        if ((Math.floor(t * 8) + i) % 3 === 0) { L.fillRect(Math.round(rx) - 1, Math.round(ry), 3, 1); L.fillRect(Math.round(rx), Math.round(ry) - 1, 1, 3); }
+                    }
+                    if (Math.random() < 0.15) hkConfetti(x, y - 18, 3);
+                }
+                if (beaten && g.mode === 'space') for (let i = 0; i < 2; i++) { const k = (t * 1.6 + i * 0.5) % 1; L.fillStyle = '#6ab0ff'; L.globalAlpha = 1 - k; L.fillRect(Math.round(x + (i ? 2 : -2) + (i ? k * 3 : -k * 3)), Math.round(y - 12 + k * 6), 1, 2); L.globalAlpha = 1; }
+            }
+        }
+
+        /** The arena (or space, or the white): table, players, black holes, mallets, pucks and their trails, the bangs; then the words. */
+        function hkFrame(dt, t) {
+            const g = myHk(), foeH = g.a === me ? g.b : g.a, L = lc, ph = hkL.phase, pa = t - hkL.phaseStart;
+            hkFit();
+            hkStep(dt);
+            const style = ph === 'white' ? 'white' : ph === 'space' ? 'space' : 'normal';
+            // The scene, and the changes between them: the board falling away into space; the giant black hole into the white.
+            let tableDy = 0, tableA = 1, swallow = 0, whiteOver = 0;
+            if (style === 'normal') { hkArenaBg(L, t); hkCrowd(L, t); }
+            else if (style === 'space') {
+                if (pa < 2.6) {
+                    const k = Math.min(1, pa / 2.2);
+                    hkArenaBg(L, t); hkCrowd(L, t, k * k * 140, 1);
+                    hkSpaceBg(L, t, Math.min(1, pa / 1.6));
+                    if (pa < 1.6) { const k2 = pa / 1.6; tableDy = k2 * k2 * 160; tableA = 1 - k2; }        // the old board, falling
+                    else { tableDy = 0; tableA = Math.min(1, (pa - 1.6) / 1); }                              // the new one, appearing
+                } else hkSpaceBg(L, t);
+            } else {
+                if (pa < 2.2) { hkSpaceBg(L, t); swallow = pa / 2.2; }
+                else hkWhiteBg(L, t);
+                whiteOver = pa < 2.2 ? Math.max(0, (pa - 1.6) / 0.6) : pa < 3.4 ? 1 - (pa - 2.2) / 1.2 : 0;
+            }
+            if (g.state === 'over' && g.mode === 'space' && !g.why) {
+                const oa = t - hkL.overStart;
+                whiteOver = Math.max(whiteOver, Math.min(1, Math.max(0, (oa - (HKT.overSpace - 2.4)) / 1.4)));
+            }
+            // The table and what's on it — in the swallow, all of it pulled in and turning towards the middle.
+            L.save();
+            if (swallow) { const s2 = 1 - swallow * 0.9; L.translate(A.W / 2, A.H / 2); L.rotate(swallow * swallow * 2.5); L.scale(s2, s2); L.translate(-A.W / 2, -A.H / 2); }
+            L.translate(0, tableDy); L.globalAlpha = tableA;
+            const oldStyle = style === 'space' && pa < 1.6 ? 'normal' : style === 'white' && pa < 2.2 ? 'space' : style;      // (what's falling, or being swallowed, is the old board)
+            hkTable(L, t, oldStyle, g);
+            L.globalAlpha = 1;
+            L.restore();
+            L.save();
+            if (swallow) { const s2 = 1 - swallow * 0.9; L.translate(A.W / 2, A.H / 2); L.rotate(swallow * swallow * 2.5); L.scale(s2, s2); L.translate(-A.W / 2, -A.H / 2); }
+            if (style === 'normal' || pa > 1.2 || style === 'white') hkPlayers(L, g, t, foeH, style);
+            if (style === 'space' && (g.state === 'playing' || g.state === 'ready')) for (const q of hkL.holes) hkHole(L, q, t);
+            const P0 = [...hkL.pucks.values()];
+            // Mallets and pucks, back to front: a disc with a side to it, a knob on top, a shadow.
             const shirt = (h) => { const p = people.get(h); return (A.PARTS.find(q => q.key === 'shirt').colors || [])[(p && p.l && p.l.shirt) || 0] || '#ff2f6e'; };
             const disc = (x, y, rx, ry, top, side, th) => {
                 L.fillStyle = '#000'; L.beginPath(); L.ellipse(x, y + th, rx + 1, ry + 1, 0, 0, Math.PI * 2); L.fill();
@@ -2302,54 +2526,87 @@
                 L.fillStyle = top; L.beginPath(); L.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); L.fill();
             };
             const items = [];
-            if (hkL.foe) items.push({ k: 'm', o: hkL.foe, h: foeH });
-            if (hkL.mine) items.push({ k: 'm', o: hkL.mine, h: me });
-            if (P && g.state !== 'goal') items.push({ k: 'p', o: P });
-            items.sort((a, b) => hkUV(a.o.x, a.o.y)[1] - hkUV(b.o.x, b.o.y)[1]);
-            // The trail first (under everything), coloured by how hard it's going.
-            if (P && g.state === 'playing') {
-                const [sx, sy] = hkTo(P.x, P.y);
-                hkFx.trail.push({ x: sx, y: sy, at: t });
+            if (pa > (style === 'space' ? 2 : style === 'white' ? 3 : 0) || g.state === 'playing') {
+                if (hkL.foe) items.push({ k: 'm', o: hkL.foe, h: foeH });
+                if (hkL.mine) items.push({ k: 'm', o: hkL.mine, h: me });
+                if (g.state !== 'goal' && !(g.state === 'over' && g.mode === 'space')) for (const P of P0) items.push({ k: 'p', o: P });
             }
-            while (hkFx.trail.length && t - hkFx.trail[0].at > 0.22) hkFx.trail.shift();
-            if (P && hkFx.trail.length > 1) {
-                const sp = Math.hypot(P.vx, P.vy), [col] = hkTier(sp, t < hkL.powerUntil);
-                for (let i = 1; i < hkFx.trail.length; i++) {
-                    const a = hkFx.trail[i - 1], b = hkFx.trail[i], k = 1 - (t - b.at) / 0.22;
-                    L.globalAlpha = Math.max(0, k) * Math.min(1, sp / 700); L.strokeStyle = col; L.lineWidth = Math.max(1, 4 * k);
-                    L.beginPath(); L.moveTo(a.x, a.y); L.lineTo(b.x, b.y); L.stroke();
+            items.sort((a, b) => hkUV(a.o.x, a.o.y)[1] - hkUV(b.o.x, b.o.y)[1]);
+            // The trails first (under everything), coloured by how hard each puck's going — or, in the white, a laser.
+            for (const P of P0) {
+                if (g.state !== 'playing') { P.trail = []; continue; }
+                const [sx, sy] = hkTo(P.x, P.y);
+                P.trail.push({ x: sx, y: sy, at: t });
+                while (P.trail.length && t - P.trail[0].at > 0.22) P.trail.shift();
+                const sp = Math.hypot(P.vx, P.vy);
+                if (style === 'white' && sp >= HKT.laser) {
+                    // A laser: a long beam back along its path, white-hot core.
+                    const tail = P.trail[0] || { x: sx, y: sy }, col = Math.floor(t * 20) % 2 ? '#ff4fd8' : '#39e6ff';
+                    for (const [w, c, a] of [[7, col, 0.25], [4, col, 0.6], [1.5, '#ffffff', 1]]) { L.globalAlpha = a; L.strokeStyle = c; L.lineWidth = w; L.lineCap = 'round'; L.beginPath(); L.moveTo(tail.x, tail.y); L.lineTo(sx, sy); L.stroke(); }
+                    L.globalAlpha = 1; L.lineWidth = 1; L.lineCap = 'butt';
+                    continue;
                 }
-                L.globalAlpha = 1; L.lineWidth = 1;
-                if (t < hkL.powerUntil) for (let i = 0; i < 3; i++) hkFx.sparks.push({ x: hkFx.trail[hkFx.trail.length - 1].x + (Math.random() - 0.5) * 4, y: hkFx.trail[hkFx.trail.length - 1].y, vx: (Math.random() - 0.5) * 20, vy: -20 - Math.random() * 30, at: t, life: 0.3, c: Math.random() < 0.5 ? '#7ef0ff' : '#ffffff' });
+                if (P.trail.length > 1) {
+                    const [col] = hkTier(sp, t < hkL.powerUntil);
+                    for (let i = 1; i < P.trail.length; i++) {
+                        const a = P.trail[i - 1], b = P.trail[i], k = 1 - (t - b.at) / 0.22;
+                        L.globalAlpha = Math.max(0, k) * Math.min(1, sp / 700); L.strokeStyle = col; L.lineWidth = Math.max(1, 4 * k);
+                        L.beginPath(); L.moveTo(a.x, a.y); L.lineTo(b.x, b.y); L.stroke();
+                    }
+                    L.globalAlpha = 1; L.lineWidth = 1;
+                    if (t < hkL.powerUntil) for (let i = 0; i < 2; i++) hkFx.sparks.push({ x: sx + (Math.random() - 0.5) * 4, y: sy, vx: (Math.random() - 0.5) * 20, vy: -20 - Math.random() * 30, at: t, life: 0.3, c: Math.random() < 0.5 ? '#7ef0ff' : '#ffffff' });
+                }
             }
             for (const it of items) {
                 const [sx, sy, k] = hkTo(it.o.x, it.o.y);
                 if (it.k === 'm') {
-                    const r = HKT.mr * HKS.s * k, mineOne = it.h === me;
+                    const r = hkR(HKT.mr, k), mineOne = it.h === me, locked = (hkL.locks[it.h] || 0) > t;
                     L.fillStyle = 'rgba(0,0,0,0.3)'; L.beginPath(); L.ellipse(sx, sy + 3, r, r * 0.5, 0, 0, Math.PI * 2); L.fill();
                     if (mineOne && hkL.charge > 0) {                            // the charge: a ring filling, white-hot when full
                         const full = hkL.charge >= 1;
                         L.strokeStyle = full ? (Math.floor(t * 16) % 2 ? '#ffffff' : '#7ef0ff') : '#7ef0ff'; L.lineWidth = full ? 2 : 1;
                         L.beginPath(); L.ellipse(sx, sy, r + 3, (r + 3) * 0.55, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hkL.charge); L.stroke(); L.lineWidth = 1;
                     }
+                    if (hkL.fire === it.h && Math.random() < 0.6) hkFx.sparks.push({ x: sx + (Math.random() - 0.5) * r * 2, y: sy - 3, vx: (Math.random() - 0.5) * 10, vy: -30 - Math.random() * 30, at: t, life: 0.35, c: Math.random() < 0.5 ? '#ff8a2a' : '#ffe14d' });
                     disc(sx, sy - 2, r, r * 0.55, shirt(it.h), '#1a1430', 2);
                     disc(sx, sy - 5, r * 0.45, r * 0.25, '#ffffff', '#c8c4d0', 3);
+                    if (locked) {                                               // in stasis: iced over, a ring counting down
+                        const left = (hkL.locks[it.h] - t) / 1.5;
+                        L.globalAlpha = 0.55; L.fillStyle = '#bfefff'; L.beginPath(); L.ellipse(sx, sy - 3, r + 2, (r + 2) * 0.6, 0, 0, Math.PI * 2); L.fill(); L.globalAlpha = 1;
+                        L.strokeStyle = '#7ef0ff'; L.beginPath(); L.ellipse(sx, sy - 3, r + 4, (r + 4) * 0.6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, left)); L.stroke();
+                        L.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) L.fillRect(Math.round(sx - r + ((i * 7 + Math.floor(t * 6)) % (r * 2))), Math.round(sy - 4 - (i % 2)), 1, 1);
+                    }
                 } else {
-                    const r = HKT.pr * HKS.s * k, hop = hkL.hop && t - hkL.hop.at < 0.3 ? Math.sin((t - hkL.hop.at) / 0.3 * Math.PI) * hkL.hop.h : 0;
-                    const squash = t < hkL.freeze ? 1.35 : 1;                    // the hit-stop: squashed flat against the mallet
+                    const r = hkR(HKT.pr, k), hop = hkL.hop && t - hkL.hop.at < 0.3 ? Math.sin((t - hkL.hop.at) / 0.3 * Math.PI) * hkL.hop.h : 0;
+                    const squash = t < hkL.freeze ? 1.35 : 1, waiting = it.o.wait && Math.floor(t * 20) % 2;
                     L.fillStyle = 'rgba(0,0,0,0.35)'; L.beginPath(); L.ellipse(sx, sy + 2, r, r * 0.5, 0, 0, Math.PI * 2); L.fill();
-                    disc(sx, sy - 1 - hop, r * squash, r * 0.55 / squash, t < hkL.powerUntil ? '#3a8fd8' : '#2a2834', '#000000', 2);
+                    disc(sx, sy - 1 - hop, r * squash, r * 0.55 / squash, waiting ? '#b88cf2' : t < hkL.powerUntil ? '#3a8fd8' : '#2a2834', '#000000', 2);
                     L.fillStyle = '#ffffff'; L.globalAlpha = 0.6; L.fillRect(Math.round(sx - r * 0.4), Math.round(sy - 2 - hop - r * 0.2), 2, 1); L.globalAlpha = 1;
                 }
             }
-            // The bangs: rings, sparks, confetti.
+            L.restore();
+            // The giant black hole (into the white): growing in the middle, swallowing it all.
+            if (swallow) {
+                const R = 8 + swallow * swallow * 150, cx = A.W / 2, cy = A.H / 2;
+                L.fillStyle = '#000'; L.beginPath(); L.arc(cx, cy, R, 0, Math.PI * 2); L.fill();
+                for (let i = 0; i < 4; i++) { L.strokeStyle = ['#b88cf2', '#ffffff', '#39e6ff', '#ff4fd8'][i]; L.lineWidth = 2; L.beginPath(); L.arc(cx, cy, R + 3 + i * 3, t * (3 + i) + i, t * (3 + i) + i + Math.PI * 1.2); L.stroke(); }
+                L.lineWidth = 1;
+            }
+            // The bangs: rings, sparks, confetti, warps.
             for (let i = hkFx.rings.length - 1; i >= 0; i--) {
                 const r = hkFx.rings[i], k = (t - r.at) / 0.3;
                 if (k > 1) { hkFx.rings.splice(i, 1); continue; }
+                if (k < 0) continue;
                 L.globalAlpha = 1 - k; L.strokeStyle = k < 0.15 ? '#ffffff' : r.c; L.lineWidth = Math.max(1, 3 * (1 - k));
                 L.beginPath(); L.ellipse(r.x, r.y, 4 + k * 22 * r.big, (4 + k * 22 * r.big) * 0.55, 0, 0, Math.PI * 2); L.stroke();
             }
             L.globalAlpha = 1; L.lineWidth = 1;
+            for (let i = hkFx.warps.length - 1; i >= 0; i--) {
+                const w = hkFx.warps[i], k = (t - w.at) / 0.35;
+                if (k > 1) { hkFx.warps.splice(i, 1); continue; }
+                L.globalAlpha = 1 - k; L.strokeStyle = '#b88cf2'; L.setLineDash([2, 3]); L.beginPath(); L.moveTo(w.x, w.y); L.lineTo(w.tx, w.ty); L.stroke(); L.setLineDash([]);
+            }
+            L.globalAlpha = 1;
             for (let i = hkFx.sparks.length - 1; i >= 0; i--) {
                 const s = hkFx.sparks[i], a = t - s.at;
                 if (a > s.life) { hkFx.sparks.splice(i, 1); continue; }
@@ -2367,20 +2624,26 @@
             hkFx.shake = Math.max(0, hkFx.shake - dt * 30);
             const u = cv.width / A.W, sh = hkFx.shake * u, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
             ctx.imageSmoothingEnabled = false;
-            ctx.fillStyle = '#140b26'; ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.fillStyle = style === 'white' ? '#ffffff' : '#140b26'; ctx.fillRect(0, 0, cv.width, cv.height);
             ctx.drawImage(low, Math.round(ox), Math.round(oy), cv.width, cv.height);
             if (hkFx.flash > 0) { ctx.globalAlpha = Math.min(0.6, hkFx.flash * 2); ctx.fillStyle = hkFx.flashC; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; hkFx.flash -= dt; }
-            hkHud(g, foeH, t, u, ox, oy);
+            if (whiteOver > 0) { ctx.globalAlpha = Math.min(1, whiteOver); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
+            hkHud(g, foeH, t, u, ox, oy, style, pa, whiteOver);
         }
         /** The words: the scoreboard, the speed meter, what's happening, the speed of each big hit. */
-        function hkHud(g, foeH, t, u, ox, oy) {
-            const big = Math.max(14, Math.round(6 * u / dpr)) * dpr, small = Math.max(10, Math.round(3 * u / dpr)) * dpr;
+        function hkHud(g, foeH, t, u, ox, oy, style, pa, whiteOver) {
+            const big = Math.max(14, Math.round(6 * u / dpr)) * dpr, small = Math.max(10, Math.round(3 * u / dpr)) * dpr, dark = style === 'white';
             const txt = (s, x, y, size, color, rot = 0, outline = '#000') => {
                 ctx.save(); ctx.translate(x + ox, y + oy); ctx.rotate(rot);
                 ctx.font = '900 ' + size + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.lineWidth = Math.max(3, size / 4); ctx.lineJoin = 'round'; ctx.strokeStyle = outline; ctx.strokeText(s, 0, 0);
                 ctx.fillStyle = color; ctx.fillText(s, 0, 0); ctx.restore();
             };
+            const mid = cv.height / 2 + 4 * u;
+            // The phase changing: its name, big.
+            if (style === 'space' && pa < 3.6 && g.state === 'ready') txt(pa < 1.8 ? 'THE BOARD FALLS AWAY…' : 'JUDGEMENT!', cv.width / 2, mid - big, big * (pa < 1.8 ? 1.1 : 2), pa < 1.8 ? '#c8c0ff' : '#b88cf2', Math.sin(t * 3) * 0.04);
+            if (style === 'white' && g.state === 'ready' && pa > 2.4 && pa < 5) txt('THE WHITE', cv.width / 2, mid - big, big * 2, '#c8c4d8', 0, '#ffffff');
+            if (whiteOver >= 0.99) return;
             // Scoreboard: two chunky boxes, the number bouncing when it changes.
             const mi = g.a === me ? 0 : 1, mineS = g.score[mi], theirS = g.score[1 - mi], bump = (h) => (t - hkL.goalAt < 0.5 && g.by === h ? 1 + 0.5 * Math.sin((t - hkL.goalAt) / 0.5 * Math.PI) : 1);
             const box = (x, label, n, col, h) => {
@@ -2389,39 +2652,45 @@
                 ctx.fillStyle = col; ctx.fillRect(x - w / 2 + ox, y + oy, w, hh);
                 txt(label, x - w * 0.18, y + hh / 2, small, '#ffffff');
                 txt(String(n), x + w * 0.3, y + hh / 2, small * 1.6 * bump(h), '#ffe14d');
+                if (hkL.fire === h) txt('🔥', x - w / 2 - 3 * u, y + hh / 2, small * 1.4 * (1 + 0.15 * Math.sin(t * 12)), '#ff8a2a');
             };
             box(cv.width / 2 - 22 * u, 'YOU', mineS, '#2f66b8', me);
             box(cv.width / 2 + 22 * u, nameOf(foeH).slice(0, 6).toUpperCase(), theirS, '#c8432f', foeH);
-            txt('FIRST TO 7', cv.width / 2, 17 * u, small * 0.8, '#c8c0ff');
-            if (hkL.streak.n >= 2 && t - hkL.goalAt < 3) txt(hkL.streak.n >= 3 ? '🔥 ' + (hkL.streak.h === me ? 'YOU’RE' : nameOf(hkL.streak.h).toUpperCase() + '’S') + ' ON FIRE! 🔥' : 'x' + hkL.streak.n + ' STREAK!', cv.width / 2, 34 * u, small * 1.1, '#ff8a2a');
-            // The speed meter: ten blocks, lit by how hard the puck's going.
-            const P = hkL.puck, sp = P && g.state === 'playing' ? Math.hypot(P.vx, P.vy) : 0, lit = Math.round(Math.min(1, sp / HKT.maxPower) * 10);
+            txt(g.mode === 'space' ? (style === 'white' ? 'THE WHITE · FIRST TO 7' : style === 'space' ? 'JUDGEMENT · FIRST TO 7' : 'FOREVER 2 · FIRST TO 7') : 'FIRST TO 7', cv.width / 2, 17 * u, small * 0.8, dark ? '#8a86a0' : '#c8c0ff', 0, dark ? '#ffffff' : '#000');
+            if (hkL.fire && t - hkL.fireAt < 2.5) {
+                const a = t - hkL.fireAt, pop = a < 0.2 ? a / 0.2 * 1.5 : 1.5 - Math.min(0.4, (a - 0.2) * 0.5);
+                txt((hkL.fire === me ? 'YOU’RE' : nameOf(hkL.fire).toUpperCase() + ' IS') + ' ON FIRE!!', cv.width / 2, mid - big * 1.6, big * 1.4 * pop, '#ff8a2a', Math.sin(a * 14) * 0.06, '#3a0a00');
+            } else if (hkL.streak.n === 2 && t - hkL.goalAt < 3) txt('x2 STREAK!', cv.width / 2, 34 * u, small * 1.1, '#ff8a2a');
+            // The speed meter: ten blocks, lit by how hard the fastest puck's going.
+            const P0 = [...hkL.pucks.values()], sp = g.state === 'playing' ? P0.reduce((a, P) => Math.max(a, Math.hypot(P.vx, P.vy)), 0) : 0, top = hkCaps().maxPower, lit = Math.round(Math.min(1, sp / top) * 10);
             const mx = 6 * u, my = cv.height - 9 * u;
-            txt('SPEED', mx + 12 * u, my - 4 * u, small * 0.8, '#ffffff');
+            txt('SPEED', mx + 12 * u, my - 4 * u, small * 0.8, dark ? '#8a86a0' : '#ffffff', 0, dark ? '#ffffff' : '#000');
             for (let i = 0; i < 10; i++) {
-                ctx.fillStyle = '#000'; ctx.fillRect(mx + i * 4 * u + ox, my + oy, 3.4 * u, 5 * u);
+                ctx.fillStyle = dark ? '#d8d4e8' : '#000'; ctx.fillRect(mx + i * 4 * u + ox, my + oy, 3.4 * u, 5 * u);
                 if (i < lit) { ctx.fillStyle = i < 4 ? '#4fd36e' : i < 6 ? '#ffe14d' : i < 8 ? '#ff8a2a' : i < 9 ? '#ff3b3b' : '#7ef0ff'; ctx.fillRect(mx + i * 4 * u + u * 0.4 + ox, my + u * 0.5 + oy, 2.6 * u, 4 * u); }
             }
-            txt(hkMph(sp) + ' MPH', mx + 50 * u, my + 2.5 * u, small, lit >= 8 ? '#ff8a2a' : '#ffffff');
+            txt(hkMph(sp) + ' MPH', mx + 50 * u, my + 2.5 * u, small, lit >= 8 ? '#ff8a2a' : dark ? '#6a6680' : '#ffffff', 0, dark ? '#ffffff' : '#000');
             if (hkL.charge > 0) txt(hkL.charge >= 1 ? 'POWER READY!' : 'CHARGING…', cv.width - 30 * u, cv.height - 7 * u, small, hkL.charge >= 1 ? '#7ef0ff' : '#c8c0ff');
-            // The big hits' speeds, popping up and floating off.
+            if ((hkL.locks[me] || 0) > t) txt('LOCKED ' + ((hkL.locks[me] - t)).toFixed(1) + 's', cv.width - 30 * u, cv.height - 15 * u, small, '#7ef0ff');
+            // The big hits' speeds (and the black holes' words), popping up and floating off.
             for (let i = hkFx.words.length - 1; i >= 0; i--) {
                 const w = hkFx.words[i], a = t - w.at;
                 if (a > 1.1) { hkFx.words.splice(i, 1); continue; }
                 const pop = a < 0.12 ? 0.4 + a / 0.12 * 0.9 : a < 0.2 ? 1.3 - (a - 0.12) / 0.08 * 0.3 : 1, y = (w.y - a * 12) * u;
                 ctx.globalAlpha = Math.min(1, (1.1 - a) * 3);
                 txt(w.mph, w.x * u, y, (w.big ? big : small * 1.3) * pop, w.c, -0.08);
-                if (w.word) txt(w.word, w.x * u, y - (w.big ? big : small * 1.3) * pop, small * 1.2 * pop, '#ffffff', 0.05, w.c === '#ffffff' ? '#000' : '#000');
+                if (w.word) txt(w.word, w.x * u, y - (w.big ? big : small * 1.3) * pop, small * 1.2 * pop, '#ffffff', 0.05);
                 ctx.globalAlpha = 1;
             }
             // What's happening, big in the middle.
-            const left = Math.max(0, g.end - t), mid = cv.height / 2 + 4 * u;
+            const left = Math.max(0, g.end - t), P = P0[0];
             if (g.state === 'ready') {
                 const n = Math.ceil(left);
                 if (n !== hkL.beep && n <= 3 && n > 0) { hkL.beep = n; hkSfx.beep(false); }
                 if (g.fault && left > 1.3) txt('TOO SLOW! ' + (g.fault === me ? 'YOUR' : 'THEIR') + ' PUCK’S GONE', cv.width / 2, mid, big * 1.3, '#ff8a2a', -0.04);
-                else txt(left > 3 ? 'GET READY' : String(Math.max(1, n)), cv.width / 2, mid, big * (left > 3 ? 1.4 : 2.6) * (1 + 0.15 * (1 - (left % 1))), '#ffe14d', 0);
-                txt((touch ? 'Drag your mallet' : 'Mouse moves your mallet · hold right-click or Space: POWER SHOT · swipe across the puck: CURVE'), cv.width / 2, 28 * u, small * 0.9, '#ffffff');
+                else if (left <= 3) txt(String(Math.max(1, n)), cv.width / 2, mid, big * 2.6 * (1 + 0.15 * (1 - (left % 1))), '#ffe14d', 0);
+                else if (style === 'normal') txt('GET READY', cv.width / 2, mid, big * 1.4, '#ffe14d', 0);
+                if (left > 3 && style === 'normal') txt((touch ? 'Drag your mallet' : 'Mouse moves your mallet · hold right-click or Space: POWER SHOT · swipe across the puck: CURVE'), cv.width / 2, 28 * u, small * 0.9, '#ffffff');
             } else if (g.state === 'playing' && t - hkL.goStart < 0.7) txt('GO!', cv.width / 2, mid, big * 3 * (1 + (t - hkL.goStart)), '#4fd36e', -0.05);
             else if (g.state === 'playing' && P) {
                 // Sitting in one half: count it down over the puck (it goes to the other player at zero).
@@ -2433,7 +2702,10 @@
             else if (g.state === 'goal') {
                 const a = t - hkL.goalAt, pop = a < 0.15 ? a / 0.15 * 1.4 : 1.4 - Math.min(0.3, (a - 0.15) * 0.6);
                 txt(g.by === me ? 'GOAL!!' : 'THEY SCORE!', cv.width / 2, mid, big * 2.4 * pop, g.by === me ? '#4fd36e' : '#ff4040', Math.sin(a * 12) * 0.06);
-            } else if (g.state === 'over') txt(g.win === me ? 'YOU WIN!!' : g.why ? 'GAME OVER' : nameOf(g.win).toUpperCase() + ' WINS', cv.width / 2, mid, big * 2.2 * (1 + 0.05 * Math.sin(t * 6)), g.win === me ? '#ffd34a' : '#e6e0f2', Math.sin(t * 3) * 0.04);
+            } else if (g.state === 'over') {
+                const ending = g.mode === 'space' && !g.why, oa = t - hkL.overStart;
+                if (!ending || oa > 1.5) txt(g.win === me ? 'YOU WIN!!' : g.why ? 'GAME OVER' : nameOf(g.win).toUpperCase() + ' WINS', cv.width / 2, ending ? 26 * u : mid, big * 2.2 * (1 + 0.05 * Math.sin(t * 6)), g.win === me ? '#ffd34a' : dark ? '#8a86a0' : '#e6e0f2', Math.sin(t * 3) * 0.04, dark ? '#ffffff' : '#000');
+            }
         }
         const hkEl = () => $('.hall-hk', box);
         function paintHk() {
@@ -2443,8 +2715,9 @@
             let html = '';
             if (g) {
                 const foe = g.a === me ? g.b : g.a, F_ = '<b>' + esc(nameOf(foe)) + '</b>', left = Math.max(0, Math.ceil(g.end - t));
-                if (g.state === 'asked' && g.b === me) html = '<p>' + F_ + ' challenges you to air hockey! 🏒</p><div><button type="button" class="btn go" data-hkans="1">Play!</button><button type="button" class="btn" data-hkans="0">No thanks</button></div>';
-                else if (g.state === 'asked') html = '<p>Waiting for ' + F_ + ' to say yes to air hockey… (' + left + 's)</p><div><button type="button" class="btn" data-hkquit>Call it off</button></div>';
+                const game = g.mode === 'space' ? '<b>Air Hockey Forever 2: Air in Space Time</b> 🌌' : 'air hockey! 🏒';
+                if (g.state === 'asked' && g.b === me) html = '<p>' + F_ + ' challenges you to ' + game + '</p><div><button type="button" class="btn go" data-hkans="1">Play!</button><button type="button" class="btn" data-hkans="0">No thanks</button></div>';
+                else if (g.state === 'asked') html = '<p>Waiting for ' + F_ + ' to say yes to ' + (g.mode === 'space' ? 'Air Hockey Forever 2' : 'air hockey') + '… (' + left + 's)</p><div><button type="button" class="btn" data-hkquit>Call it off</button></div>';
                 else if (g.state !== 'over') html = '<div><button type="button" class="btn" data-hkquit>Give up</button></div>';
             }
             if (el.innerHTML !== html) el.innerHTML = html;
@@ -2496,7 +2769,7 @@
             popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (q.afk ? '<small class="hp-afk">💤 away' + (q.afk !== 'afk' ? ': ' + esc(q.afk) : '') + '</small>' : '') + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
                 (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
                 '<button type="button" class="btn" data-rps="' + esc(q.h) + '">✊✋✌️ Rock paper scissors</button>' +
-                (myHk() ? '' : '<button type="button" class="btn" data-hk="' + esc(q.h) + '">🏒 Air hockey</button>') +
+                (myHk() ? '' : '<button type="button" class="btn" data-hk="' + esc(q.h) + '">🏒 Air hockey</button><button type="button" class="btn" data-hk="' + esc(q.h) + '" data-hkmode="space">🌌 Air Hockey Forever 2: Air in Space Time</button>') +
                 (their && their.state === 'waiting' && their.seats.includes('') && !tableOf(me)
                     ? '<button type="button" class="btn go" data-join="' + their.id + '">🎲 Join their ' + GAME_NAMES[their.g] + '</button>'
                     : their ? '<button type="button" class="btn" data-watch="' + their.id + '">🎲 ' + (their.state === 'waiting' ? 'Their table (' + GAME_NAMES[their.g] + ')' : 'Watch their ' + GAME_NAMES[their.g]) + '</button>' : '') +
@@ -2517,7 +2790,7 @@
             const hb = e.target.closest('[data-hit]');
             if (hb) { popEl.hidden = true; return doHit(hb.dataset.to, hb.dataset.hit); }
             const hkb = e.target.closest('[data-hk]');
-            if (hkb) { popEl.hidden = true; return core.send({ t: 'hall-hk', to: hkb.dataset.hk }); }
+            if (hkb) { popEl.hidden = true; return core.send({ t: 'hall-hk', to: hkb.dataset.hk, mode: hkb.dataset.hkmode || 'classic' }); }
             const du = e.target.closest('[data-duel]');
             if (du) { popEl.hidden = true; return core.send({ t: 'hall-duel', to: du.dataset.duel }); }
             const gv = e.target.closest('[data-give]');
@@ -3850,12 +4123,15 @@
         function frame(ms) {
             if (stopped) return;
             requestAnimationFrame(frame);
-            if (document.hidden || ms - last < 1000 / FPS - 2) return;
+            if (document.hidden || ms - last < 1000 / (hkView() || kartView() ? 60 : FPS) - 2) return;      // the games: 60 a second
             const dt = Math.min(0.1, (ms - (last || ms)) / 1000) * clockRate;
             last = ms;
             step(dt);
             if (kartView()) { drawRace(dt, now()); return; }
-            if (hkView()) { hkFrame(dt, now()); return; }
+            const hv = hkView();
+            if (hkL.was && !hv && hkL.whiteEnd) { hkL.backAt = now(); hkL.whiteEnd = false; }        // Forever 2's ending: back to the hall out of the white
+            hkL.was = hv;
+            if (hv) { const g = myHk(); hkL.whiteEnd = !!(g && g.state === 'over' && g.mode === 'space' && !g.why); hkFrame(dt, now()); return; }
             if (rmOn()) { rmFrame(now(), dt); return; }
             const t = now(), s = core.state, tr = s.track;
             // In the room, the station says; outside it, the radio's own idea of what's on.
@@ -3990,6 +4266,7 @@
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
             if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
             drawAbducted(t, u);
+            if (t - (hkL.backAt || -9) < 1.4) { ctx.globalAlpha = Math.max(0, 1 - (t - hkL.backAt) / 1.4); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
         }
 
         /**

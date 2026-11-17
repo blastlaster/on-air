@@ -1150,6 +1150,15 @@
             for (const ey of ex) { R(ey, hy + 2, 1, 2, '#ffe680'); R(ey, hy + 2, 1, 1, '#ffffff'); }
         }
         if (e === 'dab') { const d = dabSide(t, f); R(d > 0 ? x - 4 : x + 1, hy + 2, 4, 1, sleeve); R(d > 0 ? x : x + 1, hy + 2, 1, 1, skin); }    // the elbow over the face
+        // A cheer: sparkles twinkling round them.
+        if (e === 'cheer') {
+            const C = ['#ffe14d', '#ffffff', '#ff8ac8', '#7ef0ff'];
+            for (let i = 0; i < 4; i++) {
+                const a = t * 3 + i * Math.PI / 2, sx = x + Math.round(Math.cos(a) * 8), sy = hy + 1 + Math.round(Math.sin(a) * 4);
+                R(sx, sy, 1, 1, C[i]);
+                if ((Math.floor(t * 6) + i) % 2) { R(sx - 1, sy, 3, 1, C[i]); R(sx, sy - 1, 1, 3, C[i]); }
+            }
+        }
         // Asleep (sitting, from an older room): Zs floating up.
         if (e === 'sleep') {
             const k = (t * 0.8) % 1;
