@@ -1559,36 +1559,41 @@
        and the karts are sprites shrunk with how far away they are.
        ========================================================= */
     const K7 = { hor: 58, focal: 110, camH: 100, back: 180, s: 4, size: 2400 };
-    /** The track's texture: the void, the neon barrier, the dance-floor run-off, kerbs, road, the start line. */
+    // A track's colours (engine/hall-kart.js TRACKS look); the Neon Loop's if it has none.
+    const LOOK0 = { void: '#0d0a1a', dots: ['#1a1430', '#2a2050'], barrier: ['#39e6ff', '#ff4fd8'], tiles: ['#2a1f48', '#3a2a66', '#4a3680'],
+        kerb: ['#ffffff', '#e8343c'], road: ['#3a3846', '#44424f', '#6a6878'], sky: ['#07051a', '#3a1a5a'], haze: [70, 30, 110],
+        city: ['#140e22', '#1a1228', '#2e2448'], lights: ['#ff4fd8', '#39e6ff'], stars: '#c8c0ff', moon: '#fff3c8' };
+    const lookOf = (track) => ({ ...LOOK0, ...((track && track.look) || {}) });
+    /** The track's texture: the ground, the barrier, the run-off, kerbs, road, the start line. */
     function kartTex(track) {
-        const S = K7.s, N = Math.ceil(K7.size / S), c = document.createElement('canvas');
+        const S = K7.s, N = Math.ceil(K7.size / S), c = document.createElement('canvas'), L = lookOf(track);
         c.width = c.height = N;
         const g = c.getContext('2d'), P = track.path, w = track.w / S, wall = track.wall / S;
-        g.fillStyle = '#0d0a1a'; g.fillRect(0, 0, N, N);
-        for (let i = 0; i < 900; i++) { g.fillStyle = i % 3 ? '#1a1430' : '#2a2050'; g.fillRect((i * 97) % N, (i * 61 + (i >> 3) * 13) % N, 1, 1); }
+        g.fillStyle = L.void; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 900; i++) { g.fillStyle = L.dots[i % 3 ? 0 : 1]; g.fillRect((i * 97) % N, (i * 61 + (i >> 3) * 13) % N, 1, 1); }
         const road = () => { g.beginPath(); g.moveTo(P[0] / S, P[1] / S); for (let i = 2; i < P.length; i += 2) g.lineTo(P[i] / S, P[i + 1] / S); g.closePath(); };
         g.lineJoin = 'round'; g.lineCap = 'round';
         const tile = document.createElement('canvas'); tile.width = tile.height = 20;
         const tg = tile.getContext('2d');
-        tg.fillStyle = '#2a1f48'; tg.fillRect(0, 0, 20, 20); tg.fillStyle = '#3a2a66'; tg.fillRect(0, 0, 10, 10); tg.fillRect(10, 10, 10, 10);
-        tg.fillStyle = '#4a3680'; tg.fillRect(0, 0, 10, 1); tg.fillRect(10, 10, 10, 1);
-        road(); g.strokeStyle = '#39e6ff'; g.lineWidth = 2 * wall + 2 * w + 4; g.stroke();
-        road(); g.strokeStyle = '#ff4fd8'; g.lineWidth = 2 * wall + 2 * w + 1; g.stroke();
+        tg.fillStyle = L.tiles[0]; tg.fillRect(0, 0, 20, 20); tg.fillStyle = L.tiles[1]; tg.fillRect(0, 0, 10, 10); tg.fillRect(10, 10, 10, 10);
+        tg.fillStyle = L.tiles[2]; tg.fillRect(0, 0, 10, 1); tg.fillRect(10, 10, 10, 1);
+        road(); g.strokeStyle = L.barrier[0]; g.lineWidth = 2 * wall + 2 * w + 4; g.stroke();
+        road(); g.strokeStyle = L.barrier[1]; g.lineWidth = 2 * wall + 2 * w + 1; g.stroke();
         road(); g.strokeStyle = g.createPattern(tile, 'repeat'); g.lineWidth = 2 * wall + 2 * w - 1; g.stroke();
-        road(); g.strokeStyle = '#ffffff'; g.lineWidth = 2 * w + 6; g.stroke();
-        road(); g.strokeStyle = '#e8343c'; g.setLineDash([6, 6]); g.stroke(); g.setLineDash([]);
-        road(); g.strokeStyle = '#3a3846'; g.lineWidth = 2 * w; g.stroke();
-        road(); g.strokeStyle = '#44424f'; g.lineWidth = 2 * w - 14; g.stroke();
-        road(); g.strokeStyle = '#6a6878'; g.lineWidth = 1; g.setLineDash([8, 10]); g.stroke(); g.setLineDash([]);
+        road(); g.strokeStyle = L.kerb[0]; g.lineWidth = 2 * w + 6; g.stroke();
+        road(); g.strokeStyle = L.kerb[1]; g.setLineDash([6, 6]); g.stroke(); g.setLineDash([]);
+        road(); g.strokeStyle = L.road[0]; g.lineWidth = 2 * w; g.stroke();
+        road(); g.strokeStyle = L.road[1]; g.lineWidth = 2 * w - 14; g.stroke();
+        road(); g.strokeStyle = L.road[2]; g.lineWidth = 1; g.setLineDash([8, 10]); g.stroke(); g.setLineDash([]);
         // The start line: two rows of checks across the road.
         const a = Math.atan2(P[3] - P[1], P[2] - P[0]);
         g.save(); g.translate(P[0] / S, P[1] / S); g.rotate(a);
         for (let j = -Math.ceil(w); j < w; j += 3) for (let k = 0; k < 2; k++) { g.fillStyle = ((j / 3 | 0) + k) % 2 ? '#ffffff' : '#111111'; g.fillRect(-3 + k * 3, j, 3, 3); }
         g.restore();
         const data = new Uint32Array(g.getImageData(0, 0, N, N).data.buffer);
-        return { canvas: c, data, n: N, s: S, void: data[0] };
+        return { canvas: c, data, n: N, s: S, void: data[0], look: L };
     }
-    let floorImg = null, floor32 = null, skyline = null;
+    let floorImg = null, floor32 = null, skyline = null, skyFor = null;
     /** The floor, from the camera {x, y, a}. */
     function kartFloor(ctx, tex, cam) {
         const rows = H - K7.hor;
@@ -1605,32 +1610,33 @@
         }
         ctx.putImageData(floorImg, 0, K7.hor);
         // Haze where the floor meets the sky.
-        const hz = ctx.createLinearGradient(0, K7.hor, 0, K7.hor + 22);
-        hz.addColorStop(0, 'rgba(70,30,110,0.95)'); hz.addColorStop(1, 'rgba(70,30,110,0)');
+        const hz = ctx.createLinearGradient(0, K7.hor, 0, K7.hor + 22), [hr, hg, hb] = (tex.look || LOOK0).haze;
+        hz.addColorStop(0, 'rgba(' + hr + ',' + hg + ',' + hb + ',0.95)'); hz.addColorStop(1, 'rgba(' + hr + ',' + hg + ',' + hb + ',0)');
         ctx.fillStyle = hz; ctx.fillRect(0, K7.hor, W, 22);
     }
-    /** The night sky over the track: stars, a moon and a city of speakers and towers that turns as you do. */
-    function kartSky(ctx, a, t) {
+    /** The sky over the track (its colours: tex.look): stars, a moon and a city of speakers and towers that turns as you do. */
+    function kartSky(ctx, a, t, tex) {
         l = ctx;
-        const g = ctx.createLinearGradient(0, 0, 0, K7.hor);
-        g.addColorStop(0, '#07051a'); g.addColorStop(1, '#3a1a5a');
+        const L = (tex && tex.look) || LOOK0, g = ctx.createLinearGradient(0, 0, 0, K7.hor);
+        g.addColorStop(0, L.sky[0]); g.addColorStop(1, L.sky[1]);
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, K7.hor);
         const off = ((-a / (Math.PI * 2)) * 480 % 480 + 480) % 480;
         for (let i = 0; i < 40; i++) {
             const x = ((i * 53 + off * 0.5) % 480 + 480) % 480 - 120, y = (i * 29) % (K7.hor - 20);
-            if (x >= 0 && x < W) R(x, y, 1, 1, (i + Math.floor(t * 2)) % 7 ? '#c8c0ff' : '#ffffff');
+            if (x >= 0 && x < W) R(x, y, 1, 1, (i + Math.floor(t * 2)) % 7 ? L.stars : '#ffffff');
         }
         const mx = ((330 + off * 0.5) % 480 + 480) % 480 - 120;
-        if (mx > -12 && mx < W + 12) { R(mx - 4, 8, 9, 9, '#fff3c8'); R(mx - 5, 10, 11, 5, '#fff3c8'); R(mx - 1, 10, 3, 2, '#e8dca8'); }
+        if (mx > -12 && mx < W + 12) { R(mx - 4, 8, 9, 9, L.moon); R(mx - 5, 10, 11, 5, L.moon); R(mx - 1, 10, 3, 2, 'rgba(0,0,0,0.1)'); }
+        if (skyFor !== L) { skyline = null; skyFor = L; }
         if (!skyline) {
             skyline = document.createElement('canvas'); skyline.width = 480; skyline.height = 30;
             const s = skyline.getContext('2d');
             let x = 0, i = 0;
             while (x < 480) {
                 const bw = 10 + (i * 37) % 22, bh = 8 + (i * 53) % 20, spk = i % 5 === 2;
-                s.fillStyle = spk ? '#1a1228' : '#140e22'; s.fillRect(x, 30 - bh, bw, bh);
-                if (spk) { s.fillStyle = '#2e2448'; s.fillRect(x + bw / 2 - 3, 30 - bh + 3, 6, 6); s.fillRect(x + bw / 2 - 2, 30 - bh + 11, 4, 4); }
-                else for (let wy = 30 - bh + 2; wy < 28; wy += 3) for (let wx = x + 2; wx < x + bw - 2; wx += 3) if ((wx * 7 + wy * 3 + i) % 5 === 0) { s.fillStyle = (wx + wy) % 3 ? '#ff4fd8' : '#39e6ff'; s.fillRect(wx, wy, 1, 1); }
+                s.fillStyle = L.city[spk ? 1 : 0]; s.fillRect(x, 30 - bh, bw, bh);
+                if (spk) { s.fillStyle = L.city[2]; s.fillRect(x + bw / 2 - 3, 30 - bh + 3, 6, 6); s.fillRect(x + bw / 2 - 2, 30 - bh + 11, 4, 4); }
+                else for (let wy = 30 - bh + 2; wy < 28; wy += 3) for (let wx = x + 2; wx < x + bw - 2; wx += 3) if ((wx * 7 + wy * 3 + i) % 5 === 0) { s.fillStyle = L.lights[(wx + wy) % 3 ? 0 : 1]; s.fillRect(wx, wy, 1, 1); }
                 x += bw + (i * 11) % 4; i++;
             }
         }

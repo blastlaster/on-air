@@ -163,7 +163,7 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-kkeys" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div><div class="hall-dpad" hidden></div></div>';
@@ -622,13 +622,13 @@
         function onKart(m, quiet) {
             const was = ks.state, wasDone = (ks.done || []).some(d => d.h === me);
             ks = m; ksAt = now();
-            if (m.track && (!kTrack || kTrack.id !== m.track.id || kTrack.path.length !== m.track.path.length)) { kTrack = m.track; kTex = A.kartTex(m.track); }
-            if (!m.state) { kAt.clear(); kPl = []; kWatchH = ''; keys.clear(); kTouch = null; }
+            if (m.track && (!kTrack || kTrack.id !== m.track.id || kTrack.path.length !== m.track.path.length)) { kTrack = m.track; kTex = A.kartTex(m.track); kMe.i = null; }
+            if (!m.state) { kAt.clear(); kPl = []; kWatchH = ''; keys.clear(); kHeld.clear(); kTouch = null; }
             if (m.state === 'join' && was !== 'join') {
                 kNo = false; kWatch = true;
                 if (!quiet) { logLine({ text: '🏁 A kart race! Join in at the bottom of the room.' }, 'game'); U.toast('🏁 Kart race! Join in?'); }
             }
-            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; }
+            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); kHeld.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; }
             if (m.ms != null) kGoAt = now() - m.ms / 1000;                     // the race clock: the station's (someone coming in halfway too)
             if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) kTouch = { steer: 0, brake: 0 }; }
             const mine = (m.done || []).findIndex(d => d.h === me);
@@ -671,15 +671,28 @@
             nitroS: 2.2, nitroUp: 1.35, ibWindow: 0.4, ibS: 0.8, ibUp: 1.22 };
         const kBoost = { until: 0, up: 1, nitro: false }, kDrift = { on: false, dir: 0, gauge: 0, nitros: 0, endAt: -9, ibAt: -9, sparks: [] };
         let kGasTap = -9, kPadWas = [];
+        /* Your race keys: two for each action (Settings: ⌨ Keys in the race's bar), kept in this browser / app. */
+        const KART_ACTS = [['gas', 'Go'], ['brake', 'Brake'], ['left', 'Steer left'], ['right', 'Steer right'], ['drift', 'Drift'], ['nitro', 'Nitro']];
+        const KKEYS0 = { gas: ['w', 'ArrowUp'], brake: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], drift: ['Shift', ''], nitro: [' ', ''] };
+        const kNorm = (k) => (k.length === 1 ? k.toLowerCase() : k);
+        let kKeys = {};
+        try { kKeys = JSON.parse(localStorage.getItem('ltl.kartKeys') || '{}') || {}; } catch { /* the usual */ }
+        for (const [id] of KART_ACTS) if (!Array.isArray(kKeys[id]) || kKeys[id].length !== 2) kKeys[id] = KKEYS0[id].slice();
+        const kSaveKeys = () => { try { localStorage.setItem('ltl.kartKeys', JSON.stringify(kKeys)); } catch { /* full */ } };
+        const kActOf = (key) => { const k = kNorm(key); const a = KART_ACTS.find(([id]) => kKeys[id].includes(k)); return a ? a[0] : ''; };
+        const kKeyName = (k) => (k === ' ' ? 'Space' : k.startsWith('Arrow') ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[k] : k.length === 1 ? k.toUpperCase() : k);
+        const kKeysOf = (id) => kKeys[id].filter(Boolean).map(kKeyName).join('/') || '—';
+        const kHeld = new Set();                // the race's actions held down now
+        let kKeyWait = '';                      // choosing a key: 'gas:0' …
         /** Your kart, every frame: the keys (or a controller, or the touch buttons), the road, the barrier, the others. */
         function kartDrive(dt) {
             if (!kTrack || !kRacing(me)) return;
             const t = now();
-            let steer = 0, gas = 0, brake = 0, drift = keys.has('shift'), nitro = false;
-            if (keys.has('a') || keys.has('arrowleft')) steer -= 1;
-            if (keys.has('d') || keys.has('arrowright')) steer += 1;
-            if (keys.has('w') || keys.has('arrowup')) gas = 1;
-            if (keys.has('s') || keys.has('arrowdown')) brake = 1;
+            let steer = 0, gas = 0, brake = 0, drift = kHeld.has('drift'), nitro = false;
+            if (kHeld.has('left')) steer -= 1;
+            if (kHeld.has('right')) steer += 1;
+            if (kHeld.has('gas')) gas = 1;
+            if (kHeld.has('brake')) brake = 1;
             const g = kPad();
             if (g) {
                 const bv = (i) => (g.buttons[i] ? g.buttons[i].value || (g.buttons[i].pressed ? 1 : 0) : 0), ax = g.axes[0] || 0;
@@ -717,7 +730,7 @@
             // Into a drift: the drift key, steering, at speed. Out of it: let go, too slow, or braking.
             if (!kDrift.on && drift && Math.abs(steer) > 0.3 && v > KDRIFT.minV) { kDrift.on = true; kDrift.dir = Math.sign(steer); }
             else if (kDrift.on && (!drift || v < KDRIFT.minV * 0.7 || brake)) { kDrift.on = false; kDrift.endAt = t; }
-            const sp = Math.abs(v), grip = Math.min(1, sp / 140) * (1 - 0.3 * Math.max(0, (sp - 300) / 220));
+            const sp = Math.abs(v), grip = Math.max(gas || brake ? 0.45 : 0, Math.min(1, sp / 140)) * (1 - 0.3 * Math.max(0, (sp - 300) / 220));
             let slip = Math.atan2(Math.sin(kMe.a - kMe.m), Math.cos(kMe.a - kMe.m));
             if (kDrift.on) {
                 // Steering into the drift tightens it, away from it widens it; it always turns the drift's way a bit.
@@ -739,9 +752,20 @@
             }
             while (kDrift.sparks.length && t - kDrift.sparks[0].at > 0.3) kDrift.sparks.shift();
             kMe.x += Math.cos(kMe.m) * v * dt; kMe.y += Math.sin(kMe.m) * v * dt;
-            // The barrier: slide along it, slowed (and out of any drift).
+            // The barrier: back inside it, and the part of the speed going into it is gone — you slide along it
+            // (hit it head on and you stop; graze it and you barely slow). Out of any drift.
             const at = kNear(kMe.x, kMe.y, near.i), lim = kTrack.w + kTrack.wall - 14;
-            if (at.d > lim) { const k = lim / at.d; kMe.x = at.px + (kMe.x - at.px) * k; kMe.y = at.py + (kMe.y - at.py) * k; v *= 0.55; kMe.bonk = t; if (kDrift.on) { kDrift.on = false; kDrift.endAt = -9; } }
+            if (at.d > lim) {
+                const nx = (kMe.x - at.px) / at.d, ny = (kMe.y - at.py) / at.d;
+                kMe.x = at.px + nx * lim; kMe.y = at.py + ny * lim;
+                let vx = Math.cos(kMe.m) * v, vy = Math.sin(kMe.m) * v;
+                const into = vx * nx + vy * ny;
+                if (into > 0) { vx -= nx * into * 1.15; vy -= ny * into * 1.15; }
+                const s = Math.hypot(vx, vy) * 0.96;
+                if (s > 1) { kMe.m = v < 0 ? Math.atan2(-vy, -vx) : Math.atan2(vy, vx); v = v < 0 ? -s : s; } else v = 0;
+                if (into > 60) kMe.bonk = t;
+                if (kDrift.on) { kDrift.on = false; kDrift.endAt = -9; }
+            }
             kMe.i = at.i;
             // Bumping into the others.
             for (const [h, q] of kAt) {
@@ -783,13 +807,15 @@
             const k = e.key.toLowerCase();
             if (!kRacing(me)) {
                 if (k === 'escape' && !kRacer(me)) { kWatch = false; paintKart(); return true; }
-                if (['a', 'arrowleft', 'd', 'arrowright'].includes(k)) { if (!e.repeat) kWatchStep(k === 'a' || k === 'arrowleft' ? -1 : 1); e.preventDefault(); return true; }
+                const act = kActOf(e.key);
+                if (act === 'left' || act === 'right') { if (!e.repeat) kWatchStep(act === 'left' ? -1 : 1); e.preventDefault(); return true; }
                 return false;
             }
-            if (k === ' ') { if (!e.repeat) kNitroKey = true; e.preventDefault(); return true; }
-            if ((k === 'w' || k === 'arrowup') && !e.repeat) kGasTap = now();
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) { keys.add(k); e.preventDefault(); return true; }
-            return false;
+            const act = kActOf(e.key);
+            if (!act) return false;
+            if (!e.repeat) { if (act === 'nitro') kNitroKey = true; if (act === 'gas') kGasTap = now(); }
+            kHeld.add(act); e.preventDefault();
+            return true;
         }
         const kCv = document.createElement('canvas'); kCv.width = 40; kCv.height = 32;
         const kCtx = kCv.getContext('2d');
@@ -815,7 +841,7 @@
             const da = Math.atan2(Math.sin(fa - kMe.camA), Math.cos(fa - kMe.camA));
             kMe.camA += Math.abs(da) > 2.5 ? da : da * Math.min(1, dt * 7);
             const cam = { x: fx - Math.cos(kMe.camA) * A.K7.back, y: fy - Math.sin(kMe.camA) * A.K7.back, a: kMe.camA };
-            A.kartSky(lc, cam.a, t);
+            A.kartSky(lc, cam.a, t, kTex);
             A.kartFloor(lc, kTex, cam);
             const list = [];
             for (const [h, q] of kAt) {
@@ -888,8 +914,8 @@
                 const n = Math.ceil(kLeft());
                 txt(n > 3 ? 'GET READY' : String(n), cv.width / 2, c - big, big * (n > 3 ? 1 : 2), n > 3 ? '#ffffff' : '#ffd34a', 'center');
                 if (racer) {
-                    txt('W/↑ go · S/↓ brake · A D/← → steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
-                    txt('Shift + steer: drift (fills nitro) · Space: nitro · tap ↑ as a drift ends: boost', cv.width / 2, c + big * 1.4 + small * 1.4, small * 0.9, '#c8c0ff', 'center');
+                    txt(kKeysOf('gas') + ' go · ' + kKeysOf('brake') + ' brake · ' + kKeysOf('left') + ' ' + kKeysOf('right') + ' steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
+                    txt(kKeysOf('drift') + ' + steer: drift (fills nitro) · ' + kKeysOf('nitro') + ': nitro · tap ' + kKeysOf('gas') + ' as a drift ends: boost', cv.width / 2, c + big * 1.4 + small * 1.4, small * 0.9, '#c8c0ff', 'center');
                 }
             } else if (ks.state === 'race' && t - kGoAt < 1.2) txt('GO!', cv.width / 2, c - big, big * 2, '#4fd36e', 'center');
             if (racer && ks.state === 'race' && doneI < 0) {
@@ -932,7 +958,7 @@
                 const full = rs.length >= 8 && !inn;
                 html = '<p>🏁 <b>Kart race!</b> ' + (ks.laps === 1 ? '1 lap' : (ks.laps || 3) + ' laps') + ' of the ' + esc((ks.track && ks.track.name) || 'track') + ' · ' +
                     (inn ? 'You’re in — starting in ' + left + 's' : kNo ? 'You’re watching this one (' + left + 's)' : full ? 'It’s full (8) — watch it!' : 'Race? (' + left + 's)') + ' · ' + rs.length + ' in</p>' +
-                    (inn ? '<div><button type="button" class="btn" data-kart="0">Sit out</button></div>' : full ? '' : '<div><button type="button" class="btn go" data-kart="1">I’m in</button>' + (kNo ? '' : '<button type="button" class="btn" data-kart="0">Just watch</button>') + '</div>');
+                    (inn ? '<div><button type="button" class="btn" data-kart="0">Sit out</button>' + KEYS_BTN + '</div>' : full ? '' : '<div><button type="button" class="btn go" data-kart="1">I’m in</button>' + (kNo ? '' : '<button type="button" class="btn" data-kart="0">Just watch</button>') + KEYS_BTN + '</div>');
             } else if (kOn() && !inn) {
                 html = kWatch ? '<div><button type="button" class="btn" data-kwatch="0">🏠 Back to the room</button></div>'
                     : '<p>🏁 A kart race is on</p><div><button type="button" class="btn go" data-kwatch="1">📺 Watch it</button></div>';
@@ -955,6 +981,47 @@
         }, true);
         const kUp = () => { if (kTouch) { kTouch.steer = 0; kTouch.brake = 0; kTouch.drift = false; } };
         listen('pointerup', kUp); listen('pointercancel', kUp);
+        /* ⌨ Keys: the race's keys, two for each action. Click one, press a key (Esc: none). */
+        const KEYS_BTN = '<button type="button" class="btn" data-kkeys title="Choose your race keys">⌨ Keys</button>';
+        const kKeysEl = () => $('.hall-kkeys', box);
+        function paintKeys() {
+            const el = kKeysEl();
+            if (!el) return;
+            el.innerHTML = '<h3>🏁 Race keys</h3><table>' + KART_ACTS.map(([id, name]) => '<tr><td>' + name + '</td>' + [0, 1].map(i => {
+                const k = kKeys[id][i], wait = kKeyWait === id + ':' + i;
+                return '<td><button type="button" class="btn' + (wait ? ' on' : '') + '" data-kk="' + id + ':' + i + '">' + (wait ? 'press a key…' : k ? esc(kKeyName(k)) : '+') + '</button></td>';
+            }).join('') + '</tr>').join('') + '</table>' +
+                '<p class="hg-dim">' + (kKeyWait ? 'Press a key for it (Esc: none).' : 'Click a key to change it.') + ' A controller works too: A go, B brake, a bumper drifts, X or Y fires a nitro.</p>' +
+                '<div class="row"><button type="button" class="btn" data-kkreset>Back to the usual</button><button type="button" class="btn go" data-kkdone>Done</button></div>';
+        }
+        box.addEventListener('click', (e) => {
+            if (e.target.closest('[data-kkeys]')) { e.stopPropagation(); const el = kKeysEl(); el.hidden = !el.hidden; kKeyWait = ''; paintKeys(); return; }
+            const el = kKeysEl();
+            if (!el || !el.contains(e.target)) return;
+            e.stopPropagation();
+            const b = e.target.closest('button');
+            if (!b) return;
+            if (b.dataset.kk) kKeyWait = kKeyWait === b.dataset.kk ? '' : b.dataset.kk;
+            else if ('kkreset' in b.dataset) { for (const [id] of KART_ACTS) kKeys[id] = KKEYS0[id].slice(); kSaveKeys(); kKeyWait = ''; }
+            else if ('kkdone' in b.dataset) { el.hidden = true; kKeyWait = ''; }
+            paintKeys();
+        }, true);
+        /** Choosing a race key: this key for that action (and off any other action that had it). True when it was that. */
+        function kartKeyPick(e) {
+            if (!kKeyWait) return false;
+            e.preventDefault();
+            const [id, i] = kKeyWait.split(':');
+            if (e.key === 'Escape') kKeys[id][+i] = '';
+            else {
+                const k = kNorm(e.key);
+                for (const [o] of KART_ACTS) kKeys[o] = kKeys[o].map(x => (x === k ? '' : x));
+                kKeys[id][+i] = k;
+            }
+            kSaveKeys(); kKeyWait = ''; paintKeys();
+            return true;
+        }
+        listen('keyup', (e) => { const a = kActOf(e.key); if (a) kHeld.delete(a); });
+        listen('blur', () => kHeld.clear());
         const kT = setInterval(() => { if (ks.state) paintKart(); }, 250);
         offs.push(() => clearInterval(kT));
 
@@ -2607,6 +2674,7 @@
             if (!emojiEl.hidden && e.key === 'Escape') { emojiEl.hidden = true; return; }
             if (!gamesEl.hidden && e.key === 'Escape') { gamesEl.hidden = true; return; }
             if (editingKeys && waitKey) { actionKey(e); return; }
+            if (kartKeyPick(e)) return;
             if (kartView() && kartKey(e)) return;
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
