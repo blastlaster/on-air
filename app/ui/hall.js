@@ -328,7 +328,7 @@
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 6 })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 7 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -356,6 +356,7 @@
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
                     onKart(m.kart || { state: '' }, true);
+                    onRm(m.rm || { state: '' }, true);
                     onBomb(m.bomb || { h: '' }, true);
                     ayyAway.clear(); ayyUfo = null; ayyMe = null;
                     for (const h of m.ayy || []) ayyAway.add(h);
@@ -363,6 +364,7 @@
                     break;
                 case 'hall-bt': onBt(m); break;
                 case 'hall-kart': onKart(m); break;
+                case 'hall-rm': case 'hall-rm-p': case 'hall-rm-at': case 'hall-rm-hp': case 'hall-rm-ouch': case 'hall-rm-bomb': case 'hall-rm-up': rmMsg(m); break;
                 case 'hall-kart-at': onKartAt(m); break;
                 case 'hall-kart-fix': kMe.x = m.x; kMe.y = m.y; kMe.a = m.a; kMe.v = 0; kMe.i = null; if (ks.state !== 'race') kMe.camA = m.a; break;
                 case 'hall-ayy': onAyy(m); break;
@@ -1025,6 +1027,354 @@
         const kT = setInterval(() => { if (ks.state) paintKart(); }, 250);
         offs.push(() => clearInterval(kT));
 
+        /* ---------- RADIOMAN: TO THE DEATH (engine/hall-boss.js) ----------
+           The room falls apart and everyone's in a plane in the sky after Radioman. Your plane: WASD,
+           the arrows, a controller, or drag anywhere (it keeps its distance from your finger); Shift
+           flies slow and careful; it shoots by itself. Space (or B, or a double tap) is a bomb: every
+           bullet on screen gone, and a big hit on him. Three hits and you're a ghost, till someone
+           flying sits on you a moment. His attacks are worked out here from the pattern and its moment
+           (RM_PAT), the same on every app; each app judges its own plane's hits. */
+        const RM_SPEED = 95, RM_SLOW = 40, RM_SHOT = 0.2, RM_SHOT_V = 260, RM_INV = 2, RM_REVIVE = [14, 1.2];
+        const RM_BOX = { x0: -22, x1: 22, y0: -28, y1: 28 };            // where his shots hit him, round his middle
+        const RM_WORDS = { fall: 'LE RADIOMAN LOVES YOU!', win: 'AAAAAAAAAAAAAAAAAA', lose: 'MUAHAHAHAHA' };
+        let rm = { state: '' }, rmSnap = null, rmStateAt = 0, rmMe = null, rmHurtAt = -9, rmHits = 0, rmHitSent = 0, rmClearAt = -9, rmBombAt = -9, rmBomber = '';
+        let rmDrag = null, rmTap = 0, rmPhaseAt = -9, rmLastSent = 0, rmRevive = null;
+        const rmPats = [], rmShots = [], rmPos = new Map(), rmDown = new Map(), rmUp = new Map(), rmSparks = [];
+        const rmOn = () => !!rm.state;
+        const rmLives = (h) => (rm.fighters && rm.fighters[h] ? rm.fighters[h][0] : 0);
+        const rmIn = (h) => !!(rm.fighters && rm.fighters[h]);
+        const rmFlying = () => rm.state === 'fly' || rm.state === 'fight';
+        // engine/hall-boss.js bossAt, unrounded (smooth here); his middle s seconds into the fight.
+        const rmAt = (s) => [196 + 9 * Math.sin(s * 0.8), 72 + 36 * Math.sin(s * 0.55) + 7 * Math.sin(s * 1.7)];
+        const rmFt = () => (rm.ftAt == null ? 0 : rm.endFt != null ? rm.endFt : now() - rm.ftAt);
+        function onRm(m, quiet) {
+            const t = now(), was = rm.state;
+            rm = { state: m.state || '', until: t + (m.until || 0) / 1000, hp: m.hp || 0, max: m.max || 1, phase: m.phase || 0, fighters: m.fighters || {},
+                ftAt: m.state === 'fight' ? t - (m.ft || 0) / 1000 : rm.ftAt, endFt: m.state === 'win' || m.state === 'lose' || m.state === 'land' ? (m.ft || 0) / 1000 : null,
+                mvp: m.mvp || '', stars: m.stars || [], dmg: m.dmg || {} };
+            if (!rm.state) { rmSnap = null; rmMe = null; rmPats.length = 0; rmShots.length = 0; rmPos.clear(); rmDown.clear(); rmUp.clear(); rmDrag = null; return; }
+            if (rm.state === was) return;
+            rmStateAt = t;
+            if (rm.state === 'fall') {
+                // A picture of the room as it was, to break into pieces (and put back together after).
+                rmSnap = document.createElement('canvas'); rmSnap.width = A.W; rmSnap.height = A.H;
+                if (!quiet) rmSnap.getContext('2d').drawImage(low, 0, 0); else rmSnap = null;
+                keys.clear();
+                if (!quiet) logLine({ text: '📻 LE RADIOMAN LOVES YOU! Everyone into a plane!' }, 'announce');
+            }
+            if (rm.state === 'fight' && !quiet) logLine({ text: '✈️ Fly with WASD or the arrows (or drag), Shift to slow down, Space for a bomb. Your plane shoots by itself!' }, 'game');
+            if (rm.state === 'win') {
+                for (const h of rm.stars) { const p = people.get(h); if (p) p.star = starTill(true); }
+                if (!quiet) logLine({ text: '📻 AAAAAAAAAAAAAAAAAA! Radioman is down! ' + (rm.stars.length ? rm.stars.map(nameOf).join(', ') + ' made it ⭐' : '') + (rm.mvp ? ' · Most damage: ' + nameOf(rm.mvp) + ' (' + rm.dmg[rm.mvp] + ')' : '') }, 'announce');
+                if (rm.stars.includes(me) && !quiet) U.toast('You beat Radioman! ⭐');
+            }
+            if (rm.state === 'lose' && !quiet) logLine({ text: '📻 Radioman wins. MUAHAHAHAHA' + (rm.mvp ? ' (Most damage: ' + nameOf(rm.mvp) + ', ' + rm.dmg[rm.mvp] + ')' : '') }, 'announce');
+        }
+        function rmMsg(m) {
+            const t = now();
+            switch (m.t) {
+                case 'hall-rm': return onRm(m);
+                case 'hall-rm-p': rmPats.push({ k: m.k, at: t, x: m.x, y: m.y, tx: m.tx, ty: m.ty, seed: m.seed || 1 }); return;
+                case 'hall-rm-at':
+                    for (const [h, xy] of Object.entries(m.at || {})) {
+                        if (h === me && rmMe) continue;
+                        const q = rmPos.get(h);
+                        if (q) { q.tx = xy[0]; q.ty = xy[1]; } else rmPos.set(h, { x: xy[0], y: xy[1], tx: xy[0], ty: xy[1], shotAt: t + Math.random() * RM_SHOT });
+                        if (h === me && !rmMe) rmMe = { x: xy[0], y: xy[1], kx: 0, shotAt: t };
+                    }
+                    return;
+                case 'hall-rm-hp':
+                    if (m.phase > rm.phase) { rmPhaseAt = t; logLine({ text: m.phase === 2 ? '📻 Radioman’s eyes glow red. SHOW ME YOUR TRUE POWER!' : '📻 Radioman is getting angry!' }, 'announce'); }
+                    rm.hp = m.hp; rm.phase = m.phase;
+                    return;
+                case 'hall-rm-ouch':
+                    if (rm.fighters[m.h]) rm.fighters[m.h][0] = m.lives;
+                    if (m.lives <= 0) { rmDown.set(m.h, t); logLine({ text: '💥 ' + nameOf(m.h) + ' was shot down! Fly over them to bring them back.' }, 'game'); }
+                    return;
+                case 'hall-rm-bomb':
+                    if (rm.fighters[m.h]) rm.fighters[m.h][1] = m.bombs;
+                    rmClearAt = t; rmBombAt = t; rmBomber = m.h;
+                    return;
+                case 'hall-rm-up':
+                    if (rm.fighters[m.h]) rm.fighters[m.h][0] = 1;
+                    rmDown.delete(m.h); rmUp.set(m.h, t);
+                    if (m.h === me && rmMe) rmMe.inv = t + RM_INV;
+                    logLine({ text: '😇 ' + nameOf(m.by) + ' brought ' + nameOf(m.h) + ' back!' }, 'game');
+                    return;
+            }
+        }
+        /* His attacks, as bullets: where each one is at time t (and when it was fired, for a bomb's clearing).
+           Everything follows from the attack's moment, place, aim and seed, so every app sees the same. */
+        const rmRand = (seed, i) => { const r = Math.sin((seed + i * 97) * 12.9898) * 43758.5453; return r - Math.floor(r); };
+        const RM_PAT = {
+            wave(e, a, out) {                       // radio waves: three fans of arcs, out towards the planes
+                for (let j = 0; j < 3; j++) {
+                    const s = a - j * 0.3;
+                    if (s < 0) continue;
+                    for (let i = 0; i < 9; i++) {
+                        const ang = Math.PI + (i - 4) * 0.22 + (j % 2) * 0.11, d = 52 * s, w = 2.5 * Math.sin(s * 9 + i);
+                        out.push({ k: 'wave', a: ang, x: e.x + Math.cos(ang) * d - Math.sin(ang) * w, y: e.y + Math.sin(ang) * d + Math.cos(ang) * w, r: 2, born: e.at + j * 0.3 });
+                    }
+                }
+            },
+            notes(e, a, out) {                      // a tune: ten notes in a wobbly line at someone
+                const base = Math.atan2(e.ty - e.y, e.tx - e.x);
+                for (let i = 0; i < 10; i++) {
+                    const s = a - i * 0.13;
+                    if (s < 0) break;
+                    const ang = base + (rmRand(e.seed, i) - 0.5) * 0.12, d = 72 * s, w = 5 * Math.sin(s * 7 + i);
+                    out.push({ k: 'note', i, a: ang, x: e.x + Math.cos(ang) * d - Math.sin(ang) * w, y: e.y + Math.sin(ang) * d + Math.cos(ang) * w, r: 2, born: e.at + i * 0.13 });
+                }
+            },
+            poop(e, a, out) {                       // a poop grenade: lobbed at someone, then BANG, bits everywhere
+                if (a < 1) { out.push({ k: 'poop', x: e.x + (e.tx - e.x) * a, y: e.y + (e.ty - e.y) * a - 34 * Math.sin(Math.PI * a), r: 3, born: e.at }); return; }
+                const s = a - 1, r0 = rmRand(e.seed, 0) * Math.PI;
+                for (let i = 0; i < 14; i++) {
+                    const ang = r0 + i / 14 * Math.PI * 2, d = 46 * s;
+                    out.push({ k: 'bit', x: e.tx + Math.cos(ang) * d, y: e.ty + Math.sin(ang) * d, r: 2, born: e.at + 1 });
+                }
+            },
+            fart() {},                              // no bullets: it pushes (rmFart)
+            static(e, a, out) {                     // static: fuzz falling from the top
+                for (let i = 0; i < 18; i++) {
+                    const s = a - i * 0.07;
+                    if (s < 0) break;
+                    out.push({ k: 'static', x: 12 + rmRand(e.seed, i) * 200 + 6 * Math.sin(s * 5 + i), y: -4 + 58 * s, r: 1.5, born: e.at + i * 0.07 });
+                }
+            },
+            spiral(e, a, out) {                     // the last third: two arms turning out of him
+                const a0 = rmRand(e.seed, 0) * Math.PI * 2;
+                for (let i = 0; i < 40; i++) {
+                    const s = a - i * 0.08;
+                    if (s < 0) break;
+                    for (const arm of [0, Math.PI]) {
+                        const ang = a0 + i * 0.33 + arm, d = 56 * s;
+                        out.push({ k: 'spiral', x: e.x + Math.cos(ang) * d, y: e.y + Math.sin(ang) * d, r: 2, born: e.at + i * 0.08 });
+                    }
+                }
+            }
+        };
+        const RM_FART = { warn: 0.8, last: 2.2, half: 0.38, push: 520 };
+        /** The fart going on (he's turned round for it), if any: { e, s (seconds since it went off), reach }. */
+        function rmFart(t) {
+            for (const e of rmPats) {
+                if (e.k !== 'fart') continue;
+                const a = t - e.at;
+                if (a >= 0 && a < RM_FART.last) return { e, a, s: a - RM_FART.warn, reach: Math.min(230, 230 * Math.max(0, a - RM_FART.warn) / 0.5) };
+            }
+            return null;
+        }
+        function rmBullets(t) {
+            const out = [];
+            for (let i = rmPats.length - 1; i >= 0; i--) {
+                const e = rmPats[i], a = t - e.at;
+                if (a > 7) { rmPats.splice(i, 1); continue; }
+                if (a >= 0) RM_PAT[e.k] && RM_PAT[e.k](e, a, out);
+            }
+            return out.filter(b => b.born >= rmClearAt && b.x > -10 && b.x < A.W + 10 && b.y > -10 && b.y < A.H + 10);
+        }
+        /** Where Radioman is (and how he looks) right now. */
+        function rmBossNow(t) {
+            const s = t - rmStateAt;
+            if (rm.state === 'fly') { const [x, y] = rmAt(0), k = Math.max(0, 1 - s / (rm.until - rmStateAt || 1)); return [x + 90 * k * k, y]; }
+            if (rm.state === 'win') { const [x, y] = rmAt(rmFt()); return s < 2.6 ? [x + Math.sin(s * 40) * 2, y] : [x + (s - 2.6) * 10, y + 60 * (s - 2.6) * (s - 2.6)]; }
+            if (rm.state === 'lose') return [A.W / 2 + Math.sin(t * 2) * 6, A.H / 2 - 4 + Math.sin(t * 3) * 3];
+            return rmAt(rmFt());
+        }
+
+        /** Each frame of the fight: your plane, your shots, his bullets against you, the others gliding along. */
+        function rmStep(dt) {
+            const t = now(), alive = rmLives(me) > 0;
+            if (rmFlying() && rmIn(me)) {
+                if (!rmMe) rmMe = { x: 30 + Math.random() * 40, y: 30 + Math.random() * 90, kx: 0, shotAt: t };
+                const p = rmMe, slow = sprintKey || keys.has('shift'), sp = slow ? RM_SLOW : RM_SPEED;
+                const push = pushing();
+                if (push) { p.x += push[0] * sp * dt; p.y += push[1] * sp * dt; rmDrag = null; }
+                else if (rmDrag && rmDrag.tx != null) {
+                    const dx = rmDrag.tx - p.x, dy = rmDrag.ty - p.y, d = Math.hypot(dx, dy), go = Math.min(d, sp * 1.4 * dt);
+                    if (d > 0.3) { p.x += dx / d * go; p.y += dy / d * go; }
+                }
+                // The fart: pushed back, hard.
+                const f = rmFart(t);
+                if (f && f.s >= 0) {
+                    const dx = p.x - f.e.x, dy = p.y - f.e.y, d = Math.hypot(dx, dy), ang = Math.abs(Math.atan2(dy, -dx));
+                    if (d < f.reach && ang < RM_FART.half) p.kx -= RM_FART.push * dt;
+                }
+                p.x += p.kx * dt; p.kx *= Math.exp(-dt * 3);
+                p.x = Math.max(6, Math.min(176, p.x)); p.y = Math.max(8, Math.min(A.H - 8, p.y));
+                if (t - rmLastSent > 0.08 && (Math.abs(p.x - (p.sx || 0)) > 0.5 || Math.abs(p.y - (p.sy || 0)) > 0.5)) {
+                    rmLastSent = t; p.sx = p.x; p.sy = p.y;
+                    core.send({ t: 'hall-rm-at', x: Math.round(p.x), y: Math.round(p.y) });
+                }
+                if (rm.state === 'fight') {
+                    // Bring a ghost back: sit on them a moment.
+                    if (alive) {
+                        const g = [...rmPos].find(([h, q]) => h !== me && rmIn(h) && rmLives(h) <= 0 && Math.hypot(q.x - p.x, q.y - p.y) < RM_REVIVE[0]);
+                        if (!g) rmRevive = null;
+                        else if (!rmRevive || rmRevive.h !== g[0]) rmRevive = { h: g[0], at: t };
+                        else if (t - rmRevive.at > RM_REVIVE[1]) { core.send({ t: 'hall-rm-revive', to: g[0] }); rmRevive = { h: g[0], at: t + 2 }; }
+                    }
+                    // Your hits: anything of his touching your cockpit (not while you're flashing).
+                    if (alive && !(p.inv > t)) {
+                        for (const b of rmBullets(t)) {
+                            if (Math.hypot(b.x - p.x, b.y - (p.y - 2)) < b.r + 1.5) {
+                                p.inv = t + RM_INV; rmHurtAt = t;
+                                core.send({ t: 'hall-rm-ouch' });
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // Shots: yours count (the ones that hit him, told to the station a couple of times a second); the others' are for show.
+            const [bx, by] = rmBossNow(t);
+            if (rm.state === 'fight') {
+                const shoot = (h, x, y, mine) => { rmShots.push({ x: x + 10, y: y + 1, mine }); rmShots.push({ x: x + 10, y: y + 4, mine }); };
+                if (rmMe && alive && t - rmMe.shotAt >= RM_SHOT) { rmMe.shotAt = t; shoot(me, rmMe.x, rmMe.y, true); }
+                for (const [h, q] of rmPos) if (h !== me && rmLives(h) > 0 && t - q.shotAt >= RM_SHOT) { q.shotAt = t; shoot(h, q.x, q.y, false); }
+            }
+            for (let i = rmShots.length - 1; i >= 0; i--) {
+                const s = rmShots[i];
+                s.x += RM_SHOT_V * dt;
+                if (rm.state === 'fight' && s.x >= bx + RM_BOX.x0 && s.x <= bx + RM_BOX.x1 && s.y >= by + RM_BOX.y0 && s.y <= by + RM_BOX.y1) {
+                    if (s.mine) { rmHits++; rmHurtAt = Math.max(rmHurtAt, -9); rm.hitFlash = t; }
+                    rmSparks.push({ x: s.x, y: s.y, at: t });
+                    rmShots.splice(i, 1);
+                } else if (s.x > A.W + 4) rmShots.splice(i, 1);
+            }
+            while (rmSparks.length && t - rmSparks[0].at > 0.2) rmSparks.shift();
+            if (rmHits && t - rmHitSent > 0.4) { rmHitSent = t; core.send({ t: 'hall-rm-hit', n: rmHits }); rmHits = 0; }
+            // Everyone else's planes glide to where the station last had them.
+            for (const q of rmPos.values()) { const k = 1 - Math.exp(-dt * 10); q.x += (q.tx - q.x) * k; q.y += (q.ty - q.y) * k; }
+        }
+        function rmBomb() {
+            if (rm.state !== 'fight' || rmLives(me) <= 0 || !(rm.fighters[me] && rm.fighters[me][1] > 0)) return;
+            core.send({ t: 'hall-rm-bomb' });
+        }
+
+        /** The whole picture during the fight (in place of the room). */
+        function rmFrame(t, dt) {
+            const s = t - rmStateAt, st = rm.state;
+            lc.imageSmoothingEnabled = false;
+            A.rmSky(lc, t, rm.phase === 2 ? 0.5 + 0.2 * Math.sin(t * 3) : rm.phase * 0.2);
+            if (rmSnap && st === 'fall') A.rmShatter(lc, rmSnap, s, false);
+            if (rmSnap && st === 'land') A.rmShatter(lc, rmSnap, s, true);
+            else if (st === 'land') { lc.globalAlpha = Math.min(1, s / 2); lc.fillStyle = '#1a1238'; lc.fillRect(0, 0, A.W, A.H); lc.globalAlpha = 1; }
+            const [bx, by] = rmBossNow(t), fart = rmFart(t), boss = st !== 'fall' && st !== 'land';
+            if (boss && !(st === 'win' && s > 5)) {
+                if (fart && fart.s >= 0) A.rmFart(lc, fart.e.x + 10, fart.e.y + 4, fart.s, fart.reach, RM_FART.half);
+                A.rmBoss(lc, bx, by, t, { turned: !!fart, hurt: rm.hitFlash && t - rm.hitFlash < 0.06, angry: rm.phase === 2, laugh: st === 'lose' });
+            }
+            if (st === 'win' && s < 3.2) for (let i = 0; i < 4; i++) { const k = (s * 3 + i * 0.37) % 1; A.explosion(lc, bx - 20 + rmRand(Math.floor(s * 3) + i, 1) * 40, by + 10 - rmRand(Math.floor(s * 3) + i, 2) * 40, 0.13 + k * 0.6); }
+            if (st === 'fight' || st === 'win' || st === 'lose') for (const b of rmBullets(t)) A.rmBullet(lc, b, t);
+            for (const e of rmPats) if (e.k === 'poop' && t - e.at >= 1 && t - e.at < 1.4) A.explosion(lc, e.tx, e.ty + 8, 0.13 + (t - e.at - 1) * 1.5);
+            lc.fillStyle = '#ffe14d';
+            for (const sh of rmShots) lc.fillRect(Math.round(sh.x), Math.round(sh.y), 3, 1);
+            for (const sp of rmSparks) A.sparkle(lc, sp.x, sp.y + 2, (t - sp.at) / 0.2);
+            // The planes (yours last, on top); in the shattering and the landing, nobody's flying yet.
+            const planes = [];
+            if (st !== 'fall' && st !== 'land') {
+                for (const [h, q] of rmPos) if (h !== me) planes.push([h, q.x, q.y]);
+                if (rmMe && rmIn(me)) planes.push([me, rmMe.x, rmMe.y]);
+                const flyIn = st === 'fly' ? Math.max(0, 1 - s / 1.6) : 0;
+                for (const [h, x0, y] of planes) {
+                    const p = people.get(h);
+                    if (!p) continue;
+                    const down = rmDown.get(h), ghost = rmLives(h) <= 0 && rmIn(h);
+                    let x = x0 - flyIn * flyIn * 140, yy = y;
+                    if (down && t - down < 1.2) { const k = t - down; x += k * 30; yy += 80 * k * k; }            // spinning down, smoking
+                    const blink = h === me && rmMe && rmMe.inv > t && Math.floor(t * 12) % 2;
+                    if (blink) continue;
+                    A.rmPlane(lc, p.l, x, yy, t, { tint: p.c || PLANE_TINT[hashH(h) % PLANE_TINT.length], ghost: ghost && !(down && t - down < 1.2) });
+                    if (down && t - down < 1.2) A.explosion(lc, x, yy + 6, 0.13 + (t - down) * 0.5);
+                    const up = rmUp.get(h);
+                    if (up && t - up < 1) A.sparkle(lc, x, yy, t - up); else if (up) rmUp.delete(h);
+                }
+            }
+            if (rmBombAt > 0 && t - rmBombAt < 0.6) {                    // a bomb: a white flash and a ring going out
+                const k = (t - rmBombAt) / 0.6, q = rmBomber === me ? rmMe : rmPos.get(rmBomber);
+                lc.globalAlpha = 0.6 * (1 - k); lc.fillStyle = '#ffffff'; lc.fillRect(0, 0, A.W, A.H);
+                if (q) { lc.globalAlpha = 1 - k; lc.strokeStyle = '#ffe14d'; lc.lineWidth = 2; lc.beginPath(); lc.arc(q.x, q.y, 10 + k * 220, 0, Math.PI * 2); lc.stroke(); }
+                lc.globalAlpha = 1;
+            }
+            // Onto the screen, then the words at screen size.
+            ctx.imageSmoothingEnabled = false;
+            const shake = (st === 'fall' && s > 0.3 && s < 2.4) || (rmHurtAt > 0 && t - rmHurtAt < 0.25) || (fart && fart.s >= 0 && fart.s < 0.5) || (st === 'win' && s < 3) ? cv.width / A.W * 2 : 0;
+            ctx.drawImage(low, Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake), cv.width, cv.height);
+            if (rmHurtAt > 0 && t - rmHurtAt < 0.3) { ctx.fillStyle = 'rgba(255,30,40,' + (0.35 * (1 - (t - rmHurtAt) / 0.3)) + ')'; ctx.fillRect(0, 0, cv.width, cv.height); }
+            const u = cv.width / A.W;
+            rmHud(t, u, planes, bx, by, fart);
+        }
+        const PLANE_TINT = ['#d0302a', '#2a7ad0', '#2aa04a', '#d0a02a', '#8a3ad0', '#d05a9a'];
+        const hashH = (h) => [...String(h)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+        /** His health, your hearts and bombs, names, chat bubbles and the big words. */
+        function rmHud(t, u, planes, bx, by, fart) {
+            const st = rm.state, s = t - rmStateAt;
+            const big = (str, y, c, wob) => {
+                const fs = Math.max(16, Math.round(9 * u / dpr)) * dpr;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                const yy = y + (wob ? Math.sin(t * 30) * 2 * dpr : 0);
+                ctx.fillStyle = '#000'; ctx.fillText(str, cv.width / 2 + 2 * dpr, yy + 2 * dpr);
+                ctx.fillStyle = c; ctx.fillText(str, cv.width / 2, yy);
+            };
+            if (st === 'fight' || st === 'fly') {
+                // His health along the top.
+                const w = cv.width * 0.6, x = (cv.width - w) / 2, y = 4 * u, h = 3 * u, k = Math.max(0, rm.hp / rm.max);
+                ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - u, y - u, w + 2 * u, h + 2 * u);
+                ctx.fillStyle = ['#ffd34a', '#ff8a2a', '#ff2a40'][rm.phase || 0]; ctx.fillRect(x, y, w * k, h);
+                const fs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                ctx.fillStyle = '#ffffff'; ctx.fillText('LE RADIOMAN', cv.width / 2, y + h + u);
+                // Yours, bottom left: hearts and bombs (or how to come back).
+                if (rmIn(me)) {
+                    const f = rm.fighters[me];
+                    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = 'bold ' + Math.round(fs * 1.3) + 'px "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+                    ctx.fillText(f[0] > 0 ? '❤️'.repeat(f[0]) + '  ' + '💣'.repeat(f[1]) : '👻', 3 * u, cv.height - 2 * u);
+                    if (f[0] <= 0) { ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.fillStyle = '#e6e0f2'; ctx.fillText('Shot down — someone can fly over you to bring you back', 12 * u, cv.height - 3 * u); }
+                } else {
+                    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#e6e0f2';
+                    ctx.fillText('Watching the fight', 3 * u, cv.height - 2 * u);
+                }
+            }
+            // Names under the planes, and what they say over them.
+            const nfs = Math.max(9, Math.round(2.2 * u / dpr)) * dpr;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+            for (const [h, x, y] of planes) {
+                const p = people.get(h);
+                if (!p) continue;
+                ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
+                ctx.globalAlpha = rmLives(h) > 0 ? 1 : 0.5;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(p.n, x * u + dpr, (y + 7) * u + dpr);
+                ctx.fillStyle = p.c || (h === me ? '#ffd34a' : '#e6e0f2'); ctx.fillText(p.n, x * u, (y + 7) * u);
+                ctx.globalAlpha = 1;
+                if (p.sayUntil > t) bubble(p.say, x * u, (y - 18) * u, u);
+            }
+            if (rmRevive && rmRevive.at <= t) {
+                const q = rmPos.get(rmRevive.h);
+                if (q) popWord('…' + Math.ceil(RM_REVIVE[1] - (t - rmRevive.at)), q.x * u, (q.y - 22) * u, u, '#9affc0');
+            }
+            if (fart && fart.a < RM_FART.warn + 0.8) popWord(fart.s < 0 ? 'uh oh…' : 'BRRRAAAP!', (bx - 10) * u, (by - 40) * u, u * (fart.s < 0 ? 1 : 1.6), '#8ad040');
+            if (st === 'fall' && s > 0.4) big(RM_WORDS.fall, cv.height * 0.3, '#ff3b5c', true);
+            if (st === 'fly') big('GET READY!', cv.height * 0.4, '#ffe14d', false);
+            if (st === 'fight' && t - rmPhaseAt < 2) big(rm.phase === 2 ? 'SHOW ME YOUR TRUE POWER!' : 'HE’S ANGRY NOW!', cv.height * 0.35, '#ff3b5c', true);
+            if (st === 'win' && s > 2.6) big(RM_WORDS.win, cv.height * 0.35, '#ffe14d', false);
+            if (st === 'lose') big(RM_WORDS.lose, cv.height * 0.25, '#ff3b5c', true);
+        }
+        // On a phone (or with the mouse): drag anywhere and your plane follows, keeping its distance; a double tap is a bomb.
+        stage.addEventListener('pointerdown', (e) => {
+            if (!rmOn() || e.target !== cv) return;
+            const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * A.W, y = (e.clientY - r.top) / r.height * A.H, t = now();
+            if (t - rmTap < 0.3) rmBomb();
+            rmTap = t;
+            if (rmMe) rmDrag = { ox: rmMe.x - x, oy: rmMe.y - y, tx: rmMe.x, ty: rmMe.y };
+        });
+        listen('pointermove', (e) => {
+            if (!rmDrag) return;
+            const r = cv.getBoundingClientRect();
+            rmDrag.tx = (e.clientX - r.left) / r.width * A.W + rmDrag.ox; rmDrag.ty = (e.clientY - r.top) / r.height * A.H + rmDrag.oy;
+        });
+        listen('pointerup', () => { rmDrag = null; });
+
         function mine() { return people.get(me); }
         function sendGo(x, y) {
             if (isEaten(me)) return;                  // inside Daniel till it's over
@@ -1075,6 +1425,7 @@
         }
         stage.addEventListener('click', (e) => floorClick(e));
         function floorClick(e) {
+            if (rmOn()) return;                                                 // in a plane: no walking
             if (kartView()) { if (!kRacer(me)) kWatchStep(1); return; }       // watching the race: the next kart
             const p = mine();
             if (!p) return;
@@ -2676,6 +3027,8 @@
             if (editingKeys && waitKey) { actionKey(e); return; }
             if (kartKeyPick(e)) return;
             if (kartView() && kartKey(e)) return;
+            if (rmOn() && e.key === 'Shift') { keys.add('shift'); return; }                               // the boss fight: Shift flies slow
+            if (rmOn() && (e.key === ' ' || e.key.toLowerCase() === 'b')) { if (!e.repeat) rmBomb(); e.preventDefault(); return; }       // Space or B: a bomb
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
             if (k === 'j' && bombMine()) { if (!e.repeat) passBomb(); e.preventDefault(); return; }       // hot potato: J passes it
@@ -2817,6 +3170,7 @@
         function step(dt) {
             const t = now(), p = mine();
             kartDrive(dt);
+            if (rmOn()) { rmStep(dt); return; }                               // in a plane: no walking
             if (p && !kartView()) {
                 const push = pushing();
                 // Sprinting starts or stops: the room's told (a walk to a clicked spot carries on, faster or slower).
@@ -2984,6 +3338,7 @@
             last = ms;
             step(dt);
             if (kartView()) { drawRace(dt, now()); return; }
+            if (rmOn()) { rmFrame(now(), dt); return; }
             const t = now(), s = core.state, tr = s.track;
             // In the room, the station says; outside it, the radio's own idea of what's on.
             const onAir = joined ? air : { live: s.live, talking: false, music: !!tr };

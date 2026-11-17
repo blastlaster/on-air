@@ -1745,6 +1745,151 @@
         for (const d of dots) { const s = d.me ? 3 : 2; R(x0 + d.x * k - s / 2, y0 + d.y * k - s / 2, s, s, d.me ? '#000' : 'rgba(0,0,0,0.6)'); R(x0 + d.x * k - s / 2 + (d.me ? 0.5 : 0), y0 + d.y * k - s / 2, s - (d.me ? 1 : 0), s - (d.me ? 1 : 0), d.c); }
     }
 
+    /* =========================================================
+       RADIOMAN: TO THE DEATH — the boss fight's pictures (app/ui/hall.js
+       draws the fight, engine/hall-boss.js runs it). The sky, the room
+       falling apart (and back together), Radioman twice the size on
+       his desk with rockets under it, the planes, and his bullets.
+       ========================================================= */
+    const SKY = ['#1a1238', '#241a4e', '#30225e', '#3e2a6c', '#523276', '#6a3a7c', '#86427c', '#a44c78', '#c25a70', '#dc6c66', '#f08460', '#fca064'];
+    /** The sky at sunset, and clouds going by (faster ones in front). k: how far into the fight (the sky reddens). */
+    function rmSky(t, k) {
+        const band = Math.ceil(H / SKY.length);
+        SKY.forEach((c, i) => R(0, i * band, W, band, c));
+        if (k > 0) { l.globalAlpha = 0.35 * k; R(0, 0, W, H, '#ff2040'); l.globalAlpha = 1; }
+        for (let i = 0; i < 16; i++) {                                                        // stars, up top
+            const x = Math.floor(hash(i + 300) * W), y = Math.floor(hash(i + 301) * 40);
+            if ((t * 2 + i) % 3 > 0.4) R(x, y, 1, 1, '#ffffff');
+        }
+        for (let layer = 0; layer < 3; layer++) {
+            const v = 10 + layer * 22, n = 4 + layer;
+            l.globalAlpha = 0.35 + layer * 0.2;
+            for (let i = 0; i < n; i++) {
+                const span = W + 80, x = ((hash(i * 7 + layer * 31) * span - t * v) % span + span) % span - 40;
+                const y = 18 + hash(i * 3 + layer * 17) * (H - 40) + layer * 6, w = 18 + layer * 8 + hash(i + layer) * 14;
+                puffWhite(x, y, w, 5 + layer * 2);
+            }
+        }
+        l.globalAlpha = 1;
+    }
+    function puffWhite(x, y, w, h) {
+        w = Math.round(w);
+        R(x, y, w, h, '#f4e8f8'); R(x + 3, y - 3, w - 8, 3, '#f4e8f8'); R(x + w * 0.4, y - 5, Math.round(w * 0.35), 2, '#f4e8f8');
+        R(x, y + h - 1, w, 1, '#c8b0d8');
+    }
+    /**
+     * The room in pieces: `img` (a picture of it) cut into tiles that fall away from the middle out
+     * (s seconds in), or, with back, fly up into place again (s: seconds into coming back).
+     */
+    function rmShatter(img, s, back) {
+        const TW = 20, TH = 15, cx = W / 2, cy = H / 2;
+        for (let ty = 0; ty < H; ty += TH) for (let tx = 0; tx < W; tx += TW) {
+            const i = tx / TW + ty / TH * 13, d = Math.hypot(tx + TW / 2 - cx, ty + TH / 2 - cy) / Math.hypot(cx, cy);
+            const delay = d * 1.1 + hash(i + 900) * 0.35;
+            let k = back ? Math.max(0, 2.2 - s - delay * 0.6) : s - 0.6 - delay;       // seconds into its fall
+            if (k <= 0) { l.drawImage(img, tx, ty, TW, TH, tx, ty, TW, TH); continue; }
+            const fall = 140 * k * k + 10 * k, spin = (hash(i + 77) - 0.5) * 3 * k, drift = (tx + TW / 2 - cx) * 0.6 * k;
+            if (ty + fall > H + 20) continue;
+            l.save();
+            l.translate(tx + TW / 2 + drift, ty + TH / 2 + fall);
+            l.rotate(spin);
+            l.drawImage(img, tx, ty, TW, TH, -TW / 2, -TH / 2, TW, TH);
+            l.restore();
+        }
+    }
+    /* Radioman, twice the size, on his desk on rockets. (x, y): his middle. o: { turned (his back to you, for the
+       fart), hurt (a white flash), angry (the last third: red eyes), laugh (mouth going), tilt } */
+    function rmBoss(x, y, t, o) {
+        const S = 2, hx = Math.round(x - 10 * S), hy = Math.round(y - 26);
+        const P = (c, r, w, h, col) => R(hx + c * S, hy + r * S, w * S, h * S, col);
+        // The desk and its rockets first (under him), flames going.
+        const dy = hy + 40, dx = Math.round(x - 30);
+        for (const fx of [dx + 8, dx + 46]) {
+            R(fx, dy + 14, 6, 6, '#6a6a78'); R(fx + 1, dy + 14, 4, 1, '#9a9aa8');
+            const f = 5 + Math.floor((t * 20 + fx) % 4);
+            R(fx + 1, dy + 20, 4, f, '#ff8a20'); R(fx + 2, dy + 20, 2, f + 3, '#ffe060');
+        }
+        R(dx, dy, 60, 4, '#8a5a3a'); R(dx, dy, 60, 1, '#a8774f'); R(dx + 3, dy + 4, 54, 11, '#5a3a22');
+        R(dx + 17, dy + 6, 26, 7, '#1a1020');
+        text(l, 'ON AIR', dx + 19, dy + 7, Math.floor(t * 4) % 2 ? '#ff4a4a' : '#ff2a2a');
+        // His jacket, arms out on the desk.
+        for (let r = 0; r < 8; r++) { const w = 26 + Math.min(r, 3) * 4; R(Math.round(x - w / 2), hy + 38 - 8 + r, w, 1, o.turned ? '#5f6470' : '#6f7480'); }
+        R(Math.round(x - 26), dy - 3, 8, 4, '#b0b0b0'); R(Math.round(x + 18), dy - 3, 8, 4, '#b0b0b0');
+        // The head, twice the size; turned round, the back of it (no face).
+        const mouthOpen = o.laugh && Math.floor(t * 8) % 2;
+        RM_HEAD.forEach((row, r) => {
+            if (mouthOpen && RM_MOUTH_SMALL[r]) row = RM_MOUTH_SMALL[r].padEnd(20, '.').slice(0, 20);
+            for (let c = 0; c < row.length; c++) {
+                const ch = row[o.turned ? row.length - 1 - c : c];
+                if (ch === '.') continue;
+                let col = RM_PAL[ch];
+                if (o.turned && (ch === 'k' || ch === 't' || ch === 'w' || ch === 'b')) col = RM_PAL.s;
+                if (o.hurt) col = ch === 'k' || ch === 'b' ? '#c8c8c8' : '#ffffff';                        // hit: a white flash
+                P(c, r, 1, 1, col);
+            }
+        });
+        if (o.angry && !o.turned) {                                                 // the last third: his eyes glow red
+            const g = 0.6 + 0.4 * Math.sin(t * 12);
+            for (const ex of [4, 14]) {                                              // the eyes (RM_HEAD row 11): a red glow round them, red in them
+                l.globalAlpha = 0.35 * g; P(ex - 1, 10, 5, 3, '#ff2030');
+                l.globalAlpha = 1; P(ex, 11, 3, 1, '#ff2030'); P(ex + 1, 11, 1, 1, g > 0.8 ? '#ffd0d0' : '#ff6070');
+            }
+        }
+        return { top: hy, mouthX: x - 14, mouthY: y - 6 };
+    }
+    /** A little biplane flying right, its pilot (look) sitting in it. (x, y): the cockpit. o: { tint, ghost, t, prop } */
+    function rmPlane(ctx, look, x, y, t, o) {
+        l = ctx;
+        x = Math.round(x); y = Math.round(y);
+        const body = o.tint || '#d0302a';
+        if (o.ghost) l.globalAlpha = 0.35 + 0.15 * Math.sin(t * 5);
+        person(ctx, look, { x: x, y: y + 6, face: 1, t, noShadow: true });
+        l = ctx;
+        R(x - 10, y + 1, 4, 1, '#3a2a1a'); R(x - 11, y - 2, 2, 4, body);                     // the tail
+        R(x - 9, y + 1, 17, 4, body); R(x - 9, y + 1, 17, 1, '#ffffff33');                   // the body
+        R(x - 4, y - 1, 12, 1, '#e8d8a0'); R(x - 4, y + 5, 12, 1, '#c8b880');               // the wings, top and bottom
+        R(x - 1, y - 1, 1, 6, '#6a5a40'); R(x + 5, y - 1, 1, 6, '#6a5a40');                 // struts
+        R(x + 8, y + 2, 2, 2, '#3a3a3a');                                                    // the nose
+        const p = Math.floor(t * 30) % 2;                                                    // the propeller, a blur
+        R(x + 10, y + (p ? -1 : 1), 1, 5, '#e8e8e8');
+        l.globalAlpha = 1;
+    }
+    const NOTE_COLORS = ['#ff6ad5', '#ffe14d', '#5aff8a', '#6ad8ff'];
+    /** One of his bullets: b = { x, y, k, a (its direction), i }. */
+    function rmBullet(ctx, b, t) {
+        l = ctx;
+        const x = Math.round(b.x), y = Math.round(b.y);
+        switch (b.k) {
+            case 'wave': {                                                                   // a radio wave: a little arc
+                const px = -Math.sin(b.a), py = Math.cos(b.a);
+                for (let j = -2; j <= 2; j++) R(Math.round(b.x + px * j - Math.cos(b.a) * Math.abs(j) * 0.6), Math.round(b.y + py * j - Math.sin(b.a) * Math.abs(j) * 0.6), 1, 1, j ? '#5ad0ff' : '#ffffff');
+                break;
+            }
+            case 'note': {                                                                   // ♪
+                const c = NOTE_COLORS[b.i % 4];
+                R(x - 1, y, 3, 2, c); R(x + 1, y - 5, 1, 5, c); R(x + 2, y - 5, 2, 1, c); R(x + 3, y - 4, 1, 1, c);
+                break;
+            }
+            case 'poop':                                                                     // a poop grenade, its pin glinting
+                R(x - 3, y, 7, 2, '#6a4020'); R(x - 2, y - 2, 5, 2, '#7a4a24'); R(x - 1, y - 4, 3, 2, '#8a5428'); R(x, y - 5, 1, 1, '#8a5428');
+                R(x + 2, y - 4, 2, 1, Math.floor(t * 8) % 2 ? '#e8e8e8' : '#a0a0a0');
+                break;
+            case 'bit': R(x - 1, y - 1, 2, 2, '#7a4a24'); R(x - 1, y - 1, 1, 1, '#a06a3a'); break;
+            case 'static': R(x - 1, y - 1, 3, 1, '#e8e8f0'); R(x, y, 1, 1, '#a8a8b8'); R(x - 1, y + 1, 3, 1, '#e8e8f0'); break;
+            case 'spiral': R(x - 1, y - 1, 3, 3, '#ff3ad0'); R(x, y, 1, 1, '#ffffff'); break;
+        }
+    }
+    /** The fart blast: a green cone rolling out leftwards from (x, y), s seconds since it went off. */
+    function rmFart(ctx, x, y, s, reach, half) {
+        l = ctx;
+        l.fillStyle = '#8ad040';
+        for (let i = 0; i < 26; i++) {
+            const d = reach * (0.15 + 0.85 * hash(i + 500)), a = Math.PI + (hash(i + 501) - 0.5) * 2 * half, r = 3 + d * 0.035;
+            puff(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 2, r * 1.4, Math.max(0, 0.55 - s * 0.3));          // see-through: his bullets still show
+        }
+        l.globalAlpha = 1;
+    }
+
     const SECRET_BURGER = 11;               // extra 11: only for Burgertime survivors (app/ui/hall.js offers it)
     window.HallArt = { W, H, FLOOR, SECRET_BURGER, FREE, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
@@ -1766,5 +1911,7 @@
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
         afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
-        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge };
+        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge,
+        rmSky: (ctx, t, k) => { l = ctx; rmSky(t, k); }, rmShatter: (ctx, img, s, back) => { l = ctx; rmShatter(img, s, back); },
+        rmBoss: (ctx, x, y, t, o) => { l = ctx; return rmBoss(x, y, t, o || {}); }, rmPlane, rmBullet, rmFart };
 })();
