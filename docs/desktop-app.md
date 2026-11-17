@@ -140,7 +140,7 @@ Every window can be:
 - **closed** (✕).
 
 Right-click a title bar (or press **≡**) for that window's own **look, text
-size, see-through and always-on-top**. Windows remember where they were and
+size, see-through and always-on-top** (right-click selected text instead and you get **Copy**). Windows remember where they were and
 reopen with the app. **Minimising the radio tucks them all away**, and
 restoring it brings them back; **bringing the radio forward brings them all
 forward** with it. Lost one off a screen that's gone? Tray → **Put the windows

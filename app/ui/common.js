@@ -79,7 +79,12 @@
             else if (c === 'roll') app.setWin({ rolled: !me.rolled });
             else app.winCmd(c);
         });
-        $('.body').addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, a')) { e.preventDefault(); app.winCmd('menu'); } });
+        // Right-click: the window menu, except in a field, on a link, or over selected text (that gets Copy).
+        $('.body').addEventListener('contextmenu', (e) => {
+            const sel = getSelection();
+            if (e.target.closest('input, textarea, a') || (sel && !sel.isCollapsed && String(sel).trim())) return;
+            e.preventDefault(); app.winCmd('menu');
+        });
         if (!panel) grip($('.grip'));
         $('.sheet').addEventListener('click', (e) => { if (e.target === $('.sheet') || e.target.hasAttribute('data-close')) closeSheet(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('.sheet').hidden) closeSheet(); });
