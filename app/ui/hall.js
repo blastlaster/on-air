@@ -15,7 +15,8 @@
     const HERE = ((document.currentScript && document.currentScript.src) || '').replace(/[^/]*(\?.*)?$/, '');
 
     const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['jump', '⤴️', 'Jump'], ['sit', '🪑', 'Sit'], ['cheer', '🙌', 'Cheer'],
-        ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep']];
+        ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep (lie down)'],
+        ['robot', '🤖', 'The robot'], ['worm', '🐛', 'The worm'], ['breakdance', '🌪️', 'Breakdance'], ['moonwalk', '🌙', 'Moonwalk'], ['dab', '💥', 'Dab']];
     // Seconds; the rest (dance, sit, headbang, sleep) last until you move.
     // Poses stay on until you pick them again (or another one), and keep going while you walk.
     const ONE_SHOT = {};
@@ -3056,7 +3057,7 @@
             { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() },
             { id: 'stretch', icon: '⛶', name: 'Stretch the room to fill the space (again: keep its shape)', run: () => toggleStretch() }
         ];
-        const KEYS0 = Object.fromEntries([...EMOTES.map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
+        const KEYS0 = Object.fromEntries([...EMOTES.slice(0, 10).map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
         const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
         let keymap = null;
         try { keymap = JSON.parse(localStorage.getItem('ltl.hallKeys') || 'null'); } catch { /* the usual */ }

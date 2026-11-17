@@ -907,12 +907,54 @@
     /* =========================================================
        PEOPLE — feet at (x, y); about 9 wide and 17 tall
        ========================================================= */
+    /* Moves done on the floor — sleep (lying down), the worm and breakdancing: the person is drawn standing on a
+       canvas of its own (feet at 20, 38; the middle of the body at 20, 30), then laid on the floor turned a
+       quarter or half way round (whole quarter turns, so the pixels stay crisp). */
+    const POSE = { w: 40, h: 44, cx: 20, cy: 30, fx: 20, fy: 38 };
+    let poseCv = null, poseG = null, lieCv = null, lieG = null;
+    function floorMove(ctx, look, o, e) {
+        if (!poseCv) {
+            poseCv = document.createElement('canvas'); poseCv.width = POSE.w; poseCv.height = POSE.h; poseG = poseCv.getContext('2d');
+            lieCv = document.createElement('canvas'); lieCv.width = 44; lieCv.height = 40; lieG = lieCv.getContext('2d');
+        }
+        const t = o.t, f = o.face < 0 ? -1 : 1, x = Math.round(o.x), y = Math.round(o.y);
+        let inner = '_lie', ang = -f * Math.PI / 2, face = f, up = 4;
+        if (e === 'breakdance') {
+            // Round and round: a headstand (spinning on the head), then over on one side, the other, and back up on the head.
+            const k = Math.floor(t * 6) % 4;
+            inner = '_brk'; ang = [Math.PI, Math.PI, Math.PI / 2, -Math.PI / 2][k]; face = k === 1 ? -1 : 1; up = k < 2 ? 8 : 4;
+        }
+        poseG.clearRect(0, 0, POSE.w, POSE.h);
+        person(poseG, look, { ...o, x: POSE.fx, y: POSE.fy, face, emote: inner, inner: true, noShadow: true, jumpT: null, dash: false, hover: 0 });
+        l = ctx;
+        R(x - 9, y - 1, 19, 2, 'rgba(0,0,0,0.45)');
+        if (e === 'worm') {
+            // Face down, a wave rippling along from the feet to the head.
+            lieG.clearRect(0, 0, 44, 40);
+            lieG.save(); lieG.translate(22, 20); lieG.rotate(ang); lieG.drawImage(poseCv, -POSE.cx, -POSE.cy); lieG.restore();
+            for (let c = 0; c < 44; c++) {
+                const along = f > 0 ? c : 43 - c, dy = Math.max(0, Math.round(3 * Math.sin(t * 7 - along * 0.45)));
+                ctx.drawImage(lieCv, c, 0, 1, 40, x - 22 + c, y - 4 - 20 - dy, 1, 40);
+            }
+            return y - 12;
+        }
+        ctx.save(); ctx.translate(x, y - up); ctx.rotate(ang); ctx.drawImage(poseCv, -POSE.cx, -POSE.cy); ctx.restore();
+        if (e === 'sleep') {                                            // Zs floating up from the head
+            const k = (t * 0.8) % 1, hx = x - f * 9;
+            l.globalAlpha = 1 - k;
+            R(hx, y - 10 - Math.round(k * 6), 3, 1, '#ffffff'); R(hx + 1, y - 9 - Math.round(k * 6), 1, 1, '#ffffff'); R(hx, y - 8 - Math.round(k * 6), 3, 1, '#ffffff');
+            l.globalAlpha = 1;
+        }
+        return y - (up === 8 ? 18 : 12);
+    }
     /**
-     * o = { x, y, face (1 right, -1 left), step (0/1 while walking), emote (wave dance jump sit cheer clap point spin headbang sleep),
-     *       et (seconds into the emote), t, talk }
+     * o = { x, y, face (1 right, -1 left), step (0/1 while walking), emote (wave dance jump sit cheer clap point spin headbang sleep
+     *       robot worm breakdance moonwalk dab), et (seconds into the emote), t, talk }
      */
     function person(ctx, look, o) {
         l = ctx;
+        const e0 = o.emote || '';
+        if (!o.inner && (e0 === 'sleep' || e0 === 'worm' || e0 === 'breakdance')) return floorMove(ctx, look, o, e0);
         const L = look || {};
         const skin = SKIN[L.skin] || SKIN[0], hc = HAIR_COLOR[L.hairColor] || HAIR_COLOR[0];
         const sh = SHIRT[L.shirt] || SHIRT[0], pa = PANTS[L.pants] || PANTS[0];
@@ -924,6 +966,8 @@
         if (e === 'jump') lift = Math.round(Math.abs(Math.sin(o.et * Math.PI / 0.6)) * 6);
         else if (e === 'dance') lift = Math.floor(t * 4) % 2;
         else if (e === 'cheer' || e === 'spin') lift = Math.floor(t * 5) % 2;
+        else if (e === 'robot') lift = Math.floor(t * 3) % 2;                  // popping up and down, in steps
+        if (e === 'moonwalk') x -= f * Math.round(2 * Math.sin(t * 3));         // gliding back the way they're facing
         if (jumpT != null && jumpT >= 0 && jumpT < 0.6) lift = Math.max(lift, Math.round(Math.sin(jumpT / 0.6 * Math.PI) * 8));     // Space: a jump
         const ufo = L.ride === 1;
         if (ufo) lift += 2 + Math.round(Math.sin(t * 3) * 0.8 + 0.4) + Math.round(o.hover || 0);       // the UFO: always floating a little
@@ -935,17 +979,23 @@
             l.globalAlpha = 1;
         }
         y -= lift;
-        const sit = e === 'sit' || e === 'sleep';
+        const sit = e === 'sit';
         if (L.back) backPiece(L.back, x, sit ? y + 1 : y, f, t, o.step === 0 || o.step === 1);
         if (sit) {
             R(x - 3 + (f > 0 ? 1 : -1), y - 3, 7, 2, pa);
             R(f > 0 ? x + 4 : x - 4, y - 3, 1, 2, '#15151c');
         } else {
             // Walking lifts one foot then the other; dancing too.
-            const walk = o.step === 0 || o.step === 1, dance = e === 'dance' ? Math.floor(t * 4) % 2 : -1;
-            const la = walk ? o.step : dance === 1 ? 1 : 0, ra = walk ? 1 - o.step : dance === 0 ? 1 : 0;
-            R(x - 2, y - 4, 2, 4 - la, pa); R(x + 1, y - 4, 2, 4 - ra, pa);
-            R(x - 2, y - 1 - la, 2, 1, '#15151c'); R(x + 1, y - 1 - ra, 2, 1, '#15151c');
+            const step = e === 'moonwalk' ? Math.floor(t * 3) % 2 : o.step;           // the moonwalk: heel up, then the other
+            const walk = step === 0 || step === 1, dance = e === 'dance' ? Math.floor(t * 4) % 2 : -1;
+            const la = walk ? step : dance === 1 ? 1 : 0, ra = walk ? 1 - step : dance === 0 ? 1 : 0;
+            if (e === '_brk') {                                         // breakdancing: legs kicked out wide
+                R(x - 5, y - 4, 2, 3, pa); R(x + 4, y - 4, 2, 3, pa); R(x - 2, y - 4, 5, 1, pa);
+                R(x - 6, y - 2, 2, 1, '#15151c'); R(x + 5, y - 2, 2, 1, '#15151c');
+            } else {
+                R(x - 2, y - 4, 2, 4 - la, pa); R(x + 1, y - 4, 2, 4 - ra, pa);
+                R(x - 2, y - 1 - la, 2, 1, '#15151c'); R(x + 1, y - 1 - ra, 2, 1, '#15151c');
+            }
         }
         const by = sit ? y - 8 : y - 9;                                 // top of the body
         // The top: tee, hoodie, jacket, tank, suit or dress (the shirt colour runs through all of them).
@@ -972,13 +1022,26 @@
             else { R(x - 3, by + 2, 1, 1, skin); R(x + 3, by + 2, 1, 1, skin); }
         }
         else if (e === 'headbang') { armUp(-1, 0); R(x + 4, by + 1, 1, 3, sleeve); R(x + 4, by + 4, 1, 1, skin); }
+        else if (e === 'robot') {
+            // Stiff elbows at right angles, one arm up and one forward, swapping in jerks.
+            const k = Math.floor(t * 3) % 2, upS = k ? f : -f, fwd = -upS;
+            R(upS < 0 ? x - 6 : x + 4, by + 1, 3, 1, sleeve); R(upS < 0 ? x - 6 : x + 6, by - 2, 1, 3, sleeve); R(upS < 0 ? x - 6 : x + 6, by - 3, 1, 1, skin);
+            R(fwd < 0 ? x - 4 : x + 4, by + 1, 1, 2, sleeve); R(fwd < 0 ? x - 7 : x + 4, by + 3, 4, 1, sleeve); R(fwd < 0 ? x - 7 : x + 7, by + 3, 1, 1, skin);
+        }
+        else if (e === 'dab') {
+            // One arm flung up and out; the other bent across the face (drawn after the head).
+            for (let i = 0; i < 4; i++) R(x + f * (4 + i), by - i, 1, 1, i === 3 ? skin : sleeve);
+            R(f > 0 ? x - 4 : x + 4, by - 1, 1, 2, sleeve);
+        }
+        else if (e === '_brk') { armOut(-1); armOut(1); }
         else { armDown(-1); armDown(1); }
         // Head, face.
-        const hy = by - 6 + (e === 'headbang' && Math.floor(t * 8) % 2 ? 2 : 0);
+        const hy = by - 6 + (e === 'headbang' && Math.floor(t * 8) % 2 ? 2 : 0) + (e === 'dab' ? 1 : 0);
         R(x - 3, hy, 7, 6, mood === 'sick' ? '#a8d08a' : skin);
         const ex = f > 0 ? [x, x + 2] : [x - 2, x];
         // Eyes, by how they feel.
-        if (e === 'sleep') { R(ex[0] - 1, hy + 3, 2, 1, '#111'); R(ex[1], hy + 3, 2, 1, '#111'); }
+        if (e === 'sleep' || e === '_lie') { R(ex[0] - 1, hy + 3, 2, 1, '#111'); R(ex[1], hy + 3, 2, 1, '#111'); }
+        else if (e === 'robot') { R(ex[0], hy + 2, 1, 1, '#111'); R(ex[1], hy + 2, 1, 1, '#111'); }
         else if (mood === 'love') { for (const ey of ex) { R(ey - 1, hy + 2, 1, 1, '#ff3d6e'); R(ey + 1, hy + 2, 1, 1, '#ff3d6e'); R(ey, hy + 3, 1, 1, '#ff3d6e'); } }
         else if (mood === 'surprised') { R(ex[0], hy + 1, 1, 3, '#111'); R(ex[1], hy + 1, 1, 3, '#111'); }
         else if (mood === 'smug' || mood === 'happy') { R(ex[0], hy + 3, 1, 1, '#111'); R(ex[1], hy + 3, 1, 1, '#111'); R(ex[0], hy + 2, 1, 1, mood === 'happy' ? '#111' : 'rgba(0,0,0,0.35)'); R(ex[1], hy + 2, 1, 1, mood === 'happy' ? '#111' : 'rgba(0,0,0,0.35)'); }
@@ -1054,14 +1117,15 @@
                 R(x, hy - 2, 1, 1, '#ff2a2a'); break;
         }
         // Glowing eyes (666 nice points): white-hot, a golden glow round them, over anything on the face. Shut when asleep.
-        if (L.face === 5 && e !== 'sleep') {
+        if (L.face === 5 && e !== 'sleep' && e !== '_lie') {
             const p = 0.75 + 0.25 * Math.sin(t * 4);
             l.save(); l.globalCompositeOperation = 'lighter';
             for (const ey of ex) { l.globalAlpha = 0.5 * p; R(ey - 1, hy + 2, 1, 2, '#ffc020'); R(ey + 1, hy + 2, 1, 2, '#ffc020'); R(ey, hy + 1, 1, 1, '#ffc020'); R(ey, hy + 4, 1, 1, '#ffc020'); }
             l.restore();
             for (const ey of ex) { R(ey, hy + 2, 1, 2, '#ffe680'); R(ey, hy + 2, 1, 1, '#ffffff'); }
         }
-        // Asleep: Zs floating up.
+        if (e === 'dab') { R(f > 0 ? x - 4 : x + 1, hy + 2, 4, 1, sleeve); R(f > 0 ? x : x + 1, hy + 2, 1, 1, skin); }    // the elbow over the face
+        // Asleep (sitting, from an older room): Zs floating up.
         if (e === 'sleep') {
             const k = (t * 0.8) % 1;
             l.globalAlpha = 1 - k;

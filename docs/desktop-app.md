@@ -74,7 +74,7 @@ listener page, blug.dj/jej). Only you see the answers, unless it says otherwise.
 | `/request` | Opens the Request window. |
 | `/who` | Who's here, and who's in blug.dj/jej. |
 | `/ignore name` · `/unignore name` | Hides someone's lines from you (the app remembers the list). |
-| `/wave` `/dance` `/cheer` … | An emote in blug.dj/jej. |
+| `/wave` `/dance` `/robot` `/worm` … | An emote in blug.dj/jej. |
 | `/roll` · `/roll 100` · `/roll 5-10` | A number everyone sees, in bold; dubs and better get cheered. |
 | `/fortune` | Your fortune, the old way, in its colour (everyone sees it too). |
 | `/help` | The list. |
@@ -87,7 +87,9 @@ show from his desk. Up to 40 people at once (the host can change that).
 
 - **Walk**: click, WASD or the arrows, or a controller. **Space** jumps, **Shift**
   dashes (hold it to sprint), **1–0** are the emotes (wave, dance, jump, sit,
-  cheer, clap, point, spin, headbang, sleep). **⌨** in the actions changes any key.
+  cheer, clap, point, spin, headbang, sleep — lying down); the robot, the worm, breakdance, the
+  moonwalk and the dab are buttons too, with no key until you give them one. **⌨** in the actions
+  changes any key.
 - **🎨 Look**: skin, hair, clothes, extras and your name colour. **😀** has
   feelings (a face and a little emoji over you), **glowsticks**, **auras** (each
   takes a colour everyone sees; *Natural* keeps its own) and **things to hold**:
