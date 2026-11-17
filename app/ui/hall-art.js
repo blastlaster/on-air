@@ -1879,7 +1879,7 @@
             if (nearest(x, y) < r - 6) continue;
             out.push({ x, y, kind: 'chevron', turn: turn > 0 ? 1 : -1 });
         }
-        out.push({ x: P[0], y: P[1], kind: 'arch' });
+        out.push({ x: P[0], y: P[1], kind: 'arch', a: dirAt(0) });
         return out;
     }
     /** One piece of scenery's canvas (cached; the animated ones twice a second). */

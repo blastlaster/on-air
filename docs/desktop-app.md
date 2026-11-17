@@ -125,7 +125,7 @@ show from his desk. Up to 40 people at once (the host can change that).
   Speedway, Frostbite Hairpins, Burger Boulevard, Crop Circle Raceway, Static Peaks), each with
   its own scenery, seen from behind your kart: **W**/**↑** goes, **S**/**↓** brakes, **A D**/**← →** steer (or a
   controller; on a touchscreen it drives itself and you hold ◀ ▶ to steer). Off the road
-  is slow, and the barrier stops you. **Drift**: hold **Shift** (a bumper; ⤳ on a touchscreen)
+  is slow, and the barrier stops you. **Drift**: hold **Shift** (a bumper; on a touchscreen, double-tap ◀ or ▶ and hold it — letting go boosts)
   as you steer into a corner and the kart slides round it, filling the nitro gauge — a nitro
   each time it's full (two at most); **Space** (X or Y; 🔥) fires one. Tap **↑** again just as a
   drift ends for an instant boost. **⌨ Keys** in the race's bar changes any of them (two keys for

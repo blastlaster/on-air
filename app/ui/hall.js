@@ -623,6 +623,8 @@
            ks: the lobby you're in (or watching). */
         const kLob = new Map();                 // id → the station's hall-kart for it (got: when it came)
         let ks = { state: '' }, ksAt = 0, kTrack = null, kTex = null, kDecos = [], kPl = [], kWatchId = '', kWatchH = '', kInvite = null, kGoAt = 0, kFinAt = 0, kTouch = null;
+        const kFingers = new Map();                      // on a touchscreen, pointerId → what that finger holds: -1 / 1 steering, 'b' braking
+        let kLastTap = { dir: 0, at: 0 };
         const kAt = new Map();                  // h → { x, y, a, v, lap, at } from the station, gx gy ga: as drawn
         const kMe = { x: 0, y: 0, a: 0, v: 0, i: null, camA: 0, steer: 0, go: false, sentAt: 0, bonk: 0 };
         // Flat out on the road (engine/hall-kart.js KART.maxV), off it, how fast it picks up and slows, how sharp it turns.
@@ -657,7 +659,7 @@
             if (ks.id !== m.id || !m.state) { if (!m.state) { keys.clear(); kHeld.clear(); kTouch = null; } paintKart(); return; }
             if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; kMe.m = null; keys.clear(); kHeld.clear(); Object.assign(kDrift, { on: false, gauge: 0, nitros: 0, endAt: -9, ibAt: -9 }); kBoost.until = 0; kFinAt = 0; }
             if (m.ms != null) kGoAt = now() - m.ms / 1000;                     // the race clock: the station's (someone coming in halfway too)
-            if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) kTouch = { steer: 0, brake: 0 }; }
+            if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) { kTouch = { steer: 0, brake: 0 }; kFingers.clear(); } }
             if ((m.done || []).some(d => d.h === me) && !wasDone) kFinAt = now();
             if (m.state === 'results' && was !== 'results' && !quiet && m.kind !== 'practice') {
                 const w = ((m.last && m.last.rows) || []).find(r => r.place === 1);
@@ -849,6 +851,31 @@
         const kCv = document.createElement('canvas'); kCv.width = 40; kCv.height = 32;
         const kCtx = kCv.getContext('2d');
         /** The race, in place of the room: sky, track, karts, and (at screen size) names and the race's numbers. */
+        /* The start arch, standing across the road: each pillar on its barrier and the banner between them, cut into
+           strips each put where it is in the world, so it turns as you drive round it and passes overhead as you
+           go under it (the strips behind the camera are left out). Its canvas (hall-art.js decoCanvas 'arch'):
+           150 × 64, pillars at x 5 and 139 (6 wide, rows 12–62), the banner rows 4–16 from x 5 to 145, the
+           ground at row 62, the road's middle at x 75, 67 across to each barrier. */
+        function drawArch(c, d, cam) {
+            const r = kTrack.w + kTrack.wall, nx = -Math.sin(d.a), ny = Math.cos(d.a), u = r * A.K7.focal / A.K7.back / 67;
+            const at = (cx) => { const off = (cx - 75) / 67 * r; return A.kartProject(cam, d.x + nx * off, d.y + ny * off); };
+            // One strip per pixel column of the banner, edge to edge, so its letters stay whole.
+            let p = at(5);
+            for (let x = 5; x < 145; x++) {
+                const q = at(x + 1);
+                if (p && q) {
+                    const k = (p.k + q.k) / 2, sy = (p.sy + q.sy) / 2, a = Math.round(Math.min(p.sx, q.sx)), b = Math.round(Math.max(p.sx, q.sx));
+                    lc.drawImage(c, x, 4, 1, 12, a, Math.round(sy - 58 * k * u), Math.max(1, b - a), Math.max(1, Math.round(12 * k * u)));
+                }
+                p = q;
+            }
+            for (const px of [5, 139]) {
+                const p = at(px + 3);
+                if (!p || p.k > 6) continue;
+                const s = p.k * u;
+                lc.drawImage(c, px, 12, 6, 50, Math.round(p.sx - 3 * s), Math.round(p.sy - 50 * s), Math.max(1, Math.round(6 * s)), Math.max(1, Math.round(50 * s)));
+            }
+        }
         function drawRace(dt, t) {
             const racer = kRacer(me), P = kTrack.path;
             let fx, fy, fa, follow = me;
@@ -890,8 +917,9 @@
             for (const it of list) {
                 if (it.deco) {
                     const c = A.decoCanvas(it.deco.kind, kTrack.look, t, it.deco.turn), d = it.deco;
-                    // The arch spans the road: its pillars stand on the barriers either side.
-                    const k = d.kind === 'arch' ? it.pr.k * (kTrack.w + kTrack.wall) * A.K7.focal / A.K7.back / 67 : it.pr.k;
+                    if (d.kind === 'arch') { drawArch(c, d, cam); continue; }
+                    const k = it.pr.k;
+                    if (k > 2.5) continue;                       // right on top of the camera: gone, not a wall of pixels
                     const w = Math.max(1, Math.round(c.width * k)), h = Math.max(1, Math.round(c.height * k));
                     lc.drawImage(c, Math.round(it.pr.sx - w / 2), Math.round(it.pr.sy - h + 2 * k), w, h);
                     continue;
@@ -958,7 +986,7 @@
                 txt(n > 3 ? 'GET READY' : String(n), cv.width / 2, c - big, big * (n > 3 ? 1 : 2), n > 3 ? '#ffffff' : '#ffd34a', 'center');
                 if (racer) {
                     txt(kKeysOf('gas') + ' go · ' + kKeysOf('brake') + ' brake · ' + kKeysOf('left') + ' ' + kKeysOf('right') + ' steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
-                    txt(kKeysOf('drift') + ' + steer: drift (fills nitro) · ' + kKeysOf('nitro') + ': nitro · tap ' + kKeysOf('gas') + ' as a drift ends: boost', cv.width / 2, c + big * 1.4 + small * 1.4, small * 0.9, '#c8c0ff', 'center');
+                    txt(kTouch ? 'double-tap ◀ or ▶ and hold: drift (fills nitro) · let go: boost · 🔥 nitro' : kKeysOf('drift') + ' + steer: drift (fills nitro) · ' + kKeysOf('nitro') + ': nitro · tap ' + kKeysOf('gas') + ' as a drift ends: boost', cv.width / 2, c + big * 1.4 + small * 1.4, small * 0.9, '#c8c0ff', 'center');
                 }
             } else if (ks.state === 'race' && t - kGoAt < 1.2) txt('GO!', cv.width / 2, c - big, big * 2, '#4fd36e', 'center');
             if (racer && ks.state === 'race' && doneI < 0) {
@@ -1039,7 +1067,7 @@
             } else if (L && L.state === 'vote') {
                 html = '<p>🗳 <b>Next track</b> · ' + Math.ceil(kLeft()) + 's</p><div class="hk-tracks">' + kTrackBtns('vote', L.votes || {}) + '</div><div>' + kBtn('leave', 'Leave', { id: L.id }) + '</div>';
             } else if (L && (L.state === 'count' || L.state === 'race') && kRacer(me) && coarse) {
-                html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="d">⤳</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="n">🔥</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
+                html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="n">🔥</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
             } else if (L && (L.state === 'count' || L.state === 'race' || L.state === 'results')) {
                 html = '<div>' + kBtn('leave', 'Leave the race', { id: L.id }) + '</div>';
             } else if (!L && kInvite && kLob.has(kInvite.id)) {
@@ -1054,16 +1082,33 @@
             el.classList.toggle('hk-race', kartView());
             stage.classList.toggle('hall-racing', kartView());
         }
-        // On a touchscreen the kart goes by itself: hold ◀ or ▶ to steer, 🛑 to brake.
+        /* On a touchscreen the kart goes by itself: hold ◀ or ▶ to steer, 🛑 to brake. Double-tap ◀ or ▶ (and hold
+           it) to drift; let go and the drift ends in a boost. Each finger counts on its own, so lifting one
+           doesn't let go of the others. */
+        const kTouchSync = () => {
+            if (!kTouch) return;
+            let steer = 0, brake = 0, drift = false;
+            for (const f of kFingers.values()) { if (f.k === 'b') brake = 1; else { steer += f.k; if (f.drift) drift = true; } }
+            // The drift is over: the boost, as if the gas were tapped just after it ends (the gas is always on here).
+            if (kTouch.drift && !drift) kGasTap = now() + 0.06;
+            kTouch.steer = Math.max(-1, Math.min(1, steer)); kTouch.brake = brake; kTouch.drift = drift;
+        };
         box.addEventListener('pointerdown', (e) => {
             const b = e.target.closest('[data-ktouch]');
             if (!b) return;
             e.preventDefault(); e.stopPropagation();
             kTouch = kTouch || { steer: 0, brake: 0 };
             const kt = b.dataset.ktouch;
-            if (kt === 'b') kTouch.brake = 1; else if (kt === 'd') kTouch.drift = true; else if (kt === 'n') kTouch.nitro = true; else kTouch.steer = Number(kt);
+            if (kt === 'n') { kTouch.nitro = true; return; }
+            if (kt === 'b') kFingers.set(e.pointerId, { k: 'b' });
+            else {
+                const dir = Number(kt), t = now(), twice = kLastTap.dir === dir && t - kLastTap.at < 0.3;
+                kFingers.set(e.pointerId, { k: dir, drift: twice });
+                kLastTap = { dir: twice ? 0 : dir, at: t };
+            }
+            kTouchSync();
         }, true);
-        const kUp = () => { if (kTouch) { kTouch.steer = 0; kTouch.brake = 0; kTouch.drift = false; } };
+        const kUp = (e) => { if (kFingers.delete(e.pointerId)) kTouchSync(); };
         listen('pointerup', kUp); listen('pointercancel', kUp);
         /* ⌨ Keys: the race's keys, two for each action. Click one, press a key (Esc: none). */
         const KEYS_BTN = '<button type="button" class="btn" data-kkeys title="Choose your race keys">⌨ Keys</button>';
