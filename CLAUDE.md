@@ -331,7 +331,7 @@ the rest. Chat is the station's own `chat` — tag a Hall member's message with
 (`back`: wings, tails, capes; `ride`: the UFO); a person is `{ h, n, c, l, x, y, e, o, f, s, g, a, star, afk }`
 (name colour, what they hold, feeling, safe from hits, glowstick, aura, ms left of the Burgertime winner's star, away).
 `v` in `hall-join` is the app's room version: the engine leaves older rooms out of what they can't show
-(Dodgeball from 2, Burgertime from 4, duels from 3, the UFO taking you from 5). `air.talking`: someone is talking on air
+(Dodgeball from 2, Burgertime from 4, duels from 3, the UFO taking you from 5, kart races from 6). `air.talking`: someone is talking on air
 (the studio's voice meter); `air.music`: music is playing. Guards: a cap on
 people (40), walking sent in one batch a few times a second and only when
 someone moved, per-person limits on moves, emotes and looks, and all of it
@@ -360,6 +360,7 @@ The rest is optional, and the app hides what a station doesn't send:
 | Stage effects and bursts | `hall-fx {k}` | `hall-fx {k, h}` (and `air.fx`) |
 | Who's on the line (the speaker boxes) | — | `hall-booth {host, calls, vm}` |
 | Host events: Dodgeball, Burgertime | `hall-db-*` · `hall-bt-tech` | `hall-db*` · `hall-bt*` |
+| Kart races (host event; behind-the-kart, each app drives its own kart and the engine referees) | `hall-kart-join {yes}` · `hall-kart-at {x, y, a, v}` | `hall-kart {state, until, laps, track, racers, done, ms?}` · `hall-kart-at {at: {h: [x, y, a, v, lap]}, pl}` · `hall-kart-fix {x, y, a}` |
 
 Check every rule on the engine (who may hit whom, what a move does, whose turn
 it is); never trust the app for it. Reference: `engine/hall.js` and

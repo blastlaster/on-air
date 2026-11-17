@@ -70,6 +70,12 @@
 .hall-db p:last-child { margin: 0; }
 .hall-db div { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
 .hall-db .hg-dim { font-weight: normal; opacity: 0.75; }
+/* The kart race's bar (app/ui/hall.js paintKart): over the race, just the buttons. */
+.hall-kart.hk-race { background: none; border: 0; box-shadow: none; padding: 0; }
+.hall-kart .hk-pad { gap: 16px; }
+.hall-racing .hall-log { opacity: 0.45; transition: opacity 0.2s; }
+.hall-racing .hall-log:hover, .hall-racing .hall-log:focus-within { opacity: 1; }
+.hall-kart .hk-pad .btn { min-width: 64px; min-height: 52px; font-size: 22px; touch-action: none; user-select: none; }
 .hall-bar { flex: none; display: flex; gap: 4px; align-items: center; padding: 5px 6px; background: var(--sk-card-bg, #1e1a2c); flex-wrap: wrap; }
 .hall-bar input { flex: 1; min-width: 120px; }
 .hall-bar .btn { padding: 3px 8px; }

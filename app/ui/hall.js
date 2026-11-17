@@ -163,7 +163,7 @@
             '<div class="hall-stage"><canvas></canvas><div class="hall-tv" hidden></div><div class="hall-log"><div class="hall-log-top"><label><input type="checkbox" data-games> ⚔ games</label><label class="hl-times" title="Show the time on each line"><input type="checkbox" data-times> 🕒</label>' +
             '<button type="button" data-chatmove title="Move the chat">⇄</button><button type="button" data-chatsize="-1" title="Smaller">–</button>' +
             '<button type="button" data-chatsize="1" title="Bigger">+</button></div><ol class="hall-lines"></ol></div>' +
-            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-msg" hidden></div></div>' +
+            '<div class="hall-pop" hidden></div><div class="hall-rps" hidden></div><div class="hall-duel" hidden></div><div class="hall-db" hidden></div><div class="hall-db hall-kart" hidden></div><div class="hall-msg" hidden></div></div>' +
             '<form class="hall-bar"><input maxlength="400" placeholder="Say something… (Enter)" autocomplete="off">' +
             '<button class="btn go">Say</button><div class="hall-acts"></div></form>' +
             '<div class="hall-emoji" hidden></div><div class="hall-games" hidden></div><div class="hall-look" hidden></div><div class="hall-dpad" hidden></div></div>';
@@ -276,6 +276,7 @@
             const d = duelOf(h), s = d && d.st[h];
             if ((btStun.get(h) || 0) > t) return true;
             if (ayyAway.has(h)) return true;                                    // up in the UFO
+            if (kRacing(h)) return true;                                        // in a kart
             if (blasted.has(h) && blasted.get(h).end > t) return true;
             return !!d && (d.state === 'ready' || (d.state === 'fighting' && !!s && s.stun > t));
         }
@@ -327,7 +328,7 @@
             // v: this room's version (engine/hall-dodge.js DODGE.roomV): 2 = can play dodgeball.
             // 3 = can duel too (engine/hall-duel.js DUEL.roomV), and sees Burgertime (engine/hall-burger.js BT.roomV).
             // 4: hot potato and Burger Smash. 5: can be taken by the UFO (engine/hall-ayy.js).
-            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 5 })) return notice('Connecting to the station…');
+            if (!core.send({ t: 'hall-join', look, safe, glow, aura, v: 6 })) return notice('Connecting to the station…');
             pending = true;
             notice('Walking in…');
         }
@@ -354,12 +355,16 @@
                     duels.clear();
                     for (const d of m.duels || []) onDuel(d, true);
                     onBt(m.bt || { state: '' }, true);
+                    onKart(m.kart || { state: '' }, true);
                     onBomb(m.bomb || { h: '' }, true);
                     ayyAway.clear(); ayyUfo = null; ayyMe = null;
                     for (const h of m.ayy || []) ayyAway.add(h);
                     notice('');
                     break;
                 case 'hall-bt': onBt(m); break;
+                case 'hall-kart': onKart(m); break;
+                case 'hall-kart-at': onKartAt(m); break;
+                case 'hall-kart-fix': kMe.x = m.x; kMe.y = m.y; kMe.a = m.a; kMe.v = 0; kMe.i = null; if (ks.state !== 'race') kMe.camA = m.a; break;
                 case 'hall-ayy': onAyy(m); break;
                 case 'hall-give': {
                     logLine({ text: '🎁 ' + nameOf(m.a) + ' gave ' + nameOf(m.b) + ' ' + holdName(m.o) }, 'game');
@@ -598,6 +603,289 @@
         /* ---------- moving ---------- */
         const keys = new Set();
         let sentAt = 0, lastSent = '', padWas = [];
+        /* ---------- the kart race (engine/hall-kart.js), seen from behind the kart ----------
+           Your app drives your kart (the station checks it and decides laps and places);
+           everyone else's comes from the station a few times a second and is smoothed. */
+        let ks = { state: '' }, ksAt = 0, kTrack = null, kTex = null, kPl = [], kWatch = true, kWatchH = '', kNo = false, kGoAt = 0, kFinAt = 0, kTouch = null;
+        const kAt = new Map();                  // h → { x, y, a, v, lap, at } from the station, gx gy ga: as drawn
+        const kMe = { x: 0, y: 0, a: 0, v: 0, i: null, camA: 0, steer: 0, go: false, sentAt: 0, bonk: 0 };
+        // Flat out on the road (engine/hall-kart.js KART.maxV), off it, how fast it picks up and slows, how sharp it turns.
+        const KPHYS = { maxV: 520, accel: 330, brake: 900, drag: 150, rev: 160, turn: 2.6, offV: 0.42, offDrag: 700, bump: 34 };
+        const kRacer = (h) => (ks.racers || []).includes(h);
+        const kRacing = (h) => (ks.state === 'count' || ks.state === 'race') && kRacer(h);
+        const kOn = () => ks.state === 'count' || ks.state === 'race' || ks.state === 'done';
+        /** The race fills the room: for the racers, and for anyone watching (the default; Esc goes back to the room). */
+        const kartView = () => !!kTex && kOn() && (kRacer(me) || kWatch);
+        const kLeft = () => Math.max(0, (ks.until || 0) / 1000 - (now() - ksAt));
+        const kTime = (ms) => { const s = ms / 1000; return Math.floor(s / 60) + ':' + (s % 60).toFixed(2).padStart(5, '0'); };
+        const kNth = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+        function onKart(m, quiet) {
+            const was = ks.state, wasDone = (ks.done || []).some(d => d.h === me);
+            ks = m; ksAt = now();
+            if (m.track && (!kTrack || kTrack.id !== m.track.id || kTrack.path.length !== m.track.path.length)) { kTrack = m.track; kTex = A.kartTex(m.track); }
+            if (!m.state) { kAt.clear(); kPl = []; kWatchH = ''; keys.clear(); kTouch = null; }
+            if (m.state === 'join' && was !== 'join') {
+                kNo = false; kWatch = true;
+                if (!quiet) { logLine({ text: '🏁 A kart race! Join in at the bottom of the room.' }, 'game'); U.toast('🏁 Kart race! Join in?'); }
+            }
+            if (m.state === 'count' && was !== 'count') { kAt.clear(); kMe.v = 0; keys.clear(); }
+            if (m.ms != null) kGoAt = now() - m.ms / 1000;                     // the race clock: the station's (someone coming in halfway too)
+            if (m.state === 'race' && was !== 'race') { if (m.ms == null) kGoAt = now(); if (coarse && kRacer(me)) kTouch = { steer: 0, brake: 0 }; }
+            const mine = (m.done || []).findIndex(d => d.h === me);
+            if (mine >= 0 && !wasDone) kFinAt = now();
+            if (m.state === 'done' && was !== 'done' && !quiet) {
+                const w = (m.done || [])[0];
+                logLine({ text: w ? '🏆 ' + nameOf(w.h) + ' wins the kart race in ' + kTime(w.ms) + '!' : '🏁 The kart race is over — nobody made it round.' }, 'game');
+                const p = w && people.get(w.h);
+                if (p) p.star = performance.now() + 27000;                     // the gold star (engine/hall-kart.js KART.starMs: the results, then 15 s)
+            }
+            paintKart();
+        }
+        function onKartAt(m) {
+            const t = now();
+            for (const [h, v] of Object.entries(m.at || {})) {
+                const q = kAt.get(h);
+                if (!q) kAt.set(h, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], gx: v[0], gy: v[1], ga: v[2], at: t });
+                else Object.assign(q, { x: v[0], y: v[1], a: v[2], v: v[3], lap: v[4], at: t });
+            }
+            kPl = m.pl || kPl;
+        }
+        /** Nearest point of the road's middle to (x, y): looking near `hint` (a point of the path), or everywhere. */
+        function kNear(x, y, hint) {
+            const P = kTrack.path, n = P.length / 2, reach = hint == null ? n : 14, from = hint == null ? 0 : hint;
+            let best = { d: Infinity, i: 0, px: x, py: y };
+            for (let k = -reach; k <= reach; k++) {
+                const i = ((from + k) % n + n) % n, j = (i + 1) % n;
+                const ax = P[i * 2], ay = P[i * 2 + 1], ex = P[j * 2] - ax, ey = P[j * 2 + 1] - ay, L = ex * ex + ey * ey || 1;
+                const u = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / L)), px = ax + ex * u, py = ay + ey * u, d = Math.hypot(x - px, y - py);
+                if (d < best.d) best = { d, i, px, py };
+            }
+            return best;
+        }
+        const kPad = () => (navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean)[0] : null);
+        /** Your kart, every frame: the keys (or a controller, or the touch buttons), the road, the barrier, the others. */
+        function kartDrive(dt) {
+            if (!kTrack || !kRacing(me)) return;
+            const t = now();
+            let steer = 0, gas = 0, brake = 0;
+            if (keys.has('a') || keys.has('arrowleft')) steer -= 1;
+            if (keys.has('d') || keys.has('arrowright')) steer += 1;
+            if (keys.has('w') || keys.has('arrowup')) gas = 1;
+            if (keys.has('s') || keys.has('arrowdown')) brake = 1;
+            const g = kPad();
+            if (g) {
+                const bv = (i) => (g.buttons[i] ? g.buttons[i].value || (g.buttons[i].pressed ? 1 : 0) : 0), ax = g.axes[0] || 0;
+                if (Math.abs(ax) > 0.2) steer += ax;
+                if (bv(14)) steer -= 1; if (bv(15)) steer += 1;
+                gas = Math.max(gas, bv(0), bv(7)); brake = Math.max(brake, bv(1), bv(6));
+            }
+            if (kTouch) { steer += kTouch.steer; gas = Math.max(gas, kTouch.brake ? 0 : 1); brake = Math.max(brake, kTouch.brake); }
+            steer = Math.max(-1, Math.min(1, steer));
+            kMe.steer += (steer - kMe.steer) * Math.min(1, dt * 10);
+            kMe.go = gas > 0;
+            if (ks.state !== 'race') { kMe.v = 0; return; }
+            if (kMe.i == null) kMe.i = kNear(kMe.x, kMe.y).i;
+            const near = kNear(kMe.x, kMe.y, kMe.i), top = KPHYS.maxV * (near.d > kTrack.w ? KPHYS.offV : 1);
+            let v = kMe.v;
+            if (gas) v += KPHYS.accel * gas * dt * (v < 0 ? 3 : 1);
+            if (brake) v -= (v > 0 ? KPHYS.brake : KPHYS.accel * 0.6) * brake * dt;
+            if (!gas && !brake) v -= Math.sign(v) * Math.min(Math.abs(v), KPHYS.drag * dt);
+            if (v > top) v = Math.max(top, v - KPHYS.offDrag * dt);
+            v = Math.max(-KPHYS.rev, v);
+            // Turning takes a bit of speed, and flat out it's a little less sharp.
+            const sp = Math.abs(v), grip = Math.min(1, sp / 140) * (1 - 0.3 * Math.max(0, (sp - 300) / 220));
+            kMe.a += kMe.steer * KPHYS.turn * grip * (v < 0 ? -1 : 1) * dt;
+            kMe.x += Math.cos(kMe.a) * v * dt; kMe.y += Math.sin(kMe.a) * v * dt;
+            // The barrier: slide along it, slowed.
+            const at = kNear(kMe.x, kMe.y, near.i), lim = kTrack.w + kTrack.wall - 14;
+            if (at.d > lim) { const k = lim / at.d; kMe.x = at.px + (kMe.x - at.px) * k; kMe.y = at.py + (kMe.y - at.py) * k; v *= 0.55; kMe.bonk = t; }
+            kMe.i = at.i;
+            // Bumping into the others.
+            for (const [h, q] of kAt) {
+                if (h === me) continue;
+                const dx = kMe.x - q.gx, dy = kMe.y - q.gy, d = Math.hypot(dx, dy);
+                if (d > 0 && d < KPHYS.bump) { kMe.x += dx / d * (KPHYS.bump - d); kMe.y += dy / d * (KPHYS.bump - d); v *= 0.9; kMe.bonk = t; }
+            }
+            kMe.v = v;
+            if (t - kMe.sentAt > 0.1) { kMe.sentAt = t; core.send({ t: 'hall-kart-at', x: Math.round(kMe.x), y: Math.round(kMe.y), a: +kMe.a.toFixed(3), v: Math.round(v) }); }
+        }
+        /** Watching: the one the camera follows (your pick, or whoever's in front). */
+        function kWatched() {
+            const rs = ks.racers || [];
+            if (kWatchH && rs.includes(kWatchH)) return kWatchH;
+            return kPl.find(h => rs.includes(h)) || rs[0] || '';
+        }
+        function kWatchStep(d) {
+            const order = kPl.length ? kPl.filter(h => (ks.racers || []).includes(h)) : (ks.racers || []);
+            if (!order.length) return;
+            const i = order.indexOf(kWatched());
+            kWatchH = order[((i < 0 ? 0 : i) + d + order.length) % order.length];
+        }
+        /** A key while the race fills the room. True when it was the race's. */
+        function kartKey(e) {
+            const k = e.key.toLowerCase();
+            if (!kRacing(me)) {
+                if (k === 'escape' && !kRacer(me)) { kWatch = false; paintKart(); return true; }
+                if (['a', 'arrowleft', 'd', 'arrowright'].includes(k)) { if (!e.repeat) kWatchStep(k === 'a' || k === 'arrowleft' ? -1 : 1); e.preventDefault(); return true; }
+                return false;
+            }
+            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) { if (k !== ' ') keys.add(k); e.preventDefault(); return true; }
+            return false;
+        }
+        const kCv = document.createElement('canvas'); kCv.width = 40; kCv.height = 32;
+        const kCtx = kCv.getContext('2d');
+        /** The race, in place of the room: sky, track, karts, and (at screen size) names and the race's numbers. */
+        function drawRace(dt, t) {
+            const racer = kRacer(me), P = kTrack.path;
+            let fx, fy, fa, follow = me;
+            if (racer) { fx = kMe.x; fy = kMe.y; fa = kMe.a; }
+            else {
+                follow = kWatched();
+                const q = kAt.get(follow);
+                if (q) { fx = q.gx; fy = q.gy; fa = q.ga; } else { fx = P[0]; fy = P[1]; fa = Math.atan2(P[3] - P[1], P[2] - P[0]); }
+            }
+            // Everyone else: where the station last said, carried on the way they were going, eased in.
+            for (const [h, q] of kAt) {
+                if (h === me && racer) continue;
+                const age = Math.min(0.25, t - q.at), tx = q.x + Math.cos(q.a) * q.v * age, ty = q.y + Math.sin(q.a) * q.v * age, e = Math.min(1, dt * 12);
+                q.gx += (tx - q.gx) * e; q.gy += (ty - q.gy) * e;
+                q.ga += Math.atan2(Math.sin(q.a - q.ga), Math.cos(q.a - q.ga)) * e;
+            }
+            // The camera swings round after the kart, a little behind it.
+            const da = Math.atan2(Math.sin(fa - kMe.camA), Math.cos(fa - kMe.camA));
+            kMe.camA += Math.abs(da) > 2.5 ? da : da * Math.min(1, dt * 7);
+            const cam = { x: fx - Math.cos(kMe.camA) * A.K7.back, y: fy - Math.sin(kMe.camA) * A.K7.back, a: kMe.camA };
+            A.kartSky(lc, cam.a, t);
+            A.kartFloor(lc, kTex, cam);
+            const list = [];
+            for (const [h, q] of kAt) {
+                if (h === me && racer) continue;
+                const pr = A.kartProject(cam, q.gx, q.gy);
+                if (pr && pr.k < 5) list.push({ h, a: q.ga, v: q.v, pr, steer: 0 });
+            }
+            if (racer) { const pr = A.kartProject(cam, kMe.x, kMe.y); if (pr) list.push({ h: me, a: kMe.a, v: kMe.v, pr, steer: kMe.steer, mine: true }); }
+            list.sort((a, b) => b.pr.z - a.pr.z);
+            const tags = [];
+            lc.imageSmoothingEnabled = false;
+            for (const it of list) {
+                const p = people.get(it.h), look = p ? p.l : {}, rel = Math.atan2(Math.sin(it.a - cam.a), Math.cos(it.a - cam.a));
+                const view = Math.abs(rel) < Math.PI / 4 ? 0 : Math.abs(rel) > Math.PI * 3 / 4 ? 2 : rel > 0 ? 1 : -1;
+                const o = { steer: it.steer, go: it.mine ? kMe.go : it.v > 20 }, k = it.pr.k;
+                let bob = 0;
+                if (it.mine) { if (kMe.bonk && t - kMe.bonk < 0.2) bob = 1; else if (Math.abs(kMe.v) > 40 && kNear(kMe.x, kMe.y, kMe.i).d > kTrack.w) bob = Math.floor(t * 20) % 2; }
+                if (Math.abs(k - 1) < 0.08) {
+                    const top = A.kart(lc, look, it.pr.sx, it.pr.sy - bob, view, t, o);
+                    if (!it.mine) tags.push({ h: it.h, x: it.pr.sx, y: top });
+                } else {
+                    kCtx.clearRect(0, 0, 40, 32);
+                    const top = A.kart(kCtx, look, 20, 30, view, t, o);
+                    lc.drawImage(kCv, Math.round(it.pr.sx - 20 * k), Math.round(it.pr.sy - 30 * k), Math.max(1, Math.round(40 * k)), Math.max(1, Math.round(32 * k)));
+                    if (k > 0.22) tags.push({ h: it.h, x: it.pr.sx, y: it.pr.sy - (30 - top) * k });
+                }
+            }
+            // The map, bottom left.
+            const dots = [];
+            for (const [h, q] of kAt) if (!(h === me && racer)) dots.push({ x: q.gx, y: q.gy, c: (people.get(h) || {}).c || '#e6e0f2', me: h === follow });
+            if (racer) dots.push({ x: kMe.x, y: kMe.y, c: '#ffd34a', me: true });
+            A.kartMini(lc, kTrack, 3, A.H - 47, 44, dots);
+            // Onto the screen, then the words at screen size.
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(low, 0, 0, cv.width, cv.height);
+            const u = cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
+            ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+            ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
+            for (const g of tags) {
+                const p = people.get(g.h);
+                if (!p) continue;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(p.n, g.x * u + dpr, (g.y - 5) * u + dpr);
+                ctx.fillStyle = p.c || '#e6e0f2'; ctx.fillText(p.n, g.x * u, (g.y - 5) * u);
+            }
+            kartHud(t, u, racer, follow);
+        }
+        /** Lap, place, time; the countdown; FINISH; the results. */
+        function kartHud(t, u, racer, follow) {
+            const big = Math.max(14, Math.round(6 * u / dpr)) * dpr, small = Math.max(10, Math.round(3 * u / dpr)) * dpr;
+            const txt = (s, x, y, size, color, align) => {
+                ctx.font = 'bold ' + size + 'px "Courier New", monospace'; ctx.textAlign = align || 'left'; ctx.textBaseline = 'top';
+                ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = '#000'; ctx.strokeText(s, x, y);
+                ctx.fillStyle = color; ctx.fillText(s, x, y);
+            };
+            const pad = 3 * u, who = racer ? me : follow, q = kAt.get(who), laps = ks.laps || 3;
+            const doneI = (ks.done || []).findIndex(d => d.h === who);
+            const lap = Math.min(laps, (q && q.lap) || 1);
+            if (ks.state !== 'done') {
+                txt(doneI >= 0 ? 'DONE' : 'LAP ' + lap + '/' + laps, pad, pad, small * 1.3, '#ffffff');
+                const place = kPl.indexOf(who);
+                if (place >= 0 && ks.state === 'race') txt(kNth(place + 1), cv.width - pad, pad, big, ['#ffd34a', '#d8d8e8', '#e09a5a'][place] || '#ffffff', 'right');
+                if (ks.state === 'race') txt(kTime((t - kGoAt) * 1000), cv.width / 2, pad, small * 1.2, '#7ef0ff', 'center');
+                if (!racer) txt('📺 ' + nameOf(who) + ' · ← → switch · Esc: the room', cv.width / 2, pad + small * 1.6, small, '#e6e0f2', 'center');
+            }
+            const c = A.K7.hor * u;
+            if (ks.state === 'count') {
+                const n = Math.ceil(kLeft());
+                txt(n > 3 ? 'GET READY' : String(n), cv.width / 2, c - big, big * (n > 3 ? 1 : 2), n > 3 ? '#ffffff' : '#ffd34a', 'center');
+                if (racer) txt('W/↑ go · S/↓ brake · A D/← → steer', cv.width / 2, c + big * 1.4, small, '#e6e0f2', 'center');
+            } else if (ks.state === 'race' && t - kGoAt < 1.2) txt('GO!', cv.width / 2, c - big, big * 2, '#4fd36e', 'center');
+            if (racer && ks.state === 'race') {
+                if (doneI >= 0) txt(t - kFinAt < 3 ? 'FINISH! ' + kNth(doneI + 1) : 'Waiting for the others… ' + Math.ceil(kLeft()) + 's', cv.width / 2, c - big, t - kFinAt < 3 ? big * 1.5 : small * 1.3, '#ffd34a', 'center');
+                else {
+                    const n = kTrack.path.length / 2, j = ((kMe.i || 0) + 1) % n, P = kTrack.path;
+                    const dir = Math.atan2(P[j * 2 + 1] - P[(kMe.i || 0) * 2 + 1], P[j * 2] - P[(kMe.i || 0) * 2]);
+                    if (Math.cos(dir - kMe.a) < -0.3 && Math.abs(kMe.v) > 60) txt('WRONG WAY!', cv.width / 2, c - big, big, '#ff4040', 'center');
+                    else if (q && q.lap === laps && laps > 1 && kLapAt !== laps) { kLapAt = laps; kLapShow = t; }
+                    if (t - kLapShow < 2) txt('FINAL LAP!', cv.width / 2, c - big, big, '#ff4fd8', 'center');
+                }
+            }
+            if (ks.state === 'done') {
+                const rows = (ks.done || []).map((d, i) => [kNth(i + 1), nameOf(d.h), kTime(d.ms), d.h]).concat((ks.racers || []).filter(h => !(ks.done || []).some(d => d.h === h)).map(h => ['—', nameOf(h), 'DNF', h]));
+                const lh = small * 1.5, w = Math.min(cv.width - 8 * u, 150 * u), h = lh * (rows.length + 2), x0 = (cv.width - w) / 2, y0 = Math.max(4 * u, (cv.height - h) / 2);
+                ctx.fillStyle = 'rgba(10,6,24,0.85)'; ctx.fillRect(x0, y0, w, h);
+                ctx.strokeStyle = '#ff4fd8'; ctx.lineWidth = Math.max(1, u / 2); ctx.strokeRect(x0, y0, w, h);
+                txt('🏁 RESULTS', cv.width / 2, y0 + lh * 0.3, small * 1.2, '#ffd34a', 'center');
+                rows.forEach((r, i) => {
+                    const y = y0 + lh * (i + 1.4), col = r[3] === me ? '#ffd34a' : '#e6e0f2';
+                    txt(r[0], x0 + 4 * u, y, small, col); txt(r[1].slice(0, 16), x0 + 18 * u, y, small, col); txt(r[2], x0 + w - 4 * u, y, small, col, 'right');
+                });
+            }
+        }
+        let kLapAt = 0, kLapShow = -9;
+        const kEl = () => $('.hall-kart', box);
+        const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+        /** The bar at the bottom: joining in, watching or not, and the touch controls. */
+        function paintKart() {
+            const el = kEl();
+            if (!el) return;
+            const left = Math.ceil(kLeft()), rs = ks.racers || [], inn = rs.includes(me);
+            let html = '';
+            if (ks.state === 'join') {
+                const full = rs.length >= 8 && !inn;
+                html = '<p>🏁 <b>Kart race!</b> ' + (ks.laps === 1 ? '1 lap' : (ks.laps || 3) + ' laps') + ' of the ' + esc((ks.track && ks.track.name) || 'track') + ' · ' +
+                    (inn ? 'You’re in — starting in ' + left + 's' : kNo ? 'You’re watching this one (' + left + 's)' : full ? 'It’s full (8) — watch it!' : 'Race? (' + left + 's)') + ' · ' + rs.length + ' in</p>' +
+                    (inn ? '<div><button type="button" class="btn" data-kart="0">Sit out</button></div>' : full ? '' : '<div><button type="button" class="btn go" data-kart="1">I’m in</button>' + (kNo ? '' : '<button type="button" class="btn" data-kart="0">Just watch</button>') + '</div>');
+            } else if (kOn() && !inn) {
+                html = kWatch ? '<div><button type="button" class="btn" data-kwatch="0">🏠 Back to the room</button></div>'
+                    : '<p>🏁 A kart race is on</p><div><button type="button" class="btn go" data-kwatch="1">📺 Watch it</button></div>';
+            } else if (kRacing(me) && coarse) {
+                html = '<div class="hk-pad"><button type="button" class="btn" data-ktouch="-1">◀</button><button type="button" class="btn" data-ktouch="b">🛑</button><button type="button" class="btn" data-ktouch="1">▶</button></div>';
+            }
+            if (el.innerHTML !== html) el.innerHTML = html;
+            el.hidden = !html;
+            el.classList.toggle('hk-race', kartView());
+            stage.classList.toggle('hall-racing', kartView());
+        }
+        // On a touchscreen the kart goes by itself: hold ◀ or ▶ to steer, 🛑 to brake.
+        box.addEventListener('pointerdown', (e) => {
+            const b = e.target.closest('[data-ktouch]');
+            if (!b) return;
+            e.preventDefault(); e.stopPropagation();
+            kTouch = kTouch || { steer: 0, brake: 0 };
+            if (b.dataset.ktouch === 'b') kTouch.brake = 1; else kTouch.steer = Number(b.dataset.ktouch);
+        }, true);
+        const kUp = () => { if (kTouch) { kTouch.steer = 0; kTouch.brake = 0; } };
+        listen('pointerup', kUp); listen('pointercancel', kUp);
+        const kT = setInterval(() => { if (ks.state) paintKart(); }, 250);
+        offs.push(() => clearInterval(kT));
+
         function mine() { return people.get(me); }
         function sendGo(x, y) {
             if (isEaten(me)) return;                  // inside Daniel till it's over
@@ -648,6 +936,7 @@
         }
         stage.addEventListener('click', (e) => floorClick(e));
         function floorClick(e) {
+            if (kartView()) { if (!kRacer(me)) kWatchStep(1); return; }       // watching the race: the next kart
             const p = mine();
             if (!p) return;
             const r = cv.getBoundingClientRect();
@@ -1571,6 +1860,14 @@
             rpsEl.dataset.id = g ? g.id : done ? done.id : '';
         }
         box.addEventListener('click', (e) => {
+            const k = e.target.closest('.hall-kart [data-kart], .hall-kart [data-kwatch]');
+            if (k) {
+                e.stopPropagation();
+                if (k.dataset.kart != null) { kNo = k.dataset.kart !== '1'; core.send({ t: 'hall-kart-join', yes: !kNo }); }
+                else { kWatch = k.dataset.kwatch === '1'; }
+                paintKart();
+                return;
+            }
             const b = e.target.closest('.hall-db [data-db]');
             if (!b) return;
             e.stopPropagation();
@@ -2238,6 +2535,7 @@
             if (!emojiEl.hidden && e.key === 'Escape') { emojiEl.hidden = true; return; }
             if (!gamesEl.hidden && e.key === 'Escape') { gamesEl.hidden = true; return; }
             if (editingKeys && waitKey) { actionKey(e); return; }
+            if (kartView() && kartKey(e)) return;
             if (e.key === 'Enter') { input.focus(); e.preventDefault(); return; }
             const k = e.key.toLowerCase();
             if (k === 'j' && bombMine()) { if (!e.repeat) passBomb(); e.preventDefault(); return; }       // hot potato: J passes it
@@ -2378,7 +2676,8 @@
 
         function step(dt) {
             const t = now(), p = mine();
-            if (p) {
+            kartDrive(dt);
+            if (p && !kartView()) {
                 const push = pushing();
                 // Sprinting starts or stops: the room's told (a walk to a clicked spot carries on, faster or slower).
                 if (breathe(dt, !!push || p.walking) && !push && p.walking && !held(me, t)) { lastSent = ''; sendGo(p.tx, p.ty); }
@@ -2544,6 +2843,7 @@
             const dt = Math.min(0.1, (ms - (last || ms)) / 1000) * clockRate;
             last = ms;
             step(dt);
+            if (kartView()) { drawRace(dt, now()); return; }
             const t = now(), s = core.state, tr = s.track;
             // In the room, the station says; outside it, the radio's own idea of what's on.
             const onAir = joined ? air : { live: s.live, talking: false, music: !!tr };

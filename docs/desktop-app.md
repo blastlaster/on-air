@@ -100,8 +100,13 @@ show from his desk. Up to 40 people at once (the host can change that).
 - **Games**: rock paper scissors, **duels** (bonk, fish slap and snowball, best
   of three, on **J K L**), **🎲 board games** at tables (tic-tac-toe, checkers,
   Chinese checkers) and **hot potato** (give someone a 💣; **J** passes it on).
-  The host starts Dodgeball and Burgertime. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
+  The host starts Dodgeball, Burgertime and **kart races**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
+- **Kart races**: when the host starts one, say *I'm in* (up to 8 racers) and race laps of the
+  Neon Loop from behind your kart: **W**/**↑** goes, **S**/**↓** brakes, **A D**/**← →** steer (or a
+  controller; on a touchscreen it drives itself and you hold ◀ ▶ to steer). Off the road
+  is slow, and the barrier stops you. Everyone else watches, following the leader (**← →**
+  picks another kart, **Esc** goes back to the room). First over the line gets the gold star.
 - **Say "ayy lmao"** and alien heads rain down; now and then a UFO takes someone.
 - The room fills the width beside the chat; **⛶** stretches it to fill all the
   space (again: back to its shape). **💬** shows or hides the chat, which you can

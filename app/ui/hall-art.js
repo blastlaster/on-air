@@ -1550,6 +1550,162 @@
         l.restore();
     }
 
+
+    /* =========================================================
+       THE KART RACE — behind the kart (engine/hall-kart.js)
+       The track is drawn once, flat, into a texture (a pixel for every K7.s
+       of the track's units); each frame the floor is that texture seen from
+       a camera just behind and above the kart, a row of the screen at a time,
+       and the karts are sprites shrunk with how far away they are.
+       ========================================================= */
+    const K7 = { hor: 58, focal: 110, camH: 100, back: 180, s: 4, size: 2400 };
+    /** The track's texture: the void, the neon barrier, the dance-floor run-off, kerbs, road, the start line. */
+    function kartTex(track) {
+        const S = K7.s, N = Math.ceil(K7.size / S), c = document.createElement('canvas');
+        c.width = c.height = N;
+        const g = c.getContext('2d'), P = track.path, w = track.w / S, wall = track.wall / S;
+        g.fillStyle = '#0d0a1a'; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 900; i++) { g.fillStyle = i % 3 ? '#1a1430' : '#2a2050'; g.fillRect((i * 97) % N, (i * 61 + (i >> 3) * 13) % N, 1, 1); }
+        const road = () => { g.beginPath(); g.moveTo(P[0] / S, P[1] / S); for (let i = 2; i < P.length; i += 2) g.lineTo(P[i] / S, P[i + 1] / S); g.closePath(); };
+        g.lineJoin = 'round'; g.lineCap = 'round';
+        const tile = document.createElement('canvas'); tile.width = tile.height = 20;
+        const tg = tile.getContext('2d');
+        tg.fillStyle = '#2a1f48'; tg.fillRect(0, 0, 20, 20); tg.fillStyle = '#3a2a66'; tg.fillRect(0, 0, 10, 10); tg.fillRect(10, 10, 10, 10);
+        tg.fillStyle = '#4a3680'; tg.fillRect(0, 0, 10, 1); tg.fillRect(10, 10, 10, 1);
+        road(); g.strokeStyle = '#39e6ff'; g.lineWidth = 2 * wall + 2 * w + 4; g.stroke();
+        road(); g.strokeStyle = '#ff4fd8'; g.lineWidth = 2 * wall + 2 * w + 1; g.stroke();
+        road(); g.strokeStyle = g.createPattern(tile, 'repeat'); g.lineWidth = 2 * wall + 2 * w - 1; g.stroke();
+        road(); g.strokeStyle = '#ffffff'; g.lineWidth = 2 * w + 6; g.stroke();
+        road(); g.strokeStyle = '#e8343c'; g.setLineDash([6, 6]); g.stroke(); g.setLineDash([]);
+        road(); g.strokeStyle = '#3a3846'; g.lineWidth = 2 * w; g.stroke();
+        road(); g.strokeStyle = '#44424f'; g.lineWidth = 2 * w - 14; g.stroke();
+        road(); g.strokeStyle = '#6a6878'; g.lineWidth = 1; g.setLineDash([8, 10]); g.stroke(); g.setLineDash([]);
+        // The start line: two rows of checks across the road.
+        const a = Math.atan2(P[3] - P[1], P[2] - P[0]);
+        g.save(); g.translate(P[0] / S, P[1] / S); g.rotate(a);
+        for (let j = -Math.ceil(w); j < w; j += 3) for (let k = 0; k < 2; k++) { g.fillStyle = ((j / 3 | 0) + k) % 2 ? '#ffffff' : '#111111'; g.fillRect(-3 + k * 3, j, 3, 3); }
+        g.restore();
+        const data = new Uint32Array(g.getImageData(0, 0, N, N).data.buffer);
+        return { canvas: c, data, n: N, s: S, void: data[0] };
+    }
+    let floorImg = null, floor32 = null, skyline = null;
+    /** The floor, from the camera {x, y, a}. */
+    function kartFloor(ctx, tex, cam) {
+        const rows = H - K7.hor;
+        if (!floorImg) { floorImg = ctx.createImageData(W, rows); floor32 = new Uint32Array(floorImg.data.buffer); }
+        const ca = Math.cos(cam.a), sa = Math.sin(cam.a), n = tex.n, s = tex.s, d = tex.data, vd = tex.void;
+        for (let r = 0; r < rows; r++) {
+            const z = K7.camH * K7.focal / (r + 0.5), k = z / K7.focal;
+            const dx = -sa * k, dy = ca * k;
+            let wx = cam.x + ca * z - dx * W / 2, wy = cam.y + sa * z - dy * W / 2, o = r * W;
+            for (let x = 0; x < W; x++, wx += dx, wy += dy) {
+                const tx = Math.floor(wx / s), ty = Math.floor(wy / s);
+                floor32[o++] = tx >= 0 && ty >= 0 && tx < n && ty < n ? d[ty * n + tx] : vd;
+            }
+        }
+        ctx.putImageData(floorImg, 0, K7.hor);
+        // Haze where the floor meets the sky.
+        const hz = ctx.createLinearGradient(0, K7.hor, 0, K7.hor + 22);
+        hz.addColorStop(0, 'rgba(70,30,110,0.95)'); hz.addColorStop(1, 'rgba(70,30,110,0)');
+        ctx.fillStyle = hz; ctx.fillRect(0, K7.hor, W, 22);
+    }
+    /** The night sky over the track: stars, a moon and a city of speakers and towers that turns as you do. */
+    function kartSky(ctx, a, t) {
+        l = ctx;
+        const g = ctx.createLinearGradient(0, 0, 0, K7.hor);
+        g.addColorStop(0, '#07051a'); g.addColorStop(1, '#3a1a5a');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, K7.hor);
+        const off = ((-a / (Math.PI * 2)) * 480 % 480 + 480) % 480;
+        for (let i = 0; i < 40; i++) {
+            const x = ((i * 53 + off * 0.5) % 480 + 480) % 480 - 120, y = (i * 29) % (K7.hor - 20);
+            if (x >= 0 && x < W) R(x, y, 1, 1, (i + Math.floor(t * 2)) % 7 ? '#c8c0ff' : '#ffffff');
+        }
+        const mx = ((330 + off * 0.5) % 480 + 480) % 480 - 120;
+        if (mx > -12 && mx < W + 12) { R(mx - 4, 8, 9, 9, '#fff3c8'); R(mx - 5, 10, 11, 5, '#fff3c8'); R(mx - 1, 10, 3, 2, '#e8dca8'); }
+        if (!skyline) {
+            skyline = document.createElement('canvas'); skyline.width = 480; skyline.height = 30;
+            const s = skyline.getContext('2d');
+            let x = 0, i = 0;
+            while (x < 480) {
+                const bw = 10 + (i * 37) % 22, bh = 8 + (i * 53) % 20, spk = i % 5 === 2;
+                s.fillStyle = spk ? '#1a1228' : '#140e22'; s.fillRect(x, 30 - bh, bw, bh);
+                if (spk) { s.fillStyle = '#2e2448'; s.fillRect(x + bw / 2 - 3, 30 - bh + 3, 6, 6); s.fillRect(x + bw / 2 - 2, 30 - bh + 11, 4, 4); }
+                else for (let wy = 30 - bh + 2; wy < 28; wy += 3) for (let wx = x + 2; wx < x + bw - 2; wx += 3) if ((wx * 7 + wy * 3 + i) % 5 === 0) { s.fillStyle = (wx + wy) % 3 ? '#ff4fd8' : '#39e6ff'; s.fillRect(wx, wy, 1, 1); }
+                x += bw + (i * 11) % 4; i++;
+            }
+        }
+        ctx.drawImage(skyline, Math.round(off - 480), K7.hor - 30); ctx.drawImage(skyline, Math.round(off), K7.hor - 30);
+    }
+    /** Where (x, y) on the track lands on the screen from the camera: sx, sy (its foot), k (its size, 1 = the kart you drive). */
+    function kartProject(cam, x, y) {
+        const dx = x - cam.x, dy = y - cam.y, ca = Math.cos(cam.a), sa = Math.sin(cam.a);
+        const z = dx * ca + dy * sa, side = -dx * sa + dy * ca;
+        if (z < 30) return null;
+        return { sx: W / 2 + side * K7.focal / z, sy: K7.hor + K7.camH * K7.focal / z, k: K7.back / z, z };
+    }
+    /**
+     * A kart, its ground point at (x, y), about 26 wide: the driver (their look, sitting) in a kart in their shirt colour.
+     * view: 0 from behind, 1 / -1 from the side (facing right / left), 2 from the front. o: { steer (-1–1), go (on the gas), boost }.
+     * Returns the top of the driver's head.
+     */
+    function kart(ctx, look, x, y, view, t, o) {
+        l = ctx; o = o || {};
+        const L = look || {}, sh = SHIRT[L.shirt] || SHIRT[0], body = sh[0], lite = sh[1], dark = '#2a2834', tyre = '#18171f';
+        x = Math.round(x); y = Math.round(y);
+        const spin = Math.floor(t * 14) % 2, lean = Math.round((o.steer || 0) * 1.4);
+        R(x - 12, y - 1, 25, 2, 'rgba(0,0,0,0.45)');
+        const rider = (rx, ry, f) => person(ctx, L, { x: rx, y: ry, face: f, emote: 'sit', et: 0, t, noShadow: true });
+        if (view === 0) {
+            R(x - 13, y - 7, 5, 7, tyre); R(x + 9, y - 7, 5, 7, tyre);
+            R(x - 13, y - 6 + spin * 2, 5, 1, '#3a3846'); R(x + 9, y - 6 + spin * 2, 5, 1, '#3a3846');
+            rider(x + lean, y - 6, 1);
+            // From behind: the back of their head (hair, or a bare head).
+            const hc = L.hair ? (HAIR_COLOR[L.hairColor] || HAIR_COLOR[0]) : (SKIN[L.skin] || SKIN[0]);
+            R(x + lean - 3, y - 19, 7, 4, hc); R(x + lean - 3, y - 15, 7, 1, SKIN[L.skin] || SKIN[0]);
+            R(x - 6, y - 12, 13, 4, dark); R(x - 6, y - 12, 13, 1, '#3a3846');
+            R(x - 9, y - 9, 19, 6, body); R(x - 9, y - 9, 19, 1, lite);
+            R(x - 10, y - 4, 21, 2, dark);
+            R(x - 9, y - 8, 2, 1, '#ff4040'); R(x + 8, y - 8, 2, 1, '#ff4040');
+            R(x - 5, y - 4, 2, 2, '#9a98a8'); R(x + 4, y - 4, 2, 2, '#9a98a8');
+            if (o.boost || (o.go && spin)) { R(x - 5, y - 2, 2, 2, o.boost ? '#7ef0ff' : '#ffb020'); R(x + 4, y - 2, 2, 2, o.boost ? '#7ef0ff' : '#ffb020'); }
+            return y - 21;
+        }
+        if (view === 2) {
+            R(x - 12, y - 6, 4, 6, tyre); R(x + 9, y - 6, 4, 6, tyre);
+            rider(x, y - 6, 1);
+            R(x - 8, y - 8, 17, 5, body); R(x - 8, y - 8, 17, 1, lite);
+            R(x - 7, y - 7, 2, 1, '#fff6a0'); R(x + 6, y - 7, 2, 1, '#fff6a0');
+            R(x - 9, y - 4, 19, 2, dark);
+            return y - 21;
+        }
+        const f = view < 0 ? -1 : 1;
+        R(x - 6 * f - (f < 0 ? 2 : 0), y - 11, 3, 4, dark);               // the seat back
+        rider(x - 2 * f, y - 5, f);
+        R(x - 13, y - 7, 26, 4, body); R(x - 13, y - 7, 26, 1, lite);
+        R(f > 0 ? x + 13 : x - 15, y - 6, 2, 3, body);                       // the nose
+        R(f > 0 ? x - 15 : x + 12, y - 10, 3, 2, dark); R(f > 0 ? x - 14 : x + 13, y - 8, 1, 2, dark);     // the wing
+        const back = x - 10 * f, front = x + 8 * f;
+        for (const wx of [back, front]) { R(wx - 2, y - 4, 5, 4, tyre); R(wx - 1 + spin, y - 3, 1, 2, '#3a3846'); }
+        return y - 20;
+    }
+    /** The little map in the corner: the track, and a dot for every kart (yours bigger). */
+    let miniOf = null;
+    function kartMini(ctx, track, x0, y0, size, dots) {
+        if (!miniOf || miniOf.track !== track || miniOf.size !== size) {
+            const c = document.createElement('canvas'); c.width = c.height = size;
+            const g = c.getContext('2d'), P = track.path, k = size / K7.size;
+            g.fillStyle = 'rgba(10,6,24,0.55)'; g.fillRect(0, 0, size, size);
+            g.beginPath(); g.moveTo(P[0] * k, P[1] * k); for (let i = 2; i < P.length; i += 2) g.lineTo(P[i] * k, P[i + 1] * k); g.closePath();
+            g.strokeStyle = '#c8c4d0'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
+            g.fillStyle = '#ffffff'; g.fillRect(Math.round(P[0] * k) - 1, Math.round(P[1] * k) - 1, 3, 3);
+            miniOf = { track, size, c };
+        }
+        ctx.drawImage(miniOf.c, x0, y0);
+        l = ctx;
+        const k = size / K7.size;
+        for (const d of dots) { const s = d.me ? 3 : 2; R(x0 + d.x * k - s / 2, y0 + d.y * k - s / 2, s, s, d.me ? '#000' : 'rgba(0,0,0,0.6)'); R(x0 + d.x * k - s / 2 + (d.me ? 0.5 : 0), y0 + d.y * k - s / 2, s - (d.me ? 1 : 0), s - (d.me ? 1 : 0), d.c); }
+    }
+
     const SECRET_BURGER = 11;               // extra 11: only for Burgertime survivors (app/ui/hall.js offers it)
     window.HallArt = { W, H, FLOOR, SECRET_BURGER, FREE, SCREEN, screenFor, screenAt, deskX, PARTS, randomLook, room, lights, fxBack, person, aura, AURA_COLORS, RADIOMAN_MOUTH: { x: RX + 4, y: RY + 14 },
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
@@ -1570,5 +1726,6 @@
         shockwave: (ctx, x, y, s) => { l = ctx; shockwave(x, y, s); },
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
-        afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); } };
+        afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
+        K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini };
 })();
