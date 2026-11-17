@@ -673,7 +673,7 @@
         let kGasTap = -9, kPadWas = [];
         /* Your race keys: two for each action (Settings: ⌨ Keys in the race's bar), kept in this browser / app. */
         const KART_ACTS = [['gas', 'Go'], ['brake', 'Brake'], ['left', 'Steer left'], ['right', 'Steer right'], ['drift', 'Drift'], ['nitro', 'Nitro']];
-        const KKEYS0 = { gas: ['w', 'ArrowUp'], brake: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], drift: ['Shift', ''], nitro: [' ', ''] };
+        const KKEYS0 = { gas: ['w', 'ArrowUp'], brake: ['s', 'ArrowDown'], left: ['a', 'ArrowLeft'], right: ['d', 'ArrowRight'], drift: ['Shift', 'k'], nitro: [' ', 'l'] };
         const kNorm = (k) => (k.length === 1 ? k.toLowerCase() : k);
         let kKeys = {};
         try { kKeys = JSON.parse(localStorage.getItem('ltl.kartKeys') || '{}') || {}; } catch { /* the usual */ }
