@@ -2065,16 +2065,24 @@
             const f = m.m[foeH];
             if (f) { hkL.foeTo = { x: f[0], y: f[1] }; if (!hkL.foe) hkL.foe = { x: f[0], y: f[1], vx: 0, vy: 0 }; }
             if (!hkL.mine && m.m[me]) hkL.mine = { x: m.m[me][0], y: m.m[me][1], vx: 0, vy: 0 };
-            // A hit the station counted that wasn't mine here: theirs (or one it gave me): the bang, the hit-stop.
-            if ((m.n || 0) > hkL.lastN) {
-                hkL.lastN = m.n;
-                if (m.hb !== me || t - hkL.hitAt > 0.3) { hkL.freeze = t + (m.fz || 0) / 1000; hkBang(x, y, m.hs || Math.hypot(vx, vy), !!m.pw, m.hb === me); }
-            }
-            // The puck: where the station has it — except just after you've hit it here (yours is newer), and
-            // eased towards it rather than jumping, unless it's far out.
+            // A hit the station counted: mine (it took my word for it), or theirs — that one lands here now,
+            // from where the station has it, with its bang and hit-stop.
+            const newHit = (m.n || 0) > hkL.lastN, echo = newHit && m.hb === me, theirs = newHit && m.hb !== me, srv = { x, y, vx, vy, spin: (sp || 0) / 100 };
+            if (newHit) hkL.lastN = m.n;
             const P = hkL.puck;
-            if (!P || g.state !== 'playing' || Math.hypot(P.x - x, P.y - y) > 140) hkL.puck = { x, y, vx, vy, spin: (sp || 0) / 100 };
-            else if (t - hkL.hitAt > 0.25) { P.x += (x - P.x) * 0.4; P.y += (y - P.y) * 0.4; P.vx = vx; P.vy = vy; P.spin = (sp || 0) / 100; }
+            if (theirs) {
+                hkL.puck = srv; hkL.freeze = t + (m.fz || 0) / 1000; hkL.foeWait = 0; hkL.hitAt = -9;
+                hkBang(x, y, m.hs || Math.hypot(vx, vy), !!m.pw, false);
+                return;
+            }
+            if (echo) hkL.hitAt = -9;                                    // confirmed: back to following the station
+            // Just after my own hit, mine is the newer news: keep it until the station says it took it (or ~0.6 s).
+            if (P && g.state === 'playing' && t - hkL.hitAt < 0.6) return;
+            // Waiting on the other one's hit (the puck reached their mallet here): hold it until it comes.
+            if (P && g.state === 'playing' && hkL.foeWait && t - hkL.foeWait < 0.35) return;
+            // Otherwise the station's puck: eased into, unless it's well out.
+            if (!P || g.state !== 'playing' || Math.hypot(P.x - x, P.y - y) > 140) hkL.puck = srv;
+            else { P.x += (x - P.x) * 0.4; P.y += (y - P.y) * 0.4; P.vx = vx; P.vy = vy; P.spin = srv.spin; }
         }
 
         /* The table on the screen: lying across it (your goal on the left), tilted towards you — the far rail
@@ -2176,17 +2184,21 @@
             const [tx, ty] = hkL.tgt || [M.x, M.y], dx = tx - M.x, dy = ty - M.y, d = Math.hypot(dx, dy);
             const s = Math.min(d, HKT.maxMallet * (hkL.charging ? HKT.chargeSlow : 1) * dt), ux = d ? dx / d : 0, uy = d ? dy / d : 0;
             M.vx = dt ? ux * s / dt : 0; M.vy = dt ? uy * s / dt : 0;
-            if (hkL.foe && hkL.foeTo) {
-                const F = hkL.foe, e = Math.min(1, dt * 14), ox = F.x, oy = F.y;
-                F.x += (hkL.foeTo.x - F.x) * e; F.y += (hkL.foeTo.y - F.y) * e;
-                F.vx = dt ? (F.x - ox) / dt : 0; F.vy = dt ? (F.y - oy) / dt : 0;
+            const F = hkL.foe;
+            let fdx = 0, fdy = 0;
+            if (F && hkL.foeTo) {
+                const e = Math.min(1, dt * 20);
+                fdx = (hkL.foeTo.x - F.x) * e; fdy = (hkL.foeTo.y - F.y) * e;
+                F.vx = dt ? fdx / dt : 0; F.vy = dt ? fdy / dt : 0;
             }
-            const P = g.state === 'playing' ? hkL.puck : null, frozen = t < hkL.freeze;
+            if (hkL.foeWait && t - hkL.foeWait >= 0.35) hkL.foeWait = 0;
+            const P = g.state === 'playing' ? hkL.puck : null, frozen = t < hkL.freeze || !!hkL.foeWait;
             // In small steps, so a fast swing (or a slow frame) can't jump the mallet clean over the puck.
             const n = Math.max(1, Math.ceil(Math.max(s, P && !frozen ? Math.hypot(P.vx, P.vy) * dt : 0) / 20));
             let hit = 0, rail = 0;
             for (let i = 0; i < n; i++) {
                 M.x += ux * s / n; M.y += uy * s / n;
+                if (F) { F.x += fdx / n; F.y += fdy / n; }
                 if (!P || frozen) continue;
                 const h = dt / n;
                 hkCurve(P, h);
@@ -2198,15 +2210,25 @@
                     if (P.y < HKT.pr) { P.y = HKT.pr; P.vy = Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
                     if (P.y > HKT.h - HKT.pr) { P.y = HKT.h - HKT.pr; P.vy = -Math.abs(P.vy) * HKT.wallE; rail = Math.max(rail, Math.abs(P.vy)); }
                 } else P.y = Math.max(-HKT.pr * 2, Math.min(HKT.h + HKT.pr * 2, P.y));      // in the goal: the station says so
-                const pw = hkL.charge >= 0.25 ? hkL.charge : 0, got = hkHitOff(P, M, pw);
+                // (Not again straight after your hit: the puck sits still for the hit-stop while your mallet carries on,
+                // and touching it then would shove it out backwards.)
+                const pw = hkL.charge >= 0.25 ? hkL.charge : 0, got = t >= (hkL.noHitUntil || 0) ? hkHitOff(P, M, pw) : 0;
                 if (got) { hit = got; if (pw) { hkL.pw = true; hkL.charge = 0; } else hkL.pw = false; break; }
-                if (hkL.foe) hkHitOff(P, hkL.foe);                      // theirs, as you see it (the station has the last word)
+                // Their mallet reaching it, as you see it: hold the puck there till the station says where they sent it.
+                if (F && !hkL.foeWait && t - (hkL.foeHeld || 0) > 0.5) {
+                    const dx2 = P.x - F.x, dy2 = P.y - F.y, d2 = Math.hypot(dx2, dy2), min = HKT.mr + HKT.pr;
+                    if (d2 < min && d2 > 0 && (P.vx - F.vx) * dx2 + (P.vy - F.vy) * dy2 < 0) {
+                        P.x = F.x + dx2 / d2 * min; P.y = F.y + dy2 / d2 * min;
+                        hkL.foeWait = hkL.foeHeld = t;
+                        break;
+                    }
+                }
             }
             const key = Math.round(M.x) + ',' + Math.round(M.y);
-            if (key !== hkL.sent && t - hkL.sentAt > 0.04) { hkL.sent = key; hkL.sentAt = t; core.send({ t: 'hall-hk-m', id: g.id, x: Math.round(M.x), y: Math.round(M.y) }); }
+            if (key !== hkL.sent && t - hkL.sentAt > 0.028) { hkL.sent = key; hkL.sentAt = t; core.send({ t: 'hall-hk-m', id: g.id, x: Math.round(M.x), y: Math.round(M.y) }); }
             if (!P) return;
             if (hit && t - hkL.hitAt > 0.08) {
-                hkL.hitAt = t; hkL.freeze = t + hkFreezeFor(hit) / 1000;
+                hkL.hitAt = t; hkL.freeze = t + hkFreezeFor(hit) / 1000; hkL.noHitUntil = hkL.freeze + 0.15;
                 core.send({ t: 'hall-hk-hit', id: g.id, x: Math.round(P.x), y: Math.round(P.y), vx: Math.round(P.vx), vy: Math.round(P.vy), spin: +(P.spin || 0).toFixed(3), pw: !!hkL.pw });
                 hkBang(P.x, P.y, hit, !!hkL.pw, true);
             }
