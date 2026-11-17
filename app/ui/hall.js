@@ -1987,7 +1987,8 @@
            The station runs the puck; your own hits go the moment you make them (hall-hk-hit). */
         const HKT = { w: 600, h: 1000, goal: 220, mr: 38, pr: 24, maxPuck: 2100, maxMallet: 3200, drag: 0.22, wallE: 0.9, hitE: 0.95, keyV: 900,
             maxPower: 2900, powerUp: 1.35, spinPer: 1 / 900, spinMax: 2.6, spinDecay: 1.8, freezeFrom: 1300, freezeMax: 110,   // as engine/hall-hockey.js HK
-            chargeS: 0.7, chargeSlow: 0.55 };                                       // a full charge takes this long, and slows your mallet this much
+            chargeS: 0.7, chargeSlow: 0.18, stallS: 5 };                           // a full charge takes this long, and slows your mallet this much (as long as you hold it);
+                                                                                     // the puck can't stay in one half longer than stallS (engine/hall-hockey.js HK.stallMs)
         const hkFreezeFor = (s) => (s < HKT.freezeFrom ? 0 : Math.min(HKT.freezeMax, 40 + (s - HKT.freezeFrom) / (HKT.maxPower - HKT.freezeFrom) * (HKT.freezeMax - 40)));
         const hks = new Map();                  // id → the station's hall-hk (end: when a finished one goes)
         const hkL = { id: '', puck: null, mine: null, foe: null, foeTo: null, tgt: null, sentAt: 0, sent: '', hitAt: -9, freeze: 0, lastN: 0,
@@ -2045,7 +2046,7 @@
             else {
                 if (hkL.id !== m.id) { Object.assign(hkL, { id: m.id, puck: null, mine: null, foe: null, lastN: 0, streak: { h: '', n: 0 }, charge: 0 }); hkFx.trail = []; }
                 if (m.state === 'asked' && !was && m.b === me && !quiet) U.toast('🏒 ' + nameOf(m.a) + ' challenges you to air hockey!');
-                if (m.state === 'ready') { hkL.puck = null; hkFx.trail = []; hkL.beep = -1; }
+                if (m.state === 'ready') { hkL.puck = null; hkFx.trail = []; hkL.beep = -1; hkL.side = ''; if (m.fault && was && was.state === 'playing') { hkSfx.rail(200); hkFx.shake = 3; } }
                 if (m.state === 'playing' && was && was.state !== 'playing') { hkL.goStart = t; hkSfx.beep(true); }
                 if (m.state === 'goal' && was && was.state !== 'goal') hkGoal(m.by, t);
                 if (m.state === 'over' && (!was || was.state !== 'over') && !quiet) {
@@ -2396,9 +2397,17 @@
             if (g.state === 'ready') {
                 const n = Math.ceil(left);
                 if (n !== hkL.beep && n <= 3 && n > 0) { hkL.beep = n; hkSfx.beep(false); }
-                txt(left > 3 ? 'GET READY' : String(Math.max(1, n)), cv.width / 2, mid, big * (left > 3 ? 1.4 : 2.6) * (1 + 0.15 * (1 - (left % 1))), '#ffe14d', 0);
+                if (g.fault && left > 1.3) txt('TOO SLOW! ' + (g.fault === me ? 'YOUR' : 'THEIR') + ' PUCK’S GONE', cv.width / 2, mid, big * 1.3, '#ff8a2a', -0.04);
+                else txt(left > 3 ? 'GET READY' : String(Math.max(1, n)), cv.width / 2, mid, big * (left > 3 ? 1.4 : 2.6) * (1 + 0.15 * (1 - (left % 1))), '#ffe14d', 0);
                 txt((touch ? 'Drag your mallet' : 'Mouse moves your mallet · hold right-click or Space: POWER SHOT · swipe across the puck: CURVE'), cv.width / 2, 28 * u, small * 0.9, '#ffffff');
             } else if (g.state === 'playing' && t - hkL.goStart < 0.7) txt('GO!', cv.width / 2, mid, big * 3 * (1 + (t - hkL.goStart)), '#4fd36e', -0.05);
+            else if (g.state === 'playing' && P) {
+                // Sitting in one half: count it down over the puck (it goes to the other player at zero).
+                const side = P.y > HKT.h / 2 ? 'a' : 'b';
+                if (hkL.side !== side) { hkL.side = side; hkL.sideAt = t; }
+                const rest = HKT.stallS - (t - hkL.sideAt);
+                if (rest < 2.2 && rest > 0) { const [sx, sy] = hkTo(P.x, P.y); txt(String(Math.ceil(rest)), sx * u, (sy - 10) * u, small * 1.6 * (1 + 0.3 * (1 - rest % 1)), '#ff8a2a'); }
+            }
             else if (g.state === 'goal') {
                 const a = t - hkL.goalAt, pop = a < 0.15 ? a / 0.15 * 1.4 : 1.4 - Math.min(0.3, (a - 0.15) * 0.6);
                 txt(g.by === me ? 'GOAL!!' : 'THEY SCORE!', cv.width / 2, mid, big * 2.4 * pop, g.by === me ? '#4fd36e' : '#ff4040', Math.sin(a * 12) * 0.06);

@@ -105,7 +105,9 @@ show from his desk. Up to 40 people at once (the host can change that).
   hockey**, one on one, arcade style: click someone, *Air hockey*; the table fills your screen, your
   goal on the left, your mallet following the mouse (or WASD / the arrows, or a finger). Hold the
   **right button** (or **Space**) to charge a **power shot**; swipe across the puck as you hit it to
-  **curve** it. Hard hits land with a jolt and the speed shouted out. First to 7.
+  **curve** it (charging slows your mallet right down for as long as you hold it). Hard hits land
+  with a jolt and the speed shouted out. Five seconds in one half and the puck goes to the other
+  player. First to 7.
   The host starts Dodgeball, Burgertime, **kart races** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
 - **Kart races**: when the host starts one, say *I'm in* (up to 8 racers) and race laps of the
