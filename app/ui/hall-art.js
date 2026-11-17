@@ -1214,6 +1214,28 @@
     }
     /** Away (/afk): a little white flag on a pole over their head (top: the top of their head), waving, AFK on it. */
     const AFK_TXT = ['.#..###.#.#', '#.#.#...##.', '###.##..#.#', '#.#.#...#.#'];   // A F K, 3×4 each
+    /**
+     * A CRT on a low stand, its screen toward the room, for someone who's opened a game others can join (they sit
+     * beside it). (x, y): the middle of its base on the floor. game: what's on the screen ('kart': a road rushing by;
+     * anything else: a blinking cursor). Returns the top of the set.
+     */
+    function crt(x, y, t, game) {
+        R(x - 7, y - 1, 14, 2, 'rgba(0,0,0,0.35)');
+        R(x - 5, y - 4, 10, 4, '#000'); R(x - 4, y - 4, 8, 3, '#6a4420'); R(x - 4, y - 4, 8, 1, '#8a5a2a');      // the stand
+        R(x - 9, y - 18, 18, 15, '#000'); R(x - 8, y - 17, 16, 13, '#3a3846'); R(x - 8, y - 17, 16, 1, '#5a5868');
+        R(x + 5, y - 6, 2, 1, '#ff4040');                                                                       // the power light
+        R(x - 4, y - 21, 1, 3, '#000'); R(x + 4, y - 22, 1, 4, '#000');                                         // rabbit ears
+        const sx = x - 6, sy = y - 15, sw = 11, sh = 8;
+        if (game === 'kart') {
+            R(sx, sy, sw, sh, '#140c2a'); R(sx, sy, sw, 3, '#2a1f58');
+            for (let r = 0; r < 5; r++) { const half = 1 + r; R(sx + 5 - half, sy + 3 + r, half * 2 + 1, 1, '#4a4858'); R(sx + 5 - half, sy + 3 + r, 1, 1, '#ff4fd8'); R(sx + 5 + half, sy + 3 + r, 1, 1, '#39e6ff'); }
+            const dash = Math.floor(t * 8) % 3; R(sx + 5, sy + 3 + dash * 2, 1, 1, '#ffffff');
+            R(sx + 4, sy + 6, 3, 2, '#ffd34a'); R(sx + 4 + (Math.floor(t * 3) % 2), sy + 6, 1, 1, '#ff4040');
+        } else { R(sx, sy, sw, sh, '#062a06'); if (Math.floor(t * 2) % 2) R(sx + 2, sy + 5, 2, 1, '#33ff66'); }
+        l.globalAlpha = 0.12 + 0.06 * Math.sin(t * 9); R(sx, sy, sw, sh, '#ffffff'); l.globalAlpha = 1;          // the flicker
+        for (let r = 0; r < sh; r += 2) { l.globalAlpha = 0.18; R(sx, sy + r, sw, 1, '#000'); l.globalAlpha = 1; }   // scanlines
+        return y - 22;
+    }
     function afkFlag(x, top, t) {
         x = Math.round(x); top = Math.round(top);
         const px = x + 4, y = top - 9;
@@ -2142,6 +2164,7 @@
         alienHead, ufo: (ctx, x, y, t, beam, reach) => { l = ctx; ufo(x, y, t, beam, reach); },
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
         afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
+        crt: (ctx, x, y, t, game) => { l = ctx; return crt(x, y, t, game); },
         K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge, kartDecos, decoCanvas,
         rmSky: (ctx, t, k) => { l = ctx; rmSky(t, k); }, rmShatter: (ctx, img, s, back) => { l = ctx; rmShatter(img, s, back); },
         rmBoss: (ctx, x, y, t, o) => { l = ctx; return rmBoss(x, y, t, o || {}); }, rmPlane, rmBullet, rmFart };

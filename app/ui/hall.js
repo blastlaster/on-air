@@ -1544,10 +1544,23 @@
             if (a === 'dash') { if (t < dashReady) return; dashReady = t + 1; p.dashUntil = t + DASH_S; }
             core.send({ t: 'hall-act', a });
         }
-        /** Someone (not you) under the pointer: their feet are at (x, y), about 9×20 room pixels above that. */
+        /* Games others can join (not the board games: their tables have their own sign): whoever opened one sits
+           at a CRT beside them, a sign over it saying what it is and how many seats are left. Clicking the CRT is
+           clicking them (their popup has Join / Watch). */
+        function openGameOf(h) {
+            for (const L of kLob.values()) if (L.kind === 'public' && L.state && L.host === h)
+                return { kind: 'kart', id: L.id, name: 'SUPER NICE KART', icon: '🏁', n: (L.seats || []).length, max: KART_MAX, busy: L.state !== 'lobby' };
+            return null;
+        }
+        const crtX = (p) => p.x + (p.face < 0 ? -12 : 12);
+        /** Someone (not you) under the pointer, or their CRT: their feet are at (x, y), about 9×20 room pixels above that. */
         function personAt(x, y) {
             let hit = null;
-            for (const q of people.values()) if (q.h !== me && Math.abs(q.x - x) <= 5 && y <= q.y + 2 && y >= q.y - 20 && (!hit || q.y > hit.y)) hit = q;
+            for (const q of people.values()) {
+                if (q.h === me) continue;
+                const onCrt = !q.walking && openGameOf(q.h) && Math.abs(crtX(q) - x) <= 9 && y <= q.y + 1 && y >= q.y - 22;
+                if ((onCrt || (Math.abs(q.x - x) <= 5 && y <= q.y + 2 && y >= q.y - 20)) && (!hit || q.y > hit.y)) hit = q;
+            }
             return hit;
         }
         stage.addEventListener('click', (e) => floorClick(e));
@@ -2967,13 +2980,20 @@
         const games = new Map();
         let myPick = '';
         const nameOf = (h) => (people.get(h) || {}).n || 'someone';
+        function popOpenGame(h) {
+            const og = openGameOf(h);
+            if (!og) return '';
+            const mineAlready = [...kLob.values()].some(L => L.state && (L.seats || []).includes(me));
+            return (og.n < og.max && !mineAlready ? '<button type="button" class="btn go" data-kpop="join" data-kid="' + esc(og.id) + '">' + og.icon + ' Join their race (' + og.n + '/' + og.max + ')</button>' : '') +
+                '<button type="button" class="btn" data-kpop="watch" data-kid="' + esc(og.id) + '">👀 Watch their race</button>';
+        }
         function openPop(q, e) {
             const sr = stage.getBoundingClientRect();
             const their = tableOf(q.h);
             const mineHeld = (mine() || {}).o;
             popEl.innerHTML = '<b>' + esc(q.n) + '</b>' + (q.afk ? '<small class="hp-afk">💤 away' + (q.afk !== 'afk' ? ': ' + esc(q.afk) : '') + '</small>' : '') + (mineHeld ? '<button type="button" class="btn go" data-give="' + esc(q.h) + '">' +
                 (bombMine() ? '💣 Pass them the bomb!' : mineHeld === BOMB && !bomb ? '💣 Hand them a lit bomb (hot potato!)' : '🎁 Give them your ' + heldHtml(mineHeld)) + '</button>' : '') +
-                '<button type="button" class="btn go" data-gmto="' + esc(q.h) + '">🎮 Games</button>' +
+                '<button type="button" class="btn go" data-gmto="' + esc(q.h) + '">🎮 Games</button>' + popOpenGame(q.h) +
                 (safe ? '<span class="hp-note">Bonks and slaps are off for you (🎨 Look)</span>'
                     : q.s ? '<span class="hp-note">' + esc(q.n) + ' doesn’t want to be hit</span>'
                     : HITS.map(([k, icon, name]) => '<button type="button" class="btn" data-hit="' + k + '" data-to="' + esc(q.h) + '">' + icon + ' ' + name + '</button>').join(''));
@@ -2985,6 +3005,12 @@
             e.stopPropagation();
             const jb = e.target.closest('[data-join]');
             if (jb) { popEl.hidden = true; return core.send({ t: 'hall-table-sit', id: jb.dataset.join }); }
+            const kp = e.target.closest('[data-kpop]');
+            if (kp) {
+                popEl.hidden = true;
+                if (kp.dataset.kpop === 'join') { kInvite = null; return kSend('join', { id: kp.dataset.kid }); }
+                kWatchId = kp.dataset.kid; kSync(); return paintKart();
+            }
             const wb = e.target.closest('[data-watch]');
             if (wb) { popEl.hidden = true; view = wb.dataset.watch; sel = null; hops = []; gamesEl.hidden = false; return paintGames(); }
             const hb = e.target.closest('[data-hit]');
@@ -3992,6 +4018,19 @@
             if (el) el.textContent = clock(tb);
         }, 1000);
         offs.push(() => clearInterval(clockT));
+        /** Over each CRT: what's on and the seats left (gold while there's room to join, bobbing). */
+        const crtTops = new Map();
+        function openGameSigns(u, t) {
+            for (const [h, top] of crtTops) {
+                const p = people.get(h), og = p && openGameOf(h);
+                if (!og) continue;
+                const free = og.max - og.n, lift = free > 0 ? Math.round(Math.abs(Math.sin(t * 3)) * 2) : 0;
+                const text = og.icon + ' ' + og.name + ' · ' + (free > 0 ? free + (free === 1 ? ' SEAT' : ' SEATS') : 'FULL') + (og.busy ? ' · RACING' : '');
+                const fs = Math.max(12, Math.round(3.6 * u / dpr)) * dpr;
+                ctx.font = 'bold ' + fs + 'px "Courier New", monospace';
+                badge(text, crtX(p) * u - (ctx.measureText(text).width + fs * 0.6) / 2, (top - 2 - lift) * u, u, free > 0);
+            }
+        }
         /** Who's at a table and what they're doing there, from the person menu. */
         const tableOf = (h) => [...tables.values()].find(tb => tb.state !== 'done' && tb.seats.includes(h));
         /** Over the heads of people playing: a little 🎲. */
@@ -4378,6 +4417,7 @@
             }
             const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y);
             const heads = new Map(), fight = duelOf(me);
+            crtTops.clear();
             btStep(dt);
             if (btOn() && btStart) A.wallBurst(lc, t - btStart, 5);
             if (btOn()) smashMark(t);
@@ -4396,7 +4436,8 @@
                 // Riding a UFO: dashing or sprinting takes them up a bit.
                 const up = p.l && p.l.ride === 1 && (p.dashUntil > t || (p.h === me ? running : p.run)) ? 7 : 0;
                 p.hover = (p.hover || 0) + (up - (p.hover || 0)) * Math.min(1, dt * 10);
-                const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e, et: t - p.et, t, talk: p.sayUntil > t,
+                const og = !p.walking && openGameOf(p.h);
+                const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e || (og ? 'sit' : p.e), et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t, hover: p.hover, noShadow: !!(ay && ay.lift) };
                 if (ay) lc.globalAlpha = ay.a;
                 const au = auraOf(p.a);
@@ -4425,6 +4466,7 @@
                 } else heads.set(p.h, A.person(lc, p.l, po));
                 lc.globalAlpha = 1;
                 if (au) A.aura(lc, au[1], au[2], po.x, po.y, t, true, p.l, po);
+                if (og) crtTops.set(p.h, A.crt(lc, crtX(p), p.y, t, og.kind));
                 if (p.star > performance.now()) A.star(lc, po.x, heads.get(p.h) - 4, t);           // survived Burgertime
                 if (p.afk) A.afkFlag(lc, po.x, heads.get(p.h), t);                       // away (/afk)
                 const back = btBack.get(p.h);
@@ -4471,6 +4513,7 @@
             for (const b of booms) if (t - b.at < 1) popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020');
             gameBadges(t, u, heads);
             tableBadges(u, heads, t);
+            openGameSigns(u, t);
             if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
             if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
             drawAbducted(t, u);

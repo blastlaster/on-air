@@ -116,7 +116,8 @@ show from his desk. Up to 40 people at once (the host can change that).
   The host starts Dodgeball, Burgertime, the **station's kart race** and the **Radioman fight**. Untick *Bonks, fish slaps and snowballs* in 🎨 Look
   to sit out the hitting. Dash or jump just before a snowball lands and it misses.
 - **🏁 Super Nice Kart**: open a race from 🎮 Games — **public** (invite whoever you clicked; anyone
-  in the room can join while there's a seat, up to 8, or watch) or **practice** on your own (one
+  in the room can join while there's a seat, up to 8, or watch; whoever opened it sits at a CRT with a
+  sign saying how many seats are left — click them or the CRT to join or watch) or **practice** on your own (one
   track as many times as you like, or a **circuit** of all six). The host of a public race presses
   *Start*; someone who joins mid-race watches it and races the next. After each race the
   leaderboard: points for your place (15, 12, 10, 8, 7, 6, 5, 4) adding up race after race, then
