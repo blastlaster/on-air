@@ -114,6 +114,9 @@
         let replyDrawn = { key: '', d: null };                        // the drawing for your next reply in a green thread (from the oekaki)
         const PIC_MAX = 8 * 1024 * 1024;
         const threadTops = new Map();
+        // Bumped each time the view changes (a thread opened, a tab, back). Anything slow (a refresh waiting on 4chan or the
+        // station) checks it before drawing, so a list that arrives late can't land over the thread you've opened since.
+        let nav = 0;
         function leaveThread() {
             const sc = $('.if-posts', box);
             if (view === 'thread' && current && sc) { threadTops.set(current.key, sc.scrollTop); if (threadTops.size > 200) threadTops.delete(threadTops.keys().next().value); }
@@ -344,18 +347,21 @@
         async function refresh(force) {
             if (busy) return;
             busy = true;
+            const n = nav;
             try {
                 if (view === 'thread' && current) await loadThread(current, !force);
                 else if (view === 'archive') await showArchive();
                 else if (view === 'reports') await showReports();
-                else { await loadIndex(); render(); }
+                else { await loadIndex(); if (n === nav) render(); }
                 if (view === 'thread') loadIndex().then(() => { const el = $('.if-pg', box); if (el && current) el.innerHTML = pageTag(current.id); }).catch(() => {});   // keeps the watcher (and the page) current
             } finally { busy = false; }
+            if (n !== nav && view !== 'thread') refresh(false);             // the view changed meanwhile: load the list showing now (a thread loads itself)
         }
 
         /* ---------- views ---------- */
         function go(v) {
             leaveThread();
+            nav++;
             restoreTop = view === 'thread' && listTop && listTop.view === v ? listTop.top : null;
             view = v;
             $('[data-v="back"]', box).hidden = v === 'index';
@@ -441,6 +447,7 @@
         async function openThread(key) {
             const kind = key[0], id = key.slice(2);
             leaveThread();
+            nav++;
             if (view === 'index' || view === 'watch') listTop = { view, top: $('.if-main', box).scrollTop };
             current = { key, kind, id };
             view = 'thread';
@@ -452,7 +459,7 @@
         }
 
         async function loadThread(cur, keepScroll) {
-            const main = $('.if-main', box);
+            const main = $('.if-main', box), n = nav, moved = () => n !== nav;
             const scroller = $('.if-posts', box);
             const top = keepScroll && scroller ? scroller.scrollTop : 0;
             const draft = $('.if-reply textarea', box) ? { text: $('.if-reply textarea', box).value, name: $('.if-reply [name=name]', box).value, opt: $('.if-reply [name=options]', box).value } : null;
@@ -460,8 +467,10 @@
             if (cur.kind === 'c') {
                 const b = boardName();
                 const j = await getJSON('https://a.4cdn.org/' + b + '/thread/' + cur.id + '.json');
+                if (moved()) return;
                 if (!j || !j.posts) { main.innerHTML = '<p class="dim if-load">That thread is gone from the board (it may have died). <button type="button" class="btn" data-unwatch="' + esc(cur.key) + '">Stop watching</button></p>'; return; }
                 const fp = await getJSON(FP + 'get.php?thread=' + cur.id);
+                if (moved()) return;
                 const greens = fp && typeof fp === 'object' ? Object.values(fp).filter(p => p && p.id) : [];
                 const after = {};
                 for (const g of greens) (after[g.after_no] = after[g.after_no] || []).push(g);
@@ -480,8 +489,8 @@
             } else {
                 let j;
                 const v = keepScroll && threadKey === cur.key ? threadVer : 0;
-                try { j = await toServer('/api/thread/' + cur.id + '?v=' + v); } catch (e) { if (!keepScroll) main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
-                if (j.unchanged) return;                                   // nothing new: leave the page as it is
+                try { j = await toServer('/api/thread/' + cur.id + '?v=' + v); } catch (e) { if (!keepScroll && !moved()) main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
+                if (moved() || j.unchanged) return;                                   // nothing new: leave the page as it is
                 threadVer = j.version || 0; threadKey = cur.key;
                 posts = j.posts.map(p => ourPost(p));
                 const t = j.thread;
@@ -1025,16 +1034,18 @@
 
         /* ---------- archive and reports ---------- */
         async function showArchive() {
-            const main = $('.if-main', box);
+            const main = $('.if-main', box), n = nav;
             if (!server()) { main.innerHTML = '<p class="dim if-load">The archive keeps green threads that died. It’s offline while the station’s PC is off.</p>'; return; }
             let j;
-            try { j = await toServer('/api/archive'); } catch (e) { main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
+            try { j = await toServer('/api/archive'); } catch (e) { if (n === nav) main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
+            if (n !== nav) return;
             main.innerHTML = j.threads.length ? '<div class="if-list">' + j.threads.map(t => card({ key: 'g:' + t.id, kind: 'g', id: t.id, sub: t.sub, text: t.text, replies: t.replies, gcount: 0, green: true, lit: true, pic: (greenImg(t.id, t.img) || {}).thumb })).join('') + '</div><p class="dim if-note">' + j.total + ' archived green thread' + (j.total === 1 ? '' : 's') + '.</p>' : '<p class="dim if-load">Nothing in the archive yet.</p>';
         }
         async function showReports() {
-            const main = $('.if-main', box);
+            const main = $('.if-main', box), n = nav;
             let j;
-            try { j = await toServer('/api/admin/reports', undefined, true); } catch (e) { main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
+            try { j = await toServer('/api/admin/reports', undefined, true); } catch (e) { if (n === nav) main.innerHTML = '<p class="dim if-load">' + esc(e.message) + '</p>'; return; }
+            if (n !== nav) return;
             main.innerHTML = j.reports.length ? '<ul class="list if-reports">' + j.reports.map(r => '<li><b>&gt;&gt;' + esc(r.id) + '</b> <span class="dim">' + esc(when(r.at)) + ' — ' + esc(r.reason || '') + '</span><div class="if-text">' + esc(r.text) + '</div>' +
                 '<div class="row"><button type="button" class="btn" data-goto="g:' + esc(r.thread) + '">Open thread</button><button type="button" class="btn" data-del="' + esc(r.id) + '">Delete</button><button type="button" class="btn" data-ban="' + esc(r.id) + '">Ban</button><button type="button" class="btn" data-dismiss="' + esc(r.id) + '">Dismiss</button></div></li>').join('') + '</ul>'
                 : '<p class="dim if-load">No reports.</p>';
