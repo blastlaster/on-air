@@ -93,7 +93,13 @@ The community's own threads on the board, in the style of a text board
 `>>7xK2` shows in the same plain style. **Numberless on 4chan, every post with letters in
 its id**, quoted like `>>7xK2`.
 
-- **Drawings, and only drawings.** Starting a thread or replying in one, press **🎨 Draw** for the oekaki (like the board's own drawing tool): pencil, pen (it follows a tablet's pressure), airbrush, tone, eraser, bucket and pipette; size and alpha; a palette; layers; undo/redo (Ctrl+Z / Ctrl+Y); zoom (− / +, or Ctrl + the mouse wheel); **New** for another canvas size (up to 800×800). **Finish** puts it on your post (**edit** goes back to it); a reply can be just a drawing. Every picture in a green thread was drawn there: there's no way to open, paste or drop a picture in.
+- **Drawings, and only drawings.** Starting a thread or replying in one, press **🎨 Draw** for the oekaki (like the board's own drawing tool, with MS Paint's tools):
+  - **Draw:** pencil (crisp pixels, with round, square, ╱ and ╲ tips), pen (smooth ink that thins when you move fast and follows a tablet's pressure; a flat calligraphy nib too), airbrush (soft, or MS Paint's scattered dots), tone (screentone dots, dither, lines or cross-hatch, with a density), eraser, smudge, blur, bucket (with a tolerance), gradient, pipette and text (five fonts, bold, italic, smooth or crisp).
+  - **Shapes:** line, curve (drag a line, then click twice to bend it), rectangle and ellipse (outline, filled, or both); Shift keeps them straight, square or round.
+  - **Select:** rectangle, free-form and magic wand. Drag a selection to move it, Ctrl+drag for a copy, pull its handles to stretch it; Del clears it, the arrows nudge it, Ctrl+C / X / V copy and paste inside the oekaki. **Move** drags the whole layer. **Flip ↔ / Flip ↕ / Rotate ↻** turn the selection, or the layer.
+  - **Mirror** draws everything again, flipped across the middle (M).
+  - Two colours: right click draws with the second, X swaps them.
+  - Size and alpha; a palette; layers (add, duplicate, merge down, delete, drag to reorder, double-click to rename, opacity); undo/redo (Ctrl+Z / Ctrl+Y); zoom (− / +, or Ctrl + the mouse wheel); **New** for another canvas size (up to 800×800). **Finish** puts it on your post (**edit** goes back to it); a reply can be just a drawing. Every picture in a green thread was drawn there: there's no way to open, paste or drop a picture in.
 
 - **Earned.** You need **level 11** to start one — before that, post in them. It takes a few days of real replies, which keeps drive-by spam out.
 - **One at a time.** While your thread is alive you can't start another. Green threads are meant to add to the board, not bury it.
