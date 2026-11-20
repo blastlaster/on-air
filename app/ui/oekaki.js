@@ -24,8 +24,13 @@
     const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
     const rgbHex = (r, g, b) => '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 
+    // One at a time: the 🎨 that opened it keeps the keyboard's focus behind it, and Space or Enter would
+    // "press" it again — another oekaki on top (from the drawing so far), and another.
+    let showing = null;
     function open(opts = {}) {
-        return new Promise((resolve) => {
+        if (showing) return showing;
+        showing = new Promise((resolve) => {
+            if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
             let W = clamp(Math.round(opts.width || 400), MIN_SIDE, MAX_SIDE), H = clamp(Math.round(opts.height || 400), MIN_SIDE, MAX_SIDE);
             const st = { tool: 'pencil', color: '#000000', size: 3, alpha: 100, zoom: 1, active: 0, dirty: false };
             const sizes = {};                                            // each tool keeps its own size
@@ -274,7 +279,9 @@
 
             function close(result) {
                 document.removeEventListener('keydown', onKey, true);
+                document.removeEventListener('keyup', noPress, true);
                 root.remove();
+                showing = null;
                 resolve(result);
             }
             function finish() {
@@ -329,7 +336,14 @@
             $('.ok-col').addEventListener('input', (e) => setColor(e.target.value));
             $('.ok-size').addEventListener('input', (e) => { st.size = +e.target.value; showVals(); });
             $('.ok-alpha').addEventListener('input', (e) => { st.alpha = +e.target.value; showVals(); });
+            // Space and Enter press nothing outside the oekaki (a button presses on Space's keyup).
+            function noPress(e) {
+                if ((e.key === ' ' || e.key === 'Enter') && !root.contains(e.target)) { e.preventDefault(); e.stopPropagation(); return true; }
+                return false;
+            }
+            document.addEventListener('keyup', noPress, true);
             function onKey(e) {
+                if (noPress(e)) return;
                 if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
                 const k = e.key.toLowerCase();
                 if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.stopPropagation(); return e.shiftKey ? step(redo, undo, 'after') : step(undo, redo, 'before'); }
@@ -351,6 +365,7 @@
                 im.src = opts.start;
             }
         });
+        return showing;
     }
     window.Oekaki = { open };
 })();

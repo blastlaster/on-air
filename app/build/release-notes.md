@@ -1,3 +1,3 @@
-## What's new in 0.5.64
+## What's new in 0.5.65
 
-- **📺 Open races at a CRT:** whoever opens a public Super Nice Kart race sits at a little CRT in the room, a sign over it showing the game and how many seats are left (gold while there's room, RACING once it's on). Click them or the CRT to join or watch.
+- **Oekaki — Space doesn't open another:** pressing Space (or Enter) while drawing could "press" the 🎨 button behind the oekaki, opening another on top of it (with the drawing so far) every time. Now only one opens, and keys stay with the drawing.
