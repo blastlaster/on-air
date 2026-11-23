@@ -47,7 +47,7 @@ The media keys on your keyboard play and pause.
 
 | Button | Window |
 |---|---|
-| 💬 **Chat** | The station's own chat whenever its engine is on (the community's Chattable room when it isn't) — in the app's look, under the name and colour you set. [Chat commands](#chat-commands) work here. |
+| 💬 **Chat** | The station's own chat whenever its engine is on (the community's Chattable room when it isn't) — in the app's look, under the name and colour you set. [Chat commands](#chat-commands) work here, the station's picture emotes show, and `:codes:` like `:relieved:` become emoji (type `:` and a few letters for suggestions). |
 | 🎵 **Request** | The station's music: search and request — from the DJ's library when live, from AutoDJ's otherwise. |
 | 🕘 **Playlist** | Coming up next, and what just played. |
 | 📞 **Call in** | Call the show (it asks first — you'll be live), leave a voicemail, check in with a guest code, and see who's on the line. |

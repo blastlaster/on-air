@@ -286,7 +286,7 @@
 
     /* :emoji: codes. Typed in any chat box they become the emoji when the
        message is sent (so they show everywhere, the Chattable copy too).
-       Only emoji old enough to show on Windows 10. */
+       Only emoji old enough to show on Windows 10 (Emoji 12 and earlier). */
     LT.EMOJI = {
         smile: '😄', grin: '😁', joy: '😂', lol: '😂', rofl: '🤣', sweat_smile: '😅', wink: '😉', upside_down: '🙃', zany: '🤪', nerd: '🤓',
         sob: '😭', cry: '😢', sad: '😞', sunglasses: '😎', cool: '😎', thinking: '🤔', think: '🤔', flushed: '😳', angry: '😠', rage: '😡',
@@ -300,7 +300,50 @@
         cat: '🐈', dog: '🐕', pig: '🐖', monkey: '🐒', see_no_evil: '🙈', snake: '🐍', rocket: '🚀', boom: '💥', bomb: '💣', money: '💰',
         gem: '💎', crown: '👑', trophy: '🏆', guitar: '🎸', mic: '🎤', radio: '📻', tv: '📺', computer: '💻', gun: '🔫', hammer: '🔨',
         sword: '🗡️', shield: '🛡️', rose: '🌹', sun: '☀️', moon: '🌙', rainbow: '🌈', snowflake: '❄️', snowman: '⛄', warning: '⚠️',
-        check: '✅', x: '❌', salt: '🧂', cap: '🧢', ok: '🆗', dice: '🎲', checkered_flag: '🏁', headphones: '🎧', dancer: '💃', bonk: '🔨', tm: '™️'
+        check: '✅', x: '❌', salt: '🧂', cap: '🧢', ok: '🆗', dice: '🎲', checkered_flag: '🏁', headphones: '🎧', dancer: '💃', bonk: '🔨', tm: '™️',
+        relieved: '😌', blush: '😊', slight_smile: '🙂', smiley: '😃', laughing: '😆', innocent: '😇', yum: '😋', tongue: '😛',
+        stuck_out_tongue: '😛', winky_tongue: '😜', squint_tongue: '😝', neutral: '😐', expressionless: '😑', no_mouth: '😶',
+        grimacing: '😬', lying: '🤥', pensive: '😔', sleepy: '😪', drool: '🤤', mask: '😷', sick: '🤒', hurt: '🤕', nauseated: '🤢',
+        sneeze: '🤧', dizzy_face: '😵', hushed: '😯', astonished: '😲', open_mouth: '😮', frowning: '😦', anguished: '😧', fearful: '😨',
+        cold_sweat: '😰', sweat: '😓', disappointed_relieved: '😥', confounded: '😖', persevere: '😣', weary: '😩', tired: '😫',
+        triumph: '😤', worried: '😟', confused: '😕', slight_frown: '🙁', frown: '☹️', unamused: '😒', kissing: '😗', hugging: '🤗',
+        hug: '🤗', star_struck: '🤩', raised_eyebrow: '🤨', monocle: '🧐', hand_over_mouth: '🤭', cursing: '🤬', ogre: '👹', goblin: '👺',
+        jack_o_lantern: '🎃', pumpkin: '🎃', smiley_cat: '😺', joy_cat: '😹', heart_eyes_cat: '😻', scream_cat: '🙀', pouting_cat: '😾',
+        hear_no_evil: '🙉', speak_no_evil: '🙊', fingers_crossed: '🤞', call_me: '🤙', punch: '👊', fist: '✊', raised_hand: '✋',
+        hand: '✋', point_up: '☝️', point_left: '👈', point_down: '👇', middle_finger: '🖕', writing: '✍️', handshake: '🤝',
+        facepalm: '🤦', shrug: '🤷', bow: '🙇', no_good: '🙅', raising_hand: '🙋', ok_person: '🙆', nail_care: '💅', selfie: '🤳',
+        brain: '🧠', tongue_out: '👅', lips: '👄', ear: '👂', nose: '👃', eye: '👁️', bone: '🦴', tooth: '🦷', footprints: '👣',
+        speaking_head: '🗣️', baby: '👶', old_man: '👴', old_woman: '👵', cop: '👮', detective: '🕵️', construction: '👷', zombie: '🧟',
+        vampire: '🧛', wizard: '🧙', fairy: '🧚', genie: '🧞', mermaid: '🧜', elf: '🧝', superhero: '🦸', supervillain: '🦹', angel: '👼',
+        princess: '👸', prince: '🤴', santa: '🎅', man_dancing: '🕺', runner: '🏃', walking: '🚶', couple: '👫', family: '👪', bust: '👤',
+        orange_heart: '🧡', yellow_heart: '💛', green_heart: '💚', blue_heart: '💙', purple_heart: '💜', black_heart: '🖤',
+        sparkling_heart: '💖', two_hearts: '💕', cupid: '💘', heartbeat: '💓', love_letter: '💌', sweat_drops: '💦', dash: '💨',
+        hole: '🕳️', speech: '💬', thought: '💭', dizzy: '💫', star2: '🌟', zap: '⚡', lightning: '⚡', bulb: '💡', lock: '🔒', key: '🔑',
+        bell: '🔔', no_bell: '🔕', mega: '📣', loudspeaker: '📢', speaker: '🔊', mute: '🔇', phone: '📞', camera: '📷', movie: '🎬',
+        art: '🎨', game: '🎮', joystick: '🕹️', keyboard: '⌨️', floppy: '💾', cd: '💿', vhs: '📼', book: '📖', books: '📚', pencil: '✏️',
+        scissors: '✂️', pushpin: '📌', paperclip: '📎', calendar: '📅', chart: '📈', chart_down: '📉', hourglass: '⌛', alarm: '⏰',
+        watch: '⌚', gift: '🎁', balloon: '🎈', confetti: '🎊', christmas_tree: '🎄', crystal_ball: '🔮', pill: '💊', syringe: '💉',
+        smoking: '🚬', coffin: '⚰️', toilet: '🚽', money_with_wings: '💸', dollar: '💵', credit_card: '💳', newspaper: '📰',
+        envelope: '✉️', package: '📦', battery: '🔋', plug: '🔌', satellite: '📡', flashlight: '🔦', candle: '🕯️', magnet: '🧲',
+        wrench: '🔧', gear: '⚙️', chains: '⛓️', link: '🔗', telescope: '🔭', microscope: '🔬', bathtub: '🛁', bed: '🛏️', fries: '🍟',
+        hotdog: '🌭', taco: '🌮', burrito: '🌯', popcorn: '🍿', doughnut: '🍩', donut: '🍩', icecream: '🍦', candy: '🍬', lollipop: '🍭',
+        chocolate: '🍫', apple: '🍎', strawberry: '🍓', watermelon: '🍉', grapes: '🍇', cherries: '🍒', avocado: '🥑', egg: '🥚',
+        bacon: '🥓', bread: '🍞', cheese: '🧀', milk: '🥛', wine: '🍷', cocktail: '🍸', tropical_drink: '🍹', beers: '🍻', champagne: '🍾',
+        tea: '🍵', ramen: '🍜', sushi: '🍣', rice: '🍚', spaghetti: '🍝', meat: '🍖', drumstick: '🍗', fried_egg: '🍳', bear: '🐻',
+        panda: '🐼', koala: '🐨', tiger: '🐯', lion: '🦁', cow: '🐮', horse: '🐴', unicorn: '🦄', bee: '🐝', bug: '🐛', ant: '🐜',
+        spider: '🕷️', scorpion: '🦂', turtle: '🐢', octopus: '🐙', squid: '🦑', shrimp: '🦐', whale: '🐳', dolphin: '🐬', shark: '🦈',
+        penguin: '🐧', bird: '🐦', chick: '🐤', duck: '🦆', eagle: '🦅', owl: '🦉', bat: '🦇', wolf: '🐺', fox: '🦊', rabbit: '🐰',
+        bunny: '🐰', mouse: '🐭', rat: '🐀', hamster: '🐹', dragon: '🐉', trex: '🦖', sauropod: '🦕', hippo: '🦛', llama: '🦙',
+        kangaroo: '🦘', sloth: '🦥', chicken: '🐔', goat: '🐐', sheep: '🐑', camel: '🐫', elephant: '🐘', gorilla: '🦍', tree: '🌳',
+        palm_tree: '🌴', cactus: '🌵', mushroom: '🍄', blossom: '🌸', sunflower: '🌻', tulip: '🌷', maple_leaf: '🍁', earth: '🌍',
+        cloud: '☁️', rain: '🌧️', tornado: '🌪️', umbrella: '☔', ocean: '🌊', wave_water: '🌊', volcano: '🌋', comet: '☄️', car: '🚗',
+        police_car: '🚓', ambulance: '🚑', bus: '🚌', train: '🚆', airplane: '✈️', ufo: '🛸', ship: '🚢', bike: '🚲', soccer: '⚽',
+        basketball: '🏀', football: '🏈', baseball: '⚾', tennis: '🎾', bowling: '🎳', golf: '⛳', medal: '🏅', boxing: '🥊', slot: '🎰',
+        '8ball': '🎱', chess: '♟️', joker: '🃏', drum: '🥁', saxophone: '🎷', trumpet: '🎺', violin: '🎻', piano: '🎹', studio_mic: '🎙️',
+        plus: '➕', minus: '➖', heavy_check: '✔️', red_circle: '🔴', recycle: '♻️', sos: '🆘', new: '🆕', free: '🆓', up: '🆙',
+        no_entry: '⛔', stop: '🛑', radioactive: '☢️', biohazard: '☣️', peace: '☮️', yin_yang: '☯️', infinity: '♾️', copyright: '©️',
+        registered: '®️', arrow_up: '⬆️', arrow_down: '⬇️', arrow_left: '⬅️', arrow_right: '➡️', flag_white: '🏳️', flag_black: '🏴',
+        pirate_flag: '🏴‍☠️', rainbow_flag: '🏳️‍🌈', triangular_flag: '🚩', moyai: '🗿'
     };
     LT.emojiCodes = function (text) {
         return String(text || '').replace(/:([a-z0-9_+\-]{1,30}):/gi, function (m, k) {
@@ -466,6 +509,111 @@
             }
         };
         return input._chatInput;
+    };
+
+    /**
+     * An emoji button for a chat box: a panel of the station's picture emotes
+     * and the :code: emoji, with a search and the ones you used last. A click
+     * puts it in the box where the cursor is (the panel stays open for more;
+     * Esc or a click elsewhere closes it). One panel per page.
+     *   LT.emojiPicker(input, button)
+     */
+    var pickerRecent = [];
+    try { pickerRecent = JSON.parse(localStorage.getItem('ltl.emojiRecent') || '[]') || []; } catch (e) { pickerRecent = []; }
+    LT.emojiPicker = function (input, button) {
+        if (!input || !button || button._emojiPicker) return;
+        button._emojiPicker = true;
+        var box = null, q = '';
+        function emojiList() {
+            // One button per emoji, named by its first code (smile, not lol and smile both).
+            var seen = {}, out = [];
+            Object.keys(LT.EMOJI).forEach(function (k) { var v = LT.EMOJI[k]; if (!seen[v]) { seen[v] = { k: k, v: v, also: [] }; out.push(seen[v]); } else seen[v].also.push(k); });
+            return out;
+        }
+        function cell(item) {
+            // item: { e: 'name' } a station emote, or { k, v, also } an emoji
+            if (item.e) return '<button type="button" data-ins=":' + item.e + ':" title=":' + item.e + ':" style="' + CELL + '">' + LT.emoteImg(item.e, 26) + '</button>';
+            return '<button type="button" data-ins="' + item.v + '" title=":' + [item.k].concat(item.also).join(': :') + ':" style="' + CELL + ';font-size:21px">' + item.v + '</button>';
+        }
+        var CELL = 'border:0;background:none;padding:2px;min-width:34px;height:34px;border-radius:5px;cursor:pointer;line-height:1;color:inherit';
+        function paint() {
+            var f = q.trim().toLowerCase().replace(/^:+|:+$/g, '');
+            var hit = function (names) { return !f || names.some(function (n) { return n.indexOf(f) >= 0; }); };
+            var emotes = Object.keys(LT.EMOTES).filter(function (k) { return hit([k]); }).map(function (k) { return { e: k }; });
+            var emoji = emojiList().filter(function (x) { return hit([x.k].concat(x.also)); });
+            var recent = f ? [] : pickerRecent.map(function (r) {
+                if (r.charAt(0) === ':' && r.length > 2) { var k = r.slice(1, -1); return LT.EMOTES[k] ? { e: k } : null; }
+                var found = null; emoji.forEach(function (x) { if (x.v === r) found = x; }); return found;
+            }).filter(Boolean);
+            var head = function (t) { return '<div style="font-size:11px;opacity:.7;margin:6px 4px 2px;text-transform:uppercase;letter-spacing:.05em">' + t + '</div>'; };
+            var grid = function (items) { return '<div style="display:flex;flex-wrap:wrap">' + items.map(cell).join('') + '</div>'; };
+            box.querySelector('[data-list]').innerHTML =
+                (recent.length ? head('Used lately') + grid(recent) : '') +
+                (emotes.length ? head('The station’s') + grid(emotes) : '') +
+                (emoji.length ? head('Emoji') + grid(emoji) : '') +
+                (!emotes.length && !emoji.length ? '<p style="margin:10px 6px;opacity:.7">Nothing called “' + f.replace(/[<>&"]/g, '') + '”.</p>' : '');
+        }
+        function place() {
+            // Above the button, as chat boxes sit low; below it when there's more room there.
+            var r = button.getBoundingClientRect(), w = Math.min(340, window.innerWidth - 8);
+            var up = r.top - 8, down = window.innerHeight - r.bottom - 8, below = down > up;
+            var h = Math.max(120, Math.min(330, below ? down : up));
+            box.style.width = w + 'px'; box.style.height = h + 'px';
+            box.style.left = Math.max(4, Math.min(window.innerWidth - w - 4, r.right - w)) + 'px';
+            box.style.top = (below ? Math.min(window.innerHeight - h - 4, r.bottom + 4) : Math.max(4, r.top - h - 4)) + 'px';
+        }
+        function insert(text) {
+            var a = input.selectionStart == null ? input.value.length : input.selectionStart, b = input.selectionEnd == null ? a : input.selectionEnd;
+            var before = input.value.slice(0, a), after = input.value.slice(b);
+            var t = (before && !/\s$/.test(before) && text.charAt(0) === ':' ? ' ' : '') + text + (/^\s/.test(after) ? '' : ' ');
+            if (input.maxLength > 0 && before.length + t.length + after.length > input.maxLength) return;
+            input.value = before + t + after;
+            var c = before.length + t.length;
+            input.focus();
+            try { input.setSelectionRange(c, c); } catch (e) {}
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            pickerRecent = [text].concat(pickerRecent.filter(function (x) { return x !== text; })).slice(0, 16);
+            try { localStorage.setItem('ltl.emojiRecent', JSON.stringify(pickerRecent)); } catch (e) {}
+        }
+        function outside(e) { if (box && !box.contains(e.target) && e.target !== button && !button.contains(e.target)) close(); }
+        function key(e) { if (e.key === 'Escape' && box) { close(); input.focus(); e.stopPropagation(); } }
+        function close() {
+            if (!box) return;
+            box.parentNode.removeChild(box); box = null;
+            document.removeEventListener('mousedown', outside, true);
+            document.removeEventListener('keydown', key, true);
+            window.removeEventListener('resize', close);
+            button.setAttribute('aria-expanded', 'false');
+        }
+        function open() {
+            box = document.createElement('div');
+            box.className = 'lt-emoji-picker';
+            box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Emoji');
+            box.style.cssText = 'position:fixed;z-index:3000;background:#1a1626;color:#eee;border:1px solid rgba(255,255,255,.35);border-radius:8px;' +
+                'box-shadow:0 6px 20px rgba(0,0,0,.55);display:flex;flex-direction:column;font:13px system-ui,sans-serif;overflow:hidden';
+            box.innerHTML = '<input data-q placeholder="Find an emoji…" autocomplete="off" style="margin:6px;padding:5px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.3);background:#0f0c18;color:#eee;font:inherit">' +
+                '<div data-list style="overflow-y:auto;padding:0 4px 6px;flex:1"></div>';
+            document.body.appendChild(box);
+            var search = box.querySelector('[data-q]');
+            q = ''; search.value = '';                          // a fresh look each time: what you used lately first
+            search.addEventListener('input', function () { q = search.value; paint(); });
+            search.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); var first = box.querySelector('[data-ins]'); if (first) { insert(first.getAttribute('data-ins')); close(); } }
+            });
+            box.addEventListener('mousedown', function (e) { if (e.target.closest('[data-ins]')) e.preventDefault(); });      // the cursor stays in the chat box
+            box.addEventListener('click', function (e) { var b = e.target.closest('[data-ins]'); if (b) insert(b.getAttribute('data-ins')); });
+            box.addEventListener('mouseover', function (e) { var b = e.target.closest('[data-ins]'); if (b) b.style.background = 'rgba(255,255,255,.15)'; });
+            box.addEventListener('mouseout', function (e) { var b = e.target.closest('[data-ins]'); if (b) b.style.background = 'none'; });
+            paint(); place();
+            document.addEventListener('mousedown', outside, true);
+            document.addEventListener('keydown', key, true);
+            window.addEventListener('resize', close);
+            button.setAttribute('aria-expanded', 'true');
+            search.focus();
+        }
+        button.setAttribute('aria-haspopup', 'dialog');
+        button.setAttribute('aria-expanded', 'false');
+        button.addEventListener('click', function (e) { e.preventDefault(); if (box) close(); else open(); });
     };
 
     /**

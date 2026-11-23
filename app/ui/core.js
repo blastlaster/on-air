@@ -27,13 +27,7 @@
     const REQ_CMD = /^\/(request|req|r)(\s|$)/i;
     /** Whose messages you've hidden (/ignore), lower case. */
     const ignored = () => { try { const a = JSON.parse(pref('ignore', '[]')); return Array.isArray(a) ? a : []; } catch { return []; } };
-    /** A chat line's words as HTML: /me in italics; /roll and /fortune (the station's own) in bold, in their colour. */
-    LT.lineHtml = (m) => {
-        const h = LT.chatHtml ? LT.chatHtml(m.text) : String(m.text).replace(/[&<>"']/g, (ch) => '&#' + ch.charCodeAt(0) + ';');
-        if (m.me) return '<i>' + h + '</i>';
-        if (m.dice) return '<strong' + (/^#[0-9a-f]{6}$/i.test(m.tint || '') ? ' style="color:' + m.tint + '"' : '') + '>' + h + '</strong>';
-        return h;
-    };
+    // A chat line's words as HTML: LT.lineHtml, in common.js (every window draws chat, not only this one).
     const sameJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
     /* ---------- who is listening (windows come and go) ---------- */

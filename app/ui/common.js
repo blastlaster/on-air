@@ -14,6 +14,17 @@
 
     let info = null, me = { id: '' }, onUiFns = [];
 
+    /* A chat line's words as HTML: links, :emoji: and the station's picture emotes; /me in italics;
+       /roll and /fortune (the station's own) in bold, in their colour. Here, so every window has it:
+       the chat window, blug.dj/jej and the one window's panels each have their own LT. */
+    if (window.LT) window.LT.lineHtml = (m) => {
+        const LT = window.LT;
+        const h = LT.chatHtml ? LT.chatHtml(m.text) : esc(m.text);
+        if (m.me) return '<i>' + h + '</i>';
+        if (m.dice) return '<strong' + (/^#[0-9a-f]{6}$/i.test(m.tint || '') ? ' style="color:' + m.tint + '"' : '') + '>' + h + '</strong>';
+        return h;
+    };
+
     /* Holiday looks: like the board, the app dresses up on the day — unless
        holidays are switched off (Settings), or you picked a look that day. */
     const HOLIDAYS = { '01-01': 'newyear', '02-14': 'valentine', '03-17': 'paddy', '04-01': 's4sday', '10-01': 'bday', '10-31': 'spooky', '12-24': 'crimbus', '12-25': 'crimbus' };

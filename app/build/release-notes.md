@@ -1,12 +1,4 @@
-## What's new in 0.5.66
+## What's new in 0.5.67
 
-- **Oekaki — MS Paint's tools:**
-  - **Select, free-form select and magic wand:** drag a selection to move it, Ctrl+drag for a copy, pull its handles to stretch it. Flip ↔, Flip ↕ and Rotate ↻ turn it (or the whole layer). **Move** drags the whole layer.
-  - **Shapes:** line, curve, rectangle and ellipse (outline, filled, or both).
-  - **Also new:** text, gradient, smudge, blur, and **Mirror** drawing.
-  - **Brush tips:** round, square, ╱ and ╲.
-  - **Two colours:** right click draws with the second.
-- **Pen and pencil now differ:** the pencil is crisp pixels, the pen smooth ink that thins when you move fast (with a calligraphy nib too).
-- **Tone works:** it used to come out solid at full alpha. It now lays real screentone (dots, dither, lines or cross-hatch) at the density you pick.
-- **Airbrush:** a **Paint** setting sprays MS Paint's scattered dots.
-- **Layers:** duplicate, merge down, opacity, double-click to rename, drag to reorder.
+- **Emotes show in the Chat window again:** the station's picture emotes (`:nicedance:`), links and `/me` lines were showing as plain text there, though blug.dj/jej's bubbles drew them.
+- **About 350 more emoji codes**, such as `:relieved:`, `:hug:`, `:shrug:` and `:purple_heart:`. Type `:` and a few letters for suggestions; blug.dj/jej's emoji list has them too.
