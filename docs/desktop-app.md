@@ -54,7 +54,7 @@ The media keys on your keyboard play and pause.
 | 📟 **Sign** | The LED sign as its own strip — park it across the top of your screen. |
 | 📀 **Albums** | Play the station's albums in the app, or download them. |
 | 📋 **Board** | The station's board as a real browser view, behind an 18+ warning. |
-| 📺 **TV** | The station's video stream while it's live (the button pulses); its channel in your browser otherwise. |
+| 📺 **TV** | The station's video stream while it's on (the button pulses: red live, blue for a replay); its channel in your browser otherwise. A replay or upload opens where you left off. |
 | 💫 **Links** | The station's friends. |
 | ⚙️ **Settings** | Everything below. |
 | 🕺 **blug.dj/jej** | The station's pixel room (🕺 in the Chat window's top bar, or its own tab in One window). [Below](#blugdjjej). |
@@ -316,7 +316,7 @@ sites in their `@connect` lines (form uploads, images included), and
 <img src="images/albums.png" alt="Albums" width="300">
 
 **▶** plays an album in the app (it pauses the radio; ⏮ ⏭ ✕ on the radio's
-album line). **⬇** downloads it to `Music\<station>\<album>`: from archive.org,
+album line); a Bandcamp album opens Bandcamp's own player under it). **⬇** downloads it to `Music\<station>\<album>`: from archive.org,
 the uploader's own files, one format per track — MP3, or lossless if you ask —
 and the cover. **↗** opens its page (Bandcamp, YouTube…). Settings picks the
 folder, or asks each time.
@@ -371,6 +371,7 @@ publishes every change with the rest of `onair/`.
   "albums": { "items": [
     { "title": "An album on archive.org", "archive": "its-identifier", "num": "12" },
     { "title": "Somewhere else", "tracks": [{ "title": "One", "url": "https://…/1.mp3" }], "download": "https://…/album.zip" },
+    { "title": "On Bandcamp", "bandcamp": "https://…bandcamp.com/album/…", "bandcampAlbum": "123456789" },
     { "title": "A link only", "page": "https://…bandcamp.com/album/…" }
   ] },
   "links": [{ "title": "Frens", "items": [{ "title": "A site", "url": "https://…" }] }],
@@ -380,6 +381,7 @@ publishes every change with the rest of `onair/`.
 }
 ```
 
+`bandcampAlbum` is the number in the album's Share → Embed code; it plays in Bandcamp's player.
 An album's `num` ("12", "EP 4") shows on its left in the Albums list.
 `albums` may instead be `{ "url": "https://your-server/albums.json" }`, in the
 same shape. Green threads are served by the station PC with nothing to add; a

@@ -305,7 +305,7 @@
             for (const b of nav.children) {
                 const id = b.dataset.el;
                 b.classList.toggle('open', PARTS.includes(id) ? (partsOf(show.mid).includes(id) || (show.under === id && show.np)) : id in show ? !!show[id] : fly === id);
-                if (id === 'tv') b.classList.toggle('pulse', !!(s.tv && s.tv.live && !s.tv.replay) && !show.tv);
+                if (id === 'tv') { b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !show.tv); b.classList.toggle('replay', !!(s.tv && s.tv.replay)); }
                 if (id === 'chat' && show.chat) b.classList.remove('new');
             }
             // Now Playing's own buttons, as on the site.

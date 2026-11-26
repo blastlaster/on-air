@@ -485,6 +485,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         const meta = {};                     // archive id → metadata (fetched once)
         const progress = {};                 // album key → last download message
         let openKey = '', key = '';
+        // A Bandcamp album ("bandcampAlbum": its number, from the album's Share → Embed): played in Bandcamp's own player.
+        const bcId = (a) => (/^\d{1,12}$/.test(String(a.bandcampAlbum || '')) ? String(a.bandcampAlbum) : '');
+        let bcWas = null;                    // the radio was playing when a Bandcamp player opened: back on when it closes
         const items = () => ((core.state.extras && core.state.extras.albums && core.state.extras.albums.items) || []).map((a, i) => ({ ...a, key: a.archive || a.id || a.title || String(i) }));
 
         async function archiveMeta(idx) {
@@ -537,12 +540,14 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 // (empty for the unnumbered ones, so the titles line up).
                 const nums = list.some(a => a.num != null && a.num !== '');
                 $('.al-list', box).innerHTML = list.length ? list.map(a => {
-                    const playable = !!(a.archive || a.tracks), saveable = !!(a.archive || a.tracks || a.download);
+                    const playable = !!(a.archive || a.tracks || bcId(a)), saveable = !!(a.archive || a.tracks || a.download);
                     return '<li class="al" data-key="' + esc(a.key) + '">' + (nums ? '<span class="al-num dim">' + esc(a.num == null ? '' : a.num) + '</span>' : '') + '<span class="grow"><b class="ell al-t" style="display:block" title="' + esc(a.title) + '">' + esc(a.title) + '</b><span class="al-dl dim"></span></span>' +
-                        (playable ? '<button type="button" class="btn' + (now && now.key === a.key ? ' on' : '') + '" data-a="play" title="Play it here">▶</button>' : '') +
+                        (playable ? '<button type="button" class="btn' + ((now && now.key === a.key) || (bcId(a) && openKey === a.key) ? ' on' : '') + '" data-a="play" title="Play it here">▶</button>' : '') +
                         (saveable ? '<button type="button" class="btn" data-a="save" title="Download the album">⬇</button>' : '') +
                         (a.page || a.archive || a.bandcamp || a.youtube ? '<button type="button" class="btn" data-a="page" title="Open its page in the browser">↗</button>' : '') +
-                        (openKey === a.key ? '<ol class="list al-tracks"><li class="dim">Loading tracks…</li></ol>' : '') + '</li>';
+                        (openKey === a.key ? (bcId(a)
+                            ? '<div class="al-bc"><iframe src="https://bandcamp.com/EmbeddedPlayer/album=' + bcId(a) + '/size=large/bgcol=ffffff/linkcol=0687f5/tracklist=true/artwork=small/transparent=true/" title="' + esc(a.title) + ' on Bandcamp" seamless></iframe></div>'
+                            : '<ol class="list al-tracks"><li class="dim">Loading tracks…</li></ol>') : '') + '</li>';
                 }).join('') : '<li class="dim">This station has no albums listed yet.</li>';
                 if (openKey) fillTracks(openKey);
                 for (const kk of Object.keys(progress)) paintProgress(kk);
@@ -610,7 +615,14 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 return;
             }
             if (!a) return;
-            if (b.dataset.a === 'play') { openKey = openKey === a.key ? '' : a.key; draw(); if (openKey) play(a, 0); }
+            if (b.dataset.a === 'play') {
+                const wasBc = openKey && bcId(items().find(x => x.key === openKey) || {});
+                openKey = openKey === a.key ? '' : a.key;
+                if (openKey && bcId(a)) { if (bcWas === null) bcWas = core.pauseForVideo(); }
+                else if (wasBc && bcWas !== null) { if (bcWas && !openKey) core.play(); bcWas = null; }
+                draw();
+                if (openKey && !bcId(a)) play(a, 0);
+            }
             else if (b.dataset.t != null) play(a, +b.dataset.t);
             else if (b.dataset.a === 'save') save(a);
             else if (b.dataset.a === 'folder') app.showFolder(progress[a.key].dir);
@@ -829,6 +841,39 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
     function tv(box) {
         const wasPlaying = core.pauseForVideo();
         let vid = '';
+        // Where you were in each video (a replay, an upload; not a live stream): the TV opens there again.
+        // YouTube's player reports its time by message once asked to (enablejsapi).
+        const pos = (() => {
+            const KEY = 'ltl.tvPos';
+            const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+            let last = 0, live = false, len = 0, cur = 0, frame = null;
+            const save = () => {
+                if (!vid || vid === 'off' || live || !cur) return;
+                const all = read();
+                // Near the end counts as finished: next time it starts over.
+                if (len && cur > len - 15) delete all[vid]; else all[vid] = { t: Math.floor(cur), at: Date.now() };
+                const keep = Object.entries(all).sort((x, y) => y[1].at - x[1].at).slice(0, 30);
+                try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(keep))); } catch { /* full */ }
+            };
+            window.addEventListener('message', (e) => {
+                if (!frame || e.source !== frame.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
+                let d; try { d = JSON.parse(e.data); } catch { return; }
+                const i = d && d.info;
+                if (!i) return;
+                if (i.videoData && typeof i.videoData.isLive === 'boolean') live = i.videoData.isLive;
+                if (typeof i.duration === 'number') len = i.duration;
+                if (typeof i.currentTime === 'number') { cur = i.currentTime; if (Date.now() - last > 5000) { last = Date.now(); save(); } }
+            });
+            window.addEventListener('pagehide', save);
+            return {
+                get: (id) => { const x = read()[id]; return x && x.t > 5 ? x.t : 0; },
+                listen(f) {
+                    save(); frame = f; live = false; len = 0; cur = 0;
+                    const hello = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch { /* gone */ } };
+                    f.addEventListener('load', () => { hello(); setTimeout(hello, 1500); });
+                }
+            };
+        })();
         function show(s) {
             const t = s.tv || {};
             if (t.live && t.videoId) {
@@ -836,7 +881,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                 if (vid === t.videoId) return;
                 vid = t.videoId;
                 box.classList.add('flush');
-                box.innerHTML = '<iframe class="yt" src="https://www.youtube.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+                const at = pos.get(vid);
+                box.innerHTML = '<iframe class="yt" src="https://www.youtube.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&rel=0&enablejsapi=1' + (at ? '&start=' + at : '') + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+                pos.listen($('iframe', box));
             } else if (vid !== 'off') {
                 vid = 'off';
                 box.classList.remove('flush');

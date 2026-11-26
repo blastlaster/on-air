@@ -162,7 +162,7 @@
             const id = b.dataset.el;
             b.classList.toggle('open', elState[id] === 'open');
             b.classList.toggle('tucked', elState[id] === 'tucked');
-            if (id === 'tv') b.classList.toggle('pulse', !!(s.tv && s.tv.live && !s.tv.replay) && !elState.tv);
+            if (id === 'tv') { b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !elState.tv); b.classList.toggle('replay', !!(s.tv && s.tv.replay)); }
             if (elState[id] === 'open' && id === 'chat') b.classList.remove('new');
         }
     }

@@ -136,3 +136,5 @@ body.one-under-on .one-np-in { padding: 8px 10px; gap: 6px; }
 body.one-under-on .one-np .np { flex-direction: row; align-items: center; text-align: left; gap: 10px; }
 body.one-under-on .one-np .art { width: 72px; flex: none; }
 body.one-under-on .one-np .np-text { min-width: 0; flex: 1; }
+/* FunpostTV replaying (not live): the site's replay blue, ringed in its yellow so it shows on dark looks too. */
+.one-tabs button.pulse.replay::after { background: #1f5fd6; box-shadow: 0 0 0 1px #ffd400; }

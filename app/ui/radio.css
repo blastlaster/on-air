@@ -67,3 +67,5 @@ body.short .art { width: 52px; height: 52px; }
 .skipbar .sk-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skipbar b { flex: 1; min-width: 30px; height: 4px; border-radius: 2px; background: rgba(127, 127, 127, 0.3); overflow: hidden; }
 .skipbar i { display: block; height: 100%; width: 0; background: var(--sk-accent, #ff3d6e); transition: width 0.3s; }
+/* FunpostTV replaying (not live): the site's replay blue, ringed in its yellow so it shows on dark looks too. */
+.side button.pulse.replay::after { background: #1f5fd6; box-shadow: 0 0 0 1px #ffd400; }
