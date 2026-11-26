@@ -20,6 +20,7 @@ label { display: block; margin: 4px 0; }
 .msg .when { display: none; float: right; font-size: 0.72em; color: var(--sk-dim); margin-left: 6px; }
 .log.times .msg .when { display: inline; }
 .say .times { flex: none; opacity: 0.55; }
+.say .emo { flex: none; }
 .say .times.on { opacity: 1; }
 .say { display: flex; gap: 6px; flex: none; }
 .chattable { flex: 1; min-height: 0; display: flex; }

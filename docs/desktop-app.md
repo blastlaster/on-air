@@ -47,7 +47,7 @@ The media keys on your keyboard play and pause.
 
 | Button | Window |
 |---|---|
-| 💬 **Chat** | The station's own chat whenever its engine is on (the community's Chattable room when it isn't) — in the app's look, under the name and colour you set. [Chat commands](#chat-commands) work here, the station's picture emotes show, and `:codes:` like `:relieved:` become emoji (type `:` and a few letters for suggestions). |
+| 💬 **Chat** | The station's own chat whenever its engine is on (the community's Chattable room when it isn't) — in the app's look, under the name and colour you set. [Chat commands](#chat-commands) work here, the station's picture emotes show, and `:codes:` like `:relieved:` become emoji (type `:` and a few letters for suggestions, or press **🙂** to pick one). |
 | 🎵 **Request** | The station's music: search and request — from the DJ's library when live, from AutoDJ's otherwise. |
 | 🕘 **Playlist** | Coming up next, and what just played. |
 | 📞 **Call in** | Call the show (it asks first — you'll be live), leave a voicemail, check in with a guest code, and see who's on the line. |
@@ -282,6 +282,9 @@ with scripts that restyle posts, and links to other sites skip 4chan's
 the text-board style, with their drawings and last few replies. Click one to read it
 all and reply in the Interface. **[–]** hides one (it leaves a line to bring it back);
 **Hide all** tucks them all away until you press **Show**.
+
+**▲ / ▼**, in the bottom-right corner of the board's pages (as in the Interface), jump to the
+top or the bottom of the page; they show once a page is long enough to need them.
 
 **🎨**, at the start of the reply form's Name row (beside the [s4s] interface's green **!**, in
 the Quick Reply and the green forms too), opens the oekaki — the same one the Interface uses —

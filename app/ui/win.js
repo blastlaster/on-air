@@ -43,7 +43,7 @@
     function chat(box) {
         let mode = '';
         box.innerHTML = '<div class="chat"><div class="pinned" hidden></div><ol class="log"></ol>' +
-            '<form class="say"><input maxlength="400" placeholder="Say something…" autocomplete="off"><button type="button" class="btn times" title="Show the time on messages">🕒</button><button class="btn go">Send</button></form></div>' +
+            '<form class="say"><input maxlength="400" placeholder="Say something…" autocomplete="off"><button type="button" class="btn emo" title="Emoji and the station’s emotes" aria-label="Emoji">🙂</button><button type="button" class="btn times" title="Show the time on messages">🕒</button><button class="btn go">Send</button></form></div>' +
             '<div class="chattable" hidden></div><div class="empty" hidden>Chat opens when the station is on.</div>';
         const log = $('.log', box), say = $('.say', box), room = $('.chattable', box);
         if (window.LT && LT.stickToBottom) LT.stickToBottom(log);           // opens at the newest line, and stays there
@@ -92,6 +92,7 @@
         });
         on('pins', pins);
         const sayBox = LT.chatInput(say.querySelector('input'));            // :emoji: suggestions, Shift+↑ history
+        if (LT.emojiPicker) LT.emojiPicker(say.querySelector('input'), $('.emo', say));   // 🙂: pick one instead of typing its :code:
         say.onsubmit = (e) => {
             e.preventDefault();
             const t = say.querySelector('input'), typed = t.value, text = LT.emojiCodes(typed);

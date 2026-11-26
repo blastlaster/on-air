@@ -331,6 +331,46 @@ if (/(^|\.)4chan(nel)?\.org$/i.test(location.hostname)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
 
+// ▲ / ▼ in the bottom-right corner of the board's pages (index, catalog, threads), like the Interface's:
+// to the top or the bottom of the page from anywhere. Only while the page is long enough to need it.
+(function scrollNav() {
+    if (!/^boards\.4chan(nel)?\.org$/i.test(location.hostname)) return;
+    const CSS = `
+.oa-nav { position: fixed; right: 12px; bottom: 10px; z-index: 9000; display: flex; flex-direction: column; gap: 3px; }
+.oa-nav[hidden] { display: none; }
+.oa-nav button { font: 13px/1.2 Arial, sans-serif; padding: 2px 7px; cursor: pointer; border: 1px solid #888; border-radius: 3px;
+    background: #f0e0d6; color: #800000; opacity: 0.75; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.oa-nav button:hover { opacity: 1; }
+.oa-nav button:disabled { opacity: 0.3; cursor: default; }`;
+    const start = () => {
+        if (!document.body) return;
+        const st = document.createElement('style');
+        st.textContent = CSS;
+        document.head.appendChild(st);
+        const n = document.createElement('div');
+        n.className = 'oa-nav'; n.hidden = true;
+        n.innerHTML = '<button type="button" data-nav="top" title="To the top">▲</button><button type="button" data-nav="bottom" title="To the bottom">▼</button>';
+        document.body.appendChild(n);
+        const se = () => document.scrollingElement || document.documentElement;
+        const place = () => {
+            const s = se(), can = s.scrollHeight > innerHeight + 40;
+            n.hidden = !can;
+            if (!can) return;
+            n.firstChild.disabled = s.scrollTop < 4;
+            n.lastChild.disabled = s.scrollTop + innerHeight > s.scrollHeight - 4;
+        };
+        n.onclick = (e) => {
+            const b = e.target.closest('[data-nav]');
+            if (b) scrollTo({ top: b.dataset.nav === 'top' ? 0 : se().scrollHeight });
+        };
+        addEventListener('scroll', place, { passive: true });
+        addEventListener('resize', place);
+        new ResizeObserver(place).observe(document.body);
+        place();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})();
+
 // The oekaki on the board's own pages, like /i/'s: a 🎨 in the reply form's Name row (and the Quick
 // Reply's, and the [s4s] interface's green forms), just before its green "!". Finish puts the drawing in that field as oekaki.png, and 4chan posts it
 // like any picture. The window is all the oekaki's while it's open.
