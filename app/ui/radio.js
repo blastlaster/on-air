@@ -151,7 +151,7 @@
     function buttons() {
         const list = ELEMENTS.filter(available);
         if (one) return one.update(s, list);
-        const label = (el) => (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
+        const label = (el) => (el.id === 'tv' && s.tv && s.tv.live && s.tv.replay ? 'Replay' : '') || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
         const key = list.map(el => el.id + ':' + label(el)).join(',');
         if (key !== lastButtons) {
             lastButtons = key;

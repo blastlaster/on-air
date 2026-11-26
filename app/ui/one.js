@@ -294,7 +294,7 @@
         function tabs() {
             const have = tabIds();
             const els = TABS.filter(id => have.has(id)).map(id => ELEMENTS.find(e => e.id === id) || { id });
-            const label = (el) => NAME[el.id] || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
+            const label = (el) => NAME[el.id] || (el.id === 'tv' && s.tv && s.tv.live && s.tv.replay ? 'Replay' : '') || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
             const key = els.map(el => el.id + ':' + label(el)).join(',');
             const nav = $('.one-tabs');
             if (key !== lastTabs) {
