@@ -369,7 +369,7 @@ publishes every change with the rest of `onair/`.
 {
   "chattable": "room",
   "albums": { "items": [
-    { "title": "An album on archive.org", "archive": "its-identifier" },
+    { "title": "An album on archive.org", "archive": "its-identifier", "num": "12" },
     { "title": "Somewhere else", "tracks": [{ "title": "One", "url": "https://…/1.mp3" }], "download": "https://…/album.zip" },
     { "title": "A link only", "page": "https://…bandcamp.com/album/…" }
   ] },
@@ -380,6 +380,7 @@ publishes every change with the rest of `onair/`.
 }
 ```
 
+An album's `num` ("12", "EP 4") shows on its left in the Albums list.
 `albums` may instead be `{ "url": "https://your-server/albums.json" }`, in the
 same shape. Green threads are served by the station PC with nothing to add; a
 station that runs them elsewhere names it as

@@ -530,12 +530,15 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
 
         function draw() {
             const list = items(), now = core.album.info();
-            const k = JSON.stringify([list.map(a => a.key), now && now.key, openKey]);
+            const k = JSON.stringify([list.map(a => a.key + '|' + (a.num == null ? '' : a.num)), now && now.key, openKey]);
             if (k !== key) {
                 key = k;
+                // The album's number ("36", "EP 4"), when the station gives them: a column on the left
+                // (empty for the unnumbered ones, so the titles line up).
+                const nums = list.some(a => a.num != null && a.num !== '');
                 $('.al-list', box).innerHTML = list.length ? list.map(a => {
                     const playable = !!(a.archive || a.tracks), saveable = !!(a.archive || a.tracks || a.download);
-                    return '<li class="al" data-key="' + esc(a.key) + '"><span class="grow"><b class="ell al-t" style="display:block" title="' + esc(a.title) + '">' + esc(a.title) + '</b><span class="al-dl dim"></span></span>' +
+                    return '<li class="al" data-key="' + esc(a.key) + '">' + (nums ? '<span class="al-num dim">' + esc(a.num == null ? '' : a.num) + '</span>' : '') + '<span class="grow"><b class="ell al-t" style="display:block" title="' + esc(a.title) + '">' + esc(a.title) + '</b><span class="al-dl dim"></span></span>' +
                         (playable ? '<button type="button" class="btn' + (now && now.key === a.key ? ' on' : '') + '" data-a="play" title="Play it here">▶</button>' : '') +
                         (saveable ? '<button type="button" class="btn" data-a="save" title="Download the album">⬇</button>' : '') +
                         (a.page || a.archive || a.bandcamp || a.youtube ? '<button type="button" class="btn" data-a="page" title="Open its page in the browser">↗</button>' : '') +

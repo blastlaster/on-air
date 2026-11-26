@@ -64,6 +64,7 @@ label { display: block; margin: 4px 0; }
 /* albums */
 .al { flex-wrap: wrap; }
 .al .btn { padding: 3px 8px; }
+.al-num { flex: none; min-width: 2.6em; text-align: right; font-size: 0.8em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .al-dl { display: block; font-size: 0.8em; }
 .al-tracks { flex-basis: 100%; padding-left: 8px; max-height: 260px; overflow: auto; }
 .al-tracks li { border: 0; padding: 2px 0; font-size: 0.88em; }
