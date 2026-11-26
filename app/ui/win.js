@@ -832,9 +832,9 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
         function show(s) {
             const t = s.tv || {};
             if (t.live && t.videoId) {
+                UI.setTitle((t.title || (s.name ? s.name + ' TV' : 'TV')) + (t.replay ? ' (replay)' : ''), '📺');   // a live stream that ends becomes its replay: same video
                 if (vid === t.videoId) return;
                 vid = t.videoId;
-                UI.setTitle(t.title || (s.name ? s.name + ' TV' : 'TV'), '📺');
                 box.classList.add('flush');
                 box.innerHTML = '<iframe class="yt" src="https://www.youtube.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
             } else if (vid !== 'off') {

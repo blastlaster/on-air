@@ -314,7 +314,7 @@
             canCode: engineUp,
             call: callState, myName,
             pins: pinList,
-            tv: station.tv && station.tv.live && station.tv.videoId ? { live: true, videoId: station.tv.videoId, title: station.tv.title || '' } : { live: false },
+            tv: station.tv && station.tv.live && station.tv.videoId ? { live: true, replay: !!station.tv.replay, videoId: station.tv.videoId, title: station.tv.title || '' } : { live: false },
             extras,
             playing: player.playing, volume: player.volume,
             album: album.info()
