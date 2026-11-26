@@ -1,6 +1,3 @@
-## What's new in 0.5.68
+## What's new in 0.5.69
 
-- **Album numbers:** the Albums list shows each album's number on its left (36, 35 … EP 4 … 1), when the station gives them.
-- **Bandcamp albums play in the app:** ▶ opens Bandcamp's own player under the album (Topkek & Le MayMays II, for one).
-- **The TV remembers where you were:** a replay or upload opens where you left off, not at the start.
-- **FunpostTV replays:** when the station's video is a replay rather than a live stream, the 📺 button reads "Replay" with a blue dot and the TV window says "(replay)".
+- **Full-screen video stays on top:** in the One window, the [s4s] board no longer shows over the TV when it goes full screen (with ⛶ or YouTube's own button); it comes back where it was after.

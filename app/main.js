@@ -491,11 +491,13 @@ function fullScreen(w, panel) {
     if (wasBounds.has(w)) {
         const b = wasBounds.get(w);
         wasBounds.delete(w);
+        boardCover(w, 'tv', false);
         w.setFullScreen(false);
         if (!panel) w.setBounds(b);
         tell(false);
     } else {
         wasBounds.set(w, w.getBounds());
+        boardCover(w, 'tv', true);
         w.setFullScreen(true);
         tell(true);
     }
@@ -514,7 +516,24 @@ const deref = (u) => {
     try { const x = new URL(u); if (/(^|\.)4chan(nel)?\.org$/i.test(x.hostname) && x.pathname === '/derefer' && x.searchParams.get('url')) return x.searchParams.get('url'); } catch { /* not a URL */ }
     return u;
 };
-let boardNext = '';                    // a thread the Interface asked for, before the board window was open
+let boardNext = '';
+/* The board is a view laid over its window, so nothing in the page can cover it: while the video in
+   that same window (the One window's TV) is full screen, by the app's ⛶ or YouTube's own button,
+   the board steps aside, and comes back where it was after. */
+let boardWant = null, boardHost = null;
+const boardCovers = new Set();
+function boardShow() {
+    if (!boardView || boardBig) return;
+    const on = !!boardWant && !boardCovers.size;
+    boardView.setVisible(on);
+    if (on) boardView.setBounds(boardWant);
+    if (process.env.ONAIR_SMOKE) console.log('[board] shown', on, [...boardCovers].join(','));
+}
+function boardCover(w, why, on) {
+    if (w !== boardHost) return;
+    if (on) boardCovers.add(why); else boardCovers.delete(why);
+    boardShow();
+}                    // a thread the Interface asked for, before the board window was open
 function openBoard(w, url) {
     if (!/^https:\/\//i.test(url)) return;
     boardHome = url;
@@ -550,6 +569,12 @@ function openBoard(w, url) {
     });
     wc.on('dom-ready', () => applyBoardTint());
     w.contentView.addChildView(boardView);
+    boardHost = w; boardWant = null; boardCovers.clear();
+    if (!w.__boardFull) {
+        w.__boardFull = true;
+        w.webContents.on('enter-html-full-screen', () => boardCover(w, 'html', true));
+        w.webContents.on('leave-html-full-screen', () => boardCover(w, 'html', false));
+    }
     boardView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     wc.on('context-menu', (e, p) => boardMenu(w, wc, p));
     wc.loadURL(url);
@@ -653,7 +678,7 @@ ipcMain.on('board', (e, cmd, arg) => {
     if (cmd === 'open') return openBoard(w, String(arg || ''));
     if (!boardView) return;
     const wc = boardView.webContents;
-    if (cmd === 'bounds') { if (boardBig) { boardBig.was = arg; return; } boardView.setVisible(!!arg); if (arg) boardView.setBounds(arg); }
+    if (cmd === 'bounds') { if (boardBig) { boardBig.was = arg; return; } boardWant = arg || null; boardShow(); }
     else if (cmd === 'back') { if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); }
     else if (cmd === 'home') wc.loadURL(boardHome);
     else if (cmd === 'reload') wc.reload();
@@ -678,14 +703,14 @@ ipcMain.on('board-big', async (e, on) => {
     if (!fromBoardView(e) || !boardView) return;
     const w = oneWin() ? win : winOf('board');
     if (on && !boardBig && w && !w.isDestroyed()) {
-        boardBig = { was: boardView.getBounds() };
+        boardBig = { was: boardWant };
         const top = await titleBottom(w);
         if (!boardBig || !boardView || w.isDestroyed()) return;
         const [width, height] = w.getContentSize();
         boardView.setBounds({ x: 0, y: top, width, height: height - top });
     } else if (!on && boardBig) {
-        const was = boardBig.was; boardBig = null;
-        boardView.setVisible(!!was); if (was) boardView.setBounds(was);
+        boardWant = boardBig.was || null; boardBig = null;
+        boardShow();
     }
 });
 
@@ -1733,7 +1758,7 @@ function smoke() {
     if (E.ONAIR_SMOKE_CHECK) setTimeout(async () => {
         for (const [id, w] of [['radio', win], ...elWins, ['desk', studioWin]]) {
             if (!w || w.isDestroyed()) continue;
-            const r = await w.webContents.executeJavaScript(E.ONAIR_SMOKE_CHECK).catch(e => 'error: ' + e.message);
+            const r = await w.webContents.executeJavaScript(E.ONAIR_SMOKE_CHECK, true).catch(e => 'error: ' + e.message);
             console.log('[check]', id, 'pid', w.webContents.getOSProcessId(), JSON.stringify(r));
         }
     }, Number(E.ONAIR_SMOKE_CHECK_AT) || 11000);
