@@ -210,6 +210,7 @@
            differently (design/hall-25d-scope.md). Without WebGL the room stays 2D. */
         let tvVid = '', screenLive = false;                   // FunpostTV on the stage screen (screenTv), and its sound (setTvSound)
         let tvSound = false, tvSoundWant = false, tvSoundAuto = false, radioWas = false, tvRadioStopping = false;
+        let tvq = null, tvqAt = 0, tvReqSound = false, tvReqRadio = false, tvReqLast = '';   // FunpostTV requests (engine/tv-requests.js)
         let viewPref = 'auto', v25 = null, v25Loading = false, v25Failed = false, r25 = false;
         try { viewPref = localStorage.getItem('ltl.hallView') || 'auto'; } catch { /* default */ }
         const fxLevel = () => { const c = document.body.classList; return c.contains('fx-adv') ? 'advanced' : c.contains('fx-mid') ? 'mid' : 'simple'; };
@@ -358,7 +359,7 @@
             if (!b || !watch || !p) return;
             const k = b.dataset.w;
             if (k === 'up') return stopWatch();
-            if (k === 'sound') { setTvSound(!tvSoundWant); tvSoundAuto = false; return; }      // chosen by hand: standing up doesn't change it
+            if (k === 'sound') { const on = !tvSoundWant; setTvSound(on); tvSoundAuto = false; if (tvOnNow()) tvReqRadio = !on; tvReqSound = false; return; }      // chosen by hand: standing up doesn't change it
             if (k === 'popcorn' || k === 'sip') { if (watch.seated) setPose(p.e === k ? 'sit' : k); return paintWatch(); }
             if (k === 'l' || k === 'r') watch.look = clampK(watch.look + (k === 'l' ? 0.5 : -0.5), -1, 1);
             if (k === 'in' || k === 'out') watch.zoom = clampK(watch.zoom * (k === 'in' ? 0.8 : 1.25), 0.55, 1.5);
@@ -594,6 +595,7 @@
                     people.clear();
                     for (const p of m.people || []) add(p);
                     me = m.you; joined = true; pending = false; air = m.air || air; booth = m.booth || booth; delay = Number(air.delay) || 0; setIntro(air.intro); onDodge(m.dodge || { state: '' }, true);
+                    core.send({ t: 'hall-tv-get' });
                     paintBursts();
                     games.clear();
                     for (const g of m.games || []) onGame(g, true);
@@ -719,6 +721,10 @@
                     else if (m.k === 'hit') logLine({ text: '🏐 ' + nameOf(m.a) + ' hit ' + nameOf(m.b) + ' — OUT!' }, 'game');
                     break;
                 }
+                case 'hall-tv-q': tvq = m; tvqAt = now(); paintTvReq(); break;                  // FunpostTV requests: what's on, what's waiting
+                case 'hall-tv-results': tvReqResults(m); break;
+                case 'hall-tv-skipped': U.toast('📺 Skipped “' + m.title + '”: ' + m.why); break;
+                case 'hall-tv-requested': tvReqBusy = false; U.toast('📺 Asked for: ' + m.title + (m.wait ? ' (' + m.wait + ' ahead)' : '')); paintTvReqPanel(); break;
                 case 'hall-cam':                                                // the host moves the 2.5D camera for a moment (2D: nothing)
                     if (v25) v25.cue(m.shot);
                     break;
@@ -4372,7 +4378,8 @@
             { id: 'chat', icon: '💬', name: 'Show or hide the chat', run: () => toggleChat() },
             { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() },
             { id: 'stretch', icon: '⛶', name: 'Stretch the room to fill the space (again: keep its shape)', run: () => toggleStretch() },
-            { id: 'tvsound', icon: '📺', name: 'Listen to FunpostTV (again: the radio)', run: () => setTvSound(!tvSoundWant) }
+            { id: 'tvsound', icon: '📺', name: 'Listen to FunpostTV (again: the radio)', run: () => { const on = !tvSoundWant; setTvSound(on); if (tvOnNow()) tvReqRadio = !on; tvReqSound = false; } },
+            { id: 'tvreq', icon: '📥', name: 'Request a video for FunpostTV', run: () => openTvReq() }
         ];
         const KEYS0 = Object.fromEntries([...EMOTES.slice(0, 10).map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
         const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
@@ -4402,7 +4409,7 @@
                 (editingKeys ? '<div class="ha-help">' + (waitKey ? 'Press a key for it (Esc: none)' : 'Click an action, then press a key.') +
                     ' <button type="button" class="btn" data-keyreset>Usual keys</button></div>' : '');
             actsEl.classList.toggle('editing', editingKeys);
-            paintPoses(); paintBursts(); paintCool(); paintTvSound();
+            paintPoses(); paintBursts(); paintCool(); paintTvSound(); paintTvReq();
         }
         // The dash button held down sprints too (a phone has no Shift).
         actsEl.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-act="dash"]')) sprintKey = true; });
@@ -4639,6 +4646,76 @@
             lines.forEach((ln, i) => ctx.fillText(ln, bx + w / 2, by + pad * 0.8 + ph + i * lh));
         }
 
+        /* ---------- FunpostTV requests: 📥 (in the actions, or on the screen) opens a search right here ---------- */
+        const tvReqEl = document.createElement('div');
+        tvReqEl.className = 'hall-tvreq'; tvReqEl.hidden = true;
+        stage.appendChild(tvReqEl);
+        const tvReqChip = document.createElement('button');
+        tvReqChip.type = 'button'; tvReqChip.className = 'btn hall-tvreq-chip'; tvReqChip.hidden = true; tvReqChip.textContent = '📥'; tvReqChip.title = 'Request a video for FunpostTV';
+        stage.appendChild(tvReqChip);
+        tvReqChip.addEventListener('click', (e) => { e.stopPropagation(); openTvReq(); });
+        let tvReqRes = null, tvReqBusy = false, tvReqQ = '';
+        const ytLink = (v) => /(youtube\.com|youtu\.be)\//i.test(v) || /^[\w-]{11}$/.test(v.trim());
+        const mmss = (sec) => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+        function openTvReq() {
+            if (!tvq || !tvq.on) return U.toast('FunpostTV requests are off right now.');
+            tvReqEl.hidden = false; paintTvReqPanel();
+            const i = tvReqEl.querySelector('input'); if (i) i.focus();
+        }
+        function paintTvReq() {
+            const on = !!(tvq && tvq.on);
+            const b = actsEl.querySelector('[data-act="tvreq"]');
+            if (!tvq) { if (b) b.hidden = true; return; }                       // (not heard yet: drawn before the panel exists)
+            if (b) { b.hidden = !on; b.classList.toggle('dim', on && !tvq.open); }
+            if (!on) tvReqEl.hidden = true;
+            if (!tvReqEl.hidden) paintTvReqPanel();
+        }
+        function paintTvReqPanel() {
+            if (!tvq) return;
+            const n = tvq.now, mineN = tvq.queue.filter(q => q.by === core.name).length;
+            const state = (n ? '<div class="htr-now">▶ <b>' + esc(n.title) + '</b> <small>' + (n.live ? 'live' : mmss(n.sec)) + ' · ' + esc(n.by) + '</small></div>' : '') +
+                (tvq.queue.length ? '<ol class="htr-wait">' + tvq.queue.slice(0, 6).map(q => '<li>' + esc(q.title) + ' <small>' + mmss(q.sec) + ' · ' + esc(q.by) + '</small></li>').join('') +
+                    (tvq.queue.length > 6 ? '<li><small>…and ' + (tvq.queue.length - 6) + ' more</small></li>' : '') + '</ol>' : '') +
+                (tvq.show && tvq.queue.length ? '<p class="htr-note">On air: the host plays these when they choose.</p>' : '');
+            const res = tvReqRes && tvReqRes.q === tvReqQ ? tvReqRes.items : null;
+            const list = !tvq.open ? '<p class="htr-note">' + esc(tvq.why) + '</p>'
+                : tvReqBusy ? '<p class="htr-note">…</p>'
+                : res ? (res.length ? res.map(v => {
+                    const why = v.live ? 'live' : v.sec > tvq.maxSec ? 'too long' : '';
+                    return '<button type="button" class="htr-item" data-vid="' + esc(v.vid) + '"' + (why ? ' disabled' : '') + '><img alt="" loading="lazy" src="' + esc(v.thumb) + '">' +
+                        '<span><b>' + esc(v.title) + '</b><small>' + esc(v.ch) + ' · ' + (v.live ? 'LIVE' : mmss(v.sec)) + (why ? ' · ' + why : '') + '</small></span></button>';
+                }).join('') : '<p class="htr-note">Nothing found.</p>') : '';
+            tvReqEl.innerHTML = '<div class="htr-top"><b>📺 Request a video</b><small>up to ' + mmss(tvq.maxSec) + ' · ' + tvq.perPerson + ' each' + (mineN ? ' · yours waiting: ' + mineN : '') + '</small>' +
+                '<button type="button" class="btn" data-x title="Close">✕</button></div>' +
+                (tvq.open ? '<form class="htr-q"><input maxlength="200" placeholder="Search YouTube, or paste a link" autocomplete="off" value="' + esc(tvReqQ) + '"><button class="btn go">Search</button></form>' : '') +
+                state + '<div class="htr-list">' + list + '</div>';
+        }
+        function tvReqResults(m) { tvReqBusy = false; tvReqRes = m; if (m.maxSec && tvq) tvq.maxSec = m.maxSec; paintTvReqPanel(); }
+        tvReqEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (e.target.closest('[data-x]')) { tvReqEl.hidden = true; return; }
+            const it = e.target.closest('[data-vid]');
+            if (it && !it.disabled) { tvReqBusy = true; core.send({ t: 'hall-tv-request', vid: it.dataset.vid }); paintTvReqPanel(); setTimeout(() => { if (tvReqBusy) { tvReqBusy = false; paintTvReqPanel(); } }, 8000); }
+        });
+        tvReqEl.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const v = (tvReqEl.querySelector('input') || {}).value || '';
+            if (!v.trim()) return;
+            tvReqQ = v.trim(); tvReqBusy = true; paintTvReqPanel();
+            if (ytLink(v)) core.send({ t: 'hall-tv-request', url: v.trim() });
+            else core.send({ t: 'hall-tv-search', q: v.trim() });
+            setTimeout(() => { if (tvReqBusy) { tvReqBusy = false; paintTvReqPanel(); } }, 8000);
+        });
+        tvReqEl.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') tvReqEl.hidden = true; });
+        /** 📥 on the screen's corner, while requests are on and the screen's up. */
+        function placeTvReqChip() {
+            const on = !!(tvq && tvq.on && tvq.open && !tvEl.hidden && tvEl.firstChild && !watch);
+            tvReqChip.hidden = !on;
+            if (!on) return;
+            const r = tvEl.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+            const css = { left: Math.round(Math.min(sr.width - 34, r.right - sr.left + 4)) + 'px', top: Math.round(Math.max(4, r.top - sr.top)) + 'px' };
+            if (tvReqChip.style.left !== css.left || tvReqChip.style.top !== css.top) Object.assign(tvReqChip.style, css);
+        }
         /** The CSS transform that bends a w × h box onto four points (top-left, top-right, bottom-right, bottom-left). */
         function quadMatrix(w, h, P) {
             const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = P;
@@ -4656,6 +4733,11 @@
         function ytCmd(func, args) {
             const f = tvEl.querySelector('iframe');
             try { if (f && f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch { /* not there yet */ }
+        }
+        /** Ask the player to tell us how it's doing (its errors: a request it can't play). */
+        function ytListen() {
+            const f = tvEl.querySelector('iframe');
+            try { if (f && f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'funposttv', channel: 'widget' }), '*'); } catch { /* not there yet */ }
         }
         function ytSound() {
             if (!tvSound) return ytCmd('mute');
@@ -4680,6 +4762,22 @@
             ytSound();
             paintTvSound();
         }
+        /* A request starts: its sound comes on (the radio stops) — unless you switched to the radio during one, which
+           holds for the ones after too. When they run out, back to the radio (if they turned the TV's sound on). */
+        // A request its player can't play (blocked on other sites, removed…): the station hears, and skips it.
+        listen('message', (e) => {
+            if (!/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin) || !tvOnNow()) return;
+            let d; try { d = JSON.parse(e.data); } catch { return; }
+            if (d && d.event === 'onError' && tvq && tvq.now) core.send({ t: 'hall-tv-bad', id: tvq.now.id, code: Number(d.info) || 0 });
+        });
+        function tvReqTick(reqNow) {
+            const id = reqNow && tvOnNow() ? reqNow.id : '';
+            if (id === tvReqLast) return;
+            tvReqLast = id;
+            if (id && !tvReqRadio && !tvSoundWant) { setTvSound(true); tvReqSound = true; }
+            else if (!id && tvReqSound) { tvReqSound = false; if (!tvSoundAuto) setTvSound(false); }
+        }
+        const tvOnNow = () => !!tvVid && tvVid.startsWith('req:');
         function paintTvSound() {
             const b = actsEl.querySelector('[data-act="tvsound"]');
             if (b) { b.hidden = !tvVid; b.classList.toggle('on', tvSound); b.title = tvSound ? 'Back to the radio' : 'Listen to FunpostTV (the radio stops)'; }
@@ -4689,16 +4787,16 @@
         // The radio started again (its play button): that's the radio wanted, not the TV.
         sub('state', (st) => { if (tvSound && !tvRadioStopping && st && st.playing) { radioWas = false; tvSound = false; tvSoundWant = false; tvSoundAuto = false; ytSound(); paintTvSound(); } }, window);
         offs.push(() => { if (tvSound) { tvSoundWant = false; tvVid = ''; setTvSound(false); } });
-        function screenTv(on, vid) {
-            const want = on && vid ? vid : '';
+        function screenTv(on, vid, key, start) {
+            const want = on && vid ? (key || vid) : '';
             if (want !== tvVid) {
                 const had = !!tvVid;
                 tvVid = want;
-                tvEl.innerHTML = want ? '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(want) +
-                    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&enablejsapi=1" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" tabindex="-1" title="FunpostTV"></iframe>' : '';
+                tvEl.innerHTML = want ? '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(vid) +
+                    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&enablejsapi=1' + (start > 0 ? '&start=' + Math.floor(start) : '') + '" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" tabindex="-1" title="FunpostTV"></iframe>' : '';
                 tvEl.hidden = !want;
                 const f = tvEl.querySelector('iframe');
-                if (f) f.addEventListener('load', () => { for (const ms of [0, 600, 1500]) setTimeout(ytSound, ms); });     // (the player takes a moment to listen)
+                if (f) f.addEventListener('load', () => { for (const ms of [0, 600, 1500]) setTimeout(() => { ytListen(); ytSound(); }, ms); });     // (the player takes a moment to listen)
                 if (!want && tvSound) { const keep = tvSoundWant; setTvSound(false); tvSoundWant = keep; }     // the TV's gone: the radio meanwhile
                 else if (want && !had && tvSoundWant && !tvSound) setTvSound(true, tvSoundAuto);              // it's back: so is its sound
                 paintTvSound();
@@ -4748,13 +4846,16 @@
             const intro = joined && left != null && (left > -4 && !onAir.live || onAir.live && left > -1.5) ? left : null;
             if (left != null && left < -10) introEnd = 0;
             // (Not during Burgertime: Daniel takes over the stage, and the video would sit over him. It comes back after.)
-            const tvOn = !!(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2) && !btOn());
+            // A request playing (FunpostTV requests) takes the screen, whatever it shows otherwise; everyone at the same moment.
+            const reqNow = tvq && tvq.on && tvq.now;
+            const tvOn = !!(joined && ((air.screen === 'tv' && s.tv && s.tv.live) || reqNow) && !(intro != null && intro <= A.ENTRANCE + 0.2) && !btOn());
             // Just gone live: Radioman sits for a moment before FunpostTV (if it's on) sends him aside.
             if (onAir.live && !wasLive) { tvK = 0; tvHold = t + 1.5; }
             wasLive = !!onAir.live;
             if (!onAir.live) tvK = tvOn ? 1 : 0;
             else if (t >= tvHold) tvK += Math.sign((tvOn ? 1 : 0) - tvK) * Math.min(Math.abs((tvOn ? 1 : 0) - tvK), dt / 1.4);
-            const tv = screenTv(tvOn, s.tv && s.tv.videoId);
+            const tv = reqNow ? screenTv(tvOn, reqNow.vid, 'req:' + reqNow.id, reqNow.live ? 0 : (reqNow.ago / 1000 + (now() - tvqAt))) : screenTv(tvOn, s.tv && s.tv.videoId);
+            tvReqTick(reqNow);
             tvNow = !!tv;
             if (watch) {
                 if (!tv && intro == null) stopWatch('📺 FunpostTV’s off the stage');
@@ -4906,7 +5007,7 @@
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             flat();
-            watchHands(t); placeWatch();
+            watchHands(t); placeWatch(); placeTvReqChip();
             if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h) && !(hideSpot && p.h === me)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
             drawBtWords(t, u, danielTop);
             for (const b of booms) if (t - b.at < 1) { spot(b.x, b.y); popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020'); }
