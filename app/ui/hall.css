@@ -332,3 +332,5 @@
 .hall-tvreq-chip { position: absolute; z-index: 5; padding: 2px 6px; font-size: 14px; }
 .hall-tvreq-chip[hidden] { display: none; }
 .hall-acts [data-act].dim { opacity: 0.45; }
+/* FunpostTV's picture out of sight (the intro, Burgertime, a full-screen game): still playing, just not seen. */
+.hall-tv.tv-off { opacity: 0 !important; pointer-events: none; }

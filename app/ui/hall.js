@@ -332,7 +332,7 @@
         function placeWatch() {
             if (!watch || watchEl.hidden) return;
             let top = 10, left = null;
-            if (!tvEl.hidden && tvEl.firstChild) {
+            if (tvShown()) {
                 const r = tvEl.getBoundingClientRect(), sr = stage.getBoundingClientRect();
                 top = Math.max(6, Math.round(r.top - sr.top - watchEl.offsetHeight - 6));
                 left = Math.round(Math.min(sr.width - 8, Math.max(8, r.left - sr.left + r.width / 2)));
@@ -4718,7 +4718,7 @@
         });
         /** 📥 on the screen's corner, while requests are on and the screen's up. */
         function placeTvReqChip() {
-            const on = !!(tvq && tvq.on && tvq.open && !tvEl.hidden && tvEl.firstChild && !watch);
+            const on = !!(tvq && tvq.on && tvq.open && tvShown() && !watch);
             tvReqChip.hidden = !on;
             if (!on) return;
             const r = tvEl.getBoundingClientRect(), sr = stage.getBoundingClientRect();
@@ -4796,6 +4796,25 @@
         // The radio started again (its play button): that's the radio wanted, not the TV.
         sub('state', (st) => { if (tvSound && !tvRadioStopping && st && st.playing) { radioWas = false; tvSound = false; tvSoundWant = false; tvSoundAuto = false; ytSound(); paintTvSound(); } }, window);
         offs.push(() => { if (tvSound) { tvSoundWant = false; tvVid = ''; setTvSound(false); } });
+        /* What plays on the screen (a request, or FunpostTV's own video) runs whatever the room is doing: Burgertime,
+           the go-live intro, a full-screen game, a hidden window. Only the picture steps aside (tvPlace), never the
+           player, so the requests carry on in turn and their sound with them. Kept up to date every second
+           (tvSync), not just when the room's drawn. */
+        function tvWant() {
+            const st = core.state || {}, reqNow = tvq && tvq.on && tvq.now;
+            if (!joined) return null;
+            if (reqNow) return { vid: reqNow.vid, key: 'req:' + reqNow.id, start: reqNow.live ? 0 : reqNow.ago / 1000 + (now() - tvqAt) };
+            if (air.screen === 'tv' && st.tv && st.tv.live && st.tv.videoId) return { vid: st.tv.videoId, key: st.tv.videoId, start: 0 };
+            return null;
+        }
+        function tvSync() {
+            const w = tvWant();
+            screenTv(!!w, w && w.vid, w && w.key, w && w.start);
+            tvReqTick(tvq && tvq.on && tvq.now);
+        }
+        const tvSyncT = setInterval(tvSync, 1000);
+        offs.push(() => clearInterval(tvSyncT));
+        const tvShown = () => !tvEl.hidden && !tvEl.classList.contains('tv-off') && !!tvEl.firstChild;
         function screenTv(on, vid, key, start) {
             const want = on && vid ? (key || vid) : '';
             if (want !== tvVid) {
@@ -4810,14 +4829,20 @@
                 else if (want && !had && tvSoundWant && !tvSound) setTvSound(true, tvSoundAuto);              // it's back: so is its sound
                 paintTvSound();
             }
-            if (!want) return false;
+            return !!want;
+        }
+        /** The picture: shown where the screen is, or out of sight (the player carries on: transparent, not removed). */
+        function tvPlace(show) {
+            if (!tvVid) return false;
             tvEl.hidden = false;
+            tvEl.classList.toggle('tv-off', !show);
+            if (!show) return false;
             if (r25 && v25) {
                 // 2.5D: the video bent onto the screen on the back wall (its four corners where the camera sees them).
                 const S = A.screenAt(screenLive, tvK), k = cv.clientWidth / cv.width, w = 320, h = Math.round(320 * S.h / S.w);
                 const e = Math.max(0, Math.min(1, tvK)), f = screenLive ? e * e * (3 - 2 * e) : 1;     // the wall's screen, or the TV on the stage
                 const P = [[S.x, S.y], [S.x + S.w, S.y], [S.x + S.w, S.y + S.h], [S.x, S.y + S.h]].map(([x, y]) => v25.wallPt(x, y, f));
-                if (P.some(q => !q)) { tvEl.hidden = true; return true; }
+                if (P.some(q => !q)) { tvEl.classList.add('tv-off'); return true; }
                 const css = 'left:' + cv.offsetLeft + 'px;top:' + cv.offsetTop + 'px;width:' + w + 'px;height:' + h + 'px;transform-origin:0 0;transform:' + quadMatrix(w, h, P.map(([x, y]) => [x * k, y * k]));
                 if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
                 return true;
@@ -4839,7 +4864,7 @@
             const room25 = !kartView() && !hkView() && !rmOn() && want25();   // the full-screen games draw as they always have
             if (room25 !== r25) { r25 = room25; fit(); paintWatch(); }
             if (watch && (rmOn() || kartView() || hkView())) stopWatch();       // a game takes over the screen: you're up
-            if (rmOn() || kartView() || hkView()) tvEl.hidden = true;         // (and FunpostTV's picture isn't left floating over it)
+            if (rmOn() || kartView() || hkView()) tvEl.classList.add('tv-off');  // (FunpostTV's picture isn't left floating over it; it plays on)
             if (kartView()) { drawRace(dt, now()); return; }
             const hv = hkView();
             if (hkL.was && !hv && hkL.whiteEnd) { hkL.backAt = now(); hkL.whiteEnd = false; }        // Forever 2's ending: back to the hall out of the white
@@ -4856,15 +4881,15 @@
             if (left != null && left < -10) introEnd = 0;
             // (Not during Burgertime: Daniel takes over the stage, and the video would sit over him. It comes back after.)
             // A request playing (FunpostTV requests) takes the screen, whatever it shows otherwise; everyone at the same moment.
-            const reqNow = tvq && tvq.on && tvq.now;
-            const tvOn = !!(joined && ((air.screen === 'tv' && s.tv && s.tv.live) || reqNow) && !(intro != null && intro <= A.ENTRANCE + 0.2) && !btOn());
+            // (Out of sight for the go-live intro and Burgertime — Daniel takes over the stage — but playing on.)
+            tvSync();
+            const tvOn = !!tvVid && !(intro != null && intro <= A.ENTRANCE + 0.2) && !btOn();
             // Just gone live: Radioman sits for a moment before FunpostTV (if it's on) sends him aside.
             if (onAir.live && !wasLive) { tvK = 0; tvHold = t + 1.5; }
             wasLive = !!onAir.live;
             if (!onAir.live) tvK = tvOn ? 1 : 0;
             else if (t >= tvHold) tvK += Math.sign((tvOn ? 1 : 0) - tvK) * Math.min(Math.abs((tvOn ? 1 : 0) - tvK), dt / 1.4);
-            const tv = reqNow ? screenTv(tvOn, reqNow.vid, 'req:' + reqNow.id, reqNow.live ? 0 : (reqNow.ago / 1000 + (now() - tvqAt))) : screenTv(tvOn, s.tv && s.tv.videoId);
-            tvReqTick(reqNow);
+            const tv = tvPlace(tvOn);
             tvNow = !!tv;
             if (watch) {
                 if (!tv && intro == null) stopWatch('📺 FunpostTV’s off the stage');
