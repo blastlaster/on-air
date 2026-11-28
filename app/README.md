@@ -99,8 +99,7 @@ Request window for `/request` and keeps the `/nick` name and the `/ignore` list.
 `under()` paints what lies on the floor or wall into the room's picture, and `spot()` sets the
 overlay canvas's transform so screen-space drawing (bubbles, badges, hits) lands on the right
 person at the right size. Clicks come back as 2D room coordinates (`pick`). The view: 🎨 Look →
-View (`ltl.hallView`: auto, 2d, 25d, 3d), Auto following Effects. `V25_READY` in `hall.js` keeps it
-a preview (`/25d`, `ltl.hall25d`) until it ships. The plan: `design/hall-25d-scope.md` (not in the repo).
+View (`ltl.hallView`: auto, 2d, 25d, 3d), Auto following Effects. The plan: `design/hall-25d-scope.md` (not in the repo).
 
 ## Test runs
 

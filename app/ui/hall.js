@@ -207,14 +207,12 @@
         /* ---------- the view: 2D (today's) or 2.5D (hall-25d.js, loaded when first wanted) ----------
            Auto follows the app's Effects setting (Simple: 2D; Mid and Advanced: 2.5D, and 3D once there is one);
            🎨 Look → View picks one on this computer. Either way the room is the same room: 2.5D only draws it
-           differently (design/hall-25d-scope.md). Until 2.5D ships it's a preview: /25d in the chat turns it on
-           (or off) on this computer. Without WebGL the room stays 2D. */
-        const V25_READY = false;
-        let viewPref = 'auto', v25Preview = false, v25 = null, v25Loading = false, v25Failed = false, r25 = false;
-        try { viewPref = localStorage.getItem('ltl.hallView') || 'auto'; v25Preview = localStorage.getItem('ltl.hall25d') === '1'; } catch { /* defaults */ }
+           differently (design/hall-25d-scope.md). Without WebGL the room stays 2D. */
+        let viewPref = 'auto', v25 = null, v25Loading = false, v25Failed = false, r25 = false;
+        try { viewPref = localStorage.getItem('ltl.hallView') || 'auto'; } catch { /* default */ }
         const fxLevel = () => { const c = document.body.classList; return c.contains('fx-adv') ? 'advanced' : c.contains('fx-mid') ? 'mid' : 'simple'; };
-        const v25Offered = () => V25_READY || v25Preview;
-        const viewWanted = () => { if (!v25Offered()) return '2d'; const v = viewPref === 'auto' ? (fxLevel() === 'simple' ? '2d' : '3d') : viewPref; return v === '3d' ? '25d' : v; };   // (no 3D yet: 2.5D)
+        const v25Offered = () => true;
+        const viewWanted = () => { const v = viewPref === 'auto' ? (fxLevel() === 'simple' ? '2d' : '3d') : viewPref; return v === '3d' ? '25d' : v; };   // (no 3D yet: 2.5D)
         function want25() {
             if (viewWanted() !== '25d' || v25Failed) return false;
             if (v25) return true;
@@ -814,11 +812,6 @@
             e.preventDefault();
             const typed = input.value, text = window.LT && LT.emojiCodes ? LT.emojiCodes(typed) : typed;
             if (!text.trim()) { input.blur(); return; }
-            if (text.trim().toLowerCase() === '/25d') {                   // the 2.5D preview, on this computer only (not sent)
-                v25Preview = !v25Preview; input.value = '';
-                try { localStorage.setItem('ltl.hall25d', v25Preview ? '1' : '0'); } catch { /* this time only */ }
-                return U.toast(v25Preview ? '2.5D preview on: 🎨 Look → View (Auto: 2.5D with Effects on Mid or Advanced)' : '2.5D preview off');
-            }
             const go = () => { if (core.chatSend(text)) { input.value = ''; if (sayBox) sayBox.sent(typed); } else U.toast('Chat is reconnecting…'); };
             if (!core.name) U.askName(core, go); else go();
         };
