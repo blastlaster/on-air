@@ -4637,6 +4637,7 @@
             const room25 = !kartView() && !hkView() && !rmOn() && want25();   // the full-screen games draw as they always have
             if (room25 !== r25) { r25 = room25; fit(); paintWatch(); }
             if (watch && (rmOn() || kartView() || hkView())) stopWatch();       // a game takes over the screen: you're up
+            if (rmOn() || kartView() || hkView()) tvEl.hidden = true;         // (and FunpostTV's picture isn't left floating over it)
             if (kartView()) { drawRace(dt, now()); return; }
             const hv = hkView();
             if (hkL.was && !hv && hkL.whiteEnd) { hkL.backAt = now(); hkL.whiteEnd = false; }        // Forever 2's ending: back to the hall out of the white
