@@ -228,6 +228,8 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             const it = e.target.closest('[data-vid]');
             if (it && !it.disabled && !busy) { core.send({ t: 'hall-tv-request', vid: it.dataset.vid }); wait(true); }
         });
+        // Emptying the box clears the results too.
+        box.addEventListener('input', (e) => { if (e.target.matches('.vr-q input') && !e.target.value.trim() && (q || res)) { q = ''; res = null; paint(); } });
         box.addEventListener('submit', (e) => {
             e.preventDefault();
             const v = ($('.vr-q input', box) || {}).value || '';
