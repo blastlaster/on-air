@@ -5,3 +5,4 @@
 - **Watching FunpostTV:** the controls are one line just above the video, tucking away to 📺 when you leave them, and your popcorn and water show over the video.
 - **Fixed:** in 2.5D, the flat 2D disco ball and spotlights no longer show on the walls. FunpostTV steps aside while Daniel has the stage in Burgertime, instead of covering him.
 - **💖 Donate:** a pink Donate button just right of Links, as on the site: the station's PayPal and Patreon, in a little bubble.
+- **📺 Video requests in the Request window:** while the station takes them, a Video tab searches YouTube (or takes a pasted link) and asks for it on FunpostTV, and shows what's on and what's waiting.

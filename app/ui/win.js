@@ -168,7 +168,11 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
        REQUEST — off air the hosting panel's library (AutoDJ
        plays it); live, the studio's library into the DJ's queue
        ========================================================= */
-    function request(box) {
+    function request(outer) {
+        // 🎵 Music (the radio's requests) and, while the station takes them, 📺 Video (FunpostTV requests).
+        outer.innerHTML = '<div class="rq-tabs" hidden><button type="button" class="btn on" data-tab="music">🎵 Music</button><button type="button" class="btn" data-tab="video">📺 Video</button></div>' +
+            '<div class="rq-pane" data-pane="music"></div><div class="rq-pane" data-pane="video" hidden></div>';
+        const box = $('[data-pane="music"]', outer), vbox = $('[data-pane="video"]', outer), tabs = $('.rq-tabs', outer);
         let kind = '';
         function show(s) {
             const k = !s.requestMode ? 'off' : s.requestMode === 'autodj' ? 'autodj' : 'station-' + (s.requestKind || 'free');
@@ -179,6 +183,63 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
             else stationRequest(box, s);
         }
         on('state', show); show(core.state);
+        function pick(t) {
+            for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === t);
+            box.hidden = t !== 'music'; vbox.hidden = t !== 'video';
+            if (t === 'video') video.shown();
+        }
+        const video = videoRequest(vbox, (on) => { tabs.hidden = !on; if (!on) pick('music'); });
+        tabs.onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) pick(b.dataset.tab); };
+    }
+
+    /** FunpostTV requests (engine/tv-requests.js, as blug.dj/jej's 📥): search YouTube or paste a link; what's on and what's waiting. */
+    function videoRequest(box, onOff) {
+        let tvq = null, q = '', res = null, busy = false, busyT = 0;
+        const ytLink = (v) => /(youtube\.com|youtu\.be)\//i.test(v) || /^[\w-]{11}$/.test(v.trim());
+        const wait = (on) => { busy = on; clearTimeout(busyT); if (on) busyT = setTimeout(() => { busy = false; paint(); }, 8000); paint(); };
+        function paint() {
+            if (!tvq) { box.innerHTML = '<div class="empty">…</div>'; return; }
+            const n = tvq.now, mine = tvq.queue.filter(x => x.by === core.name).length;
+            const items = res && res.q === q ? res.items : null;
+            const list = !tvq.open ? '<p class="hint">' + esc(tvq.why) + '</p>'
+                : busy ? '<p class="hint">…</p>'
+                : items ? (items.length ? items.map(v => {
+                    const why = v.live ? 'live' : v.sec > tvq.maxSec ? 'too long' : '';
+                    return '<button type="button" class="vr-item" data-vid="' + esc(v.vid) + '"' + (why ? ' disabled' : '') + '><img alt="" loading="lazy" src="' + esc(v.thumb) + '">' +
+                        '<span><b>' + esc(v.title) + '</b><small class="dim">' + esc(v.ch) + ' · ' + (v.live ? 'LIVE' : mmss(v.sec)) + (why ? ' · ' + why : '') + '</small></span></button>';
+                }).join('') : '<p class="hint">Nothing found.</p>') : '';
+            const input = $('.vr-q input', box), had = !!input && document.activeElement === input, val = input ? input.value : q;
+            box.innerHTML = '<div class="vr">' +
+                '<p class="hint">Up to ' + mmss(tvq.maxSec) + ', ' + tvq.perPerson + ' each' + (mine ? ' · yours waiting: ' + mine : '') + '. They play on FunpostTV.</p>' +
+                (tvq.open ? '<form class="vr-q row"><input class="grow" maxlength="200" placeholder="Search YouTube, or paste a link" autocomplete="off" value="' + esc(val) + '"><button class="btn go">Search</button></form>' : '') +
+                (n ? '<div class="vr-now">▶ <b>' + esc(n.title) + '</b> <small class="dim">' + (n.live ? 'live' : mmss(n.sec)) + ' · ' + esc(n.by) + '</small></div>' : '') +
+                (tvq.queue.length ? '<ol class="vr-wait">' + tvq.queue.slice(0, 8).map(x => '<li>' + esc(x.title) + ' <small class="dim">' + mmss(x.sec) + ' · ' + esc(x.by) + '</small></li>').join('') +
+                    (tvq.queue.length > 8 ? '<li class="dim">…and ' + (tvq.queue.length - 8) + ' more</li>' : '') + '</ol>' : '') +
+                (tvq.show && tvq.queue.length ? '<p class="hint">On air: the host plays these when they choose.</p>' : '') +
+                '<div class="vr-list">' + list + '</div></div>';
+            if (had) { const i = $('.vr-q input', box); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+        }
+        on('hall', (m) => {
+            if (m.t === 'hall-tv-q') { const was = !!(tvq && tvq.on); tvq = m; if (!!m.on !== was) onOff(!!m.on); paint(); }
+            else if (m.t === 'hall-tv-results') { res = m; if (m.maxSec && tvq) tvq.maxSec = m.maxSec; wait(false); }
+            else if (m.t === 'hall-tv-requested') { q = ''; res = null; const i = $('.vr-q input', box); if (i) i.value = ''; wait(false); UI.toast('📺 Asked for: ' + m.title + (m.wait ? ' (' + m.wait + ' ahead)' : '')); }
+        });
+        box.addEventListener('click', (e) => {
+            const it = e.target.closest('[data-vid]');
+            if (it && !it.disabled && !busy) { core.send({ t: 'hall-tv-request', vid: it.dataset.vid }); wait(true); }
+        });
+        box.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const v = ($('.vr-q input', box) || {}).value || '';
+            if (!v.trim() || busy) return;
+            q = v.trim();
+            core.send(ytLink(q) ? { t: 'hall-tv-request', url: q } : { t: 'hall-tv-search', q });
+            wait(true);
+        });
+        const ask = () => core.send({ t: 'hall-tv-get' });
+        ask(); on('state', () => { if (!tvq) ask(); });
+        paint();
+        return { shown() { ask(); const i = $('.vr-q input', box); if (i) i.focus(); } };
     }
 
     /** The request picker over the library index (LT.songPicker); without one, the panel's own search. */

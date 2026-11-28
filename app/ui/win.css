@@ -36,6 +36,22 @@ label { display: block; margin: 4px 0; }
 .rq-text > span { font-size: 0.85em; }
 .rq-len { font-size: 0.8em; }
 .rq-pick .rq-list { overflow-y: auto; min-height: 0; }
+.rq-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.rq-tabs[hidden], .rq-pane[hidden] { display: none; }
+.rq-tabs .btn.on { background: var(--sk-btn-active); color: var(--sk-btn-active-text, var(--sk-btn-text)); }
+.vr { display: flex; flex-direction: column; gap: 6px; }
+.vr .hint { margin: 0; }
+.vr-q input { min-width: 0; }
+.vr-now { font-size: 0.9em; }
+.vr-wait { margin: 0; padding-left: 20px; font-size: 0.85em; }
+.vr-list { display: flex; flex-direction: column; gap: 4px; }
+.vr-item { display: flex; gap: 8px; align-items: center; text-align: left; padding: 4px; border-radius: 6px; border: 1px solid transparent; background: rgba(127, 127, 127, 0.1); color: inherit; cursor: pointer; font: inherit; }
+.vr-item:hover:not(:disabled) { border-color: var(--sk-accent); }
+.vr-item:disabled { opacity: 0.45; cursor: not-allowed; }
+.vr-item img { width: 96px; height: 54px; object-fit: cover; border-radius: 4px; flex: none; background: #000; }
+.vr-item span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vr-item b { font-weight: 600; font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.vr-item small { font-size: 0.8em; }
 .picks .pick { text-align: left; }
 
 /* playlist */
