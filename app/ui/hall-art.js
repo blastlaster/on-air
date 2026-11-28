@@ -202,8 +202,8 @@
         desk(t, false, false, 0);
         l.globalAlpha = 1;
     }
-    /** Over everything: the countdown on the screen, the smoke, the magic, and ON AIR at zero. */
-    function introOver(t, left, secs) {
+    /** Over everything: the countdown on the screen, the smoke, the magic, and ON AIR at zero (screenOnly: just the screen; the 2.5D view makes its own smoke). */
+    function introOver(t, left, secs, screenOnly) {
         const P = phases(secs);
         // The right-hand screen counts down; at zero it says so.
         const S = SCREEN;
@@ -219,6 +219,7 @@
             text(l, 'ON AIR', 0, 0, '#ff2a2a');
             l.restore();
         }
+        if (screenOnly) return;
         // Smoke: thickening over the stage, then clearing to show the desk.
         const d = left > P.smoke ? 0 : left > P.desk ? (P.smoke - left) / (P.smoke - P.desk) : Math.max(0, 1 - (P.desk - left) / P.clear);
         if (d > 0) {
@@ -357,13 +358,13 @@
     const TILE = ['#2a1a40', '#1a2a40', '#40182c', '#183a30'];
     const LIT = ['#b04fd0', '#4f8cff', '#ff5a8a', '#3fd38f'];
 
-    function speaker(x, t, music, side) {
+    function speaker(x, t, music, side, noNoise) {
         R(x, 24, 20, 34, '#2a2438'); R(x, 24, 20, 1, '#3d3552');
         const pump = music && Math.floor(t * 4) % 2 ? 1 : 0;
         R(x + 6, 28, 8, 7, '#0c0a12'); R(x + 8, 30, 4, 3, '#2a2438');
         R(x + 3 - pump, 39 - pump, 14 + 2 * pump, 14 + 2 * pump, '#0c0a12');
         R(x + 7, 43, 6, 6, '#3d3552'); R(x + 9, 45, 2, 2, '#0c0a12');
-        if (!music) return;
+        if (!music || noNoise) return;                     // noNoise: the 2.5D view draws them in the room itself
         // Noise lines: arcs rolling out of the woofer into the room.
         const cx = x + 10, cy = 46, out = side < 0 ? 0 : Math.PI;
         for (let i = 0; i < 3; i++) {
@@ -500,7 +501,7 @@
         text(l, 'FM', cx - 3, top + 7, air.music ? '#ffc046' : '#665');
         R(cx - 7, top + 17, 14, 2, '#5a5470'); R(cx - 7 + Math.round((Math.sin(t * 0.7) * 0.5 + 0.5) * 12), top + 16, 1, 4, '#ff4a4a');
         for (let i = 0; i < 3; i++) R(cx - 6 + i * 5, top + 23, 3, 2, i === 1 ? '#d0302a' : '#5a5470');   // buttons
-        if (!air.music) return;
+        if (!air.music || air.noNoise) return;              // noNoise: the 2.5D view draws them in the room itself
         for (const [sx, dir] of [[cx - 17, Math.PI], [cx + 17, 0]]) {            // noise lines out of both sides
             for (let i = 0; i < 2; i++) {
                 const r = 13 + ((t * 18 + i * 7) % 14);
@@ -517,8 +518,8 @@
         R(58, 0, 6, 3, '#3a3448'); R(176, 0, 6, 3, '#3a3448');
         // Stage.
         R(30, 49, 180, 9, '#4a2e1c'); R(30, 49, 180, 1, '#7b573c');
-        speaker(4, t, air.music, -1);
-        speaker(W - 24, t, air.music, 1);
+        speaker(4, t, air.music, -1, air.noNoise);
+        speaker(W - 24, t, air.music, 1, air.noNoise);
         // Floor: boards, and the dance floor in the middle.
         R(0, 58, W, H - 58, '#1a1424');
         for (let y = 62; y < H; y += 6) R(0, y, W, 1, '#151020');
@@ -2148,7 +2149,7 @@
         radioman: (ctx, t, air) => { l = ctx; radioman(t, air); },
         centre: (ctx, t, air, info) => { l = ctx; centre(t, air, info); },
         entrance: (ctx, t, left, secs, air, info) => { l = ctx; entrance(t, left, secs, air, info); },
-        introOver: (ctx, t, left, secs) => { l = ctx; introOver(t, left, secs); },
+        introOver: (ctx, t, left, secs, screenOnly) => { l = ctx; introOver(t, left, secs, screenOnly); },
         ENTRANCE,
         cameo: (ctx, t, talking, k, tag) => { l = ctx; return cameo(t, talking, k, tag); },
         speakerBox: (ctx, t, side, slot, k, talking, name, who, strip) => { l = ctx; const r = speakerBox(t, side, slot, k, talking, name, who, strip || '#d0302a'); l = ctx; return r; },

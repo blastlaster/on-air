@@ -13,6 +13,7 @@
     'use strict';
     // Where this file came from: the room's own sounds sit next to it in the app (on the listener site they come from the station).
     const HERE = ((document.currentScript && document.currentScript.src) || '').replace(/[^/]*(\?.*)?$/, '');
+    const HERE_Q = ((document.currentScript && document.currentScript.src) || '').replace(/^[^?]*/, '');
 
     const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['jump', '⤴️', 'Jump'], ['sit', '🪑', 'Sit'], ['cheer', '🙌', 'Cheer'],
         ['clap', '👏', 'Clap'], ['point', '👉', 'Point'], ['spin', '🌀', 'Spin'], ['headbang', '🤘', 'Headbang'], ['sleep', '💤', 'Sleep (lie down)'],
@@ -202,6 +203,37 @@
         })();
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
         const lc = low.getContext('2d');
+
+        /* ---------- the view: 2D (today's) or 2.5D (hall-25d.js, loaded when first wanted) ----------
+           Auto follows the app's Effects setting (Simple: 2D; Mid and Advanced: 2.5D, and 3D once there is one);
+           🎨 Look → View picks one on this computer. Either way the room is the same room: 2.5D only draws it
+           differently (design/hall-25d-scope.md). Until 2.5D ships it's a preview: /25d in the chat turns it on
+           (or off) on this computer. Without WebGL the room stays 2D. */
+        const V25_READY = false;
+        let viewPref = 'auto', v25Preview = false, v25 = null, v25Loading = false, v25Failed = false, r25 = false;
+        try { viewPref = localStorage.getItem('ltl.hallView') || 'auto'; v25Preview = localStorage.getItem('ltl.hall25d') === '1'; } catch { /* defaults */ }
+        const fxLevel = () => { const c = document.body.classList; return c.contains('fx-adv') ? 'advanced' : c.contains('fx-mid') ? 'mid' : 'simple'; };
+        const v25Offered = () => V25_READY || v25Preview;
+        const viewWanted = () => { if (!v25Offered()) return '2d'; const v = viewPref === 'auto' ? (fxLevel() === 'simple' ? '2d' : '3d') : viewPref; return v === '3d' ? '25d' : v; };   // (no 3D yet: 2.5D)
+        function want25() {
+            if (viewWanted() !== '25d' || v25Failed) return false;
+            if (v25) return true;
+            if (!v25Loading) {
+                v25Loading = true;
+                const go = () => {
+                    v25 = window.HallView25 && window.HallView25.create();
+                    if (!v25) { v25Failed = true; U.toast('2.5D needs WebGL, which isn’t available here: the room stays 2D'); return; }
+                    v25.el.style.cssText = 'position:absolute;pointer-events:none;image-rendering:auto';
+                    v25.el.hidden = true;
+                    cv.style.position = 'relative';                  // the names and bubbles, over the 2.5D room
+                    stage.insertBefore(v25.el, cv);
+                };
+                if (window.HallView25) go();
+                else { const sc = document.createElement('script'); sc.src = HERE + 'hall-25d.js' + HERE_Q; sc.onload = go; sc.onerror = () => { v25Failed = true; }; document.head.appendChild(sc); }
+            }
+            return false;
+        }
+        offs.push(() => { if (v25) v25.destroy(); });
 
         /* ---------- you ---------- */
         let look;
@@ -608,6 +640,11 @@
             e.preventDefault();
             const typed = input.value, text = window.LT && LT.emojiCodes ? LT.emojiCodes(typed) : typed;
             if (!text.trim()) { input.blur(); return; }
+            if (text.trim().toLowerCase() === '/25d') {                   // the 2.5D preview, on this computer only (not sent)
+                v25Preview = !v25Preview; input.value = '';
+                try { localStorage.setItem('ltl.hall25d', v25Preview ? '1' : '0'); } catch { /* this time only */ }
+                return U.toast(v25Preview ? '2.5D preview on: 🎨 Look → View (Auto: 2.5D with Effects on Mid or Advanced)' : '2.5D preview off');
+            }
             const go = () => { if (core.chatSend(text)) { input.value = ''; if (sayBox) sayBox.sent(typed); } else U.toast('Chat is reconnecting…'); };
             if (!core.name) U.askName(core, go); else go();
         };
@@ -1570,8 +1607,7 @@
             if (hkView()) return;                                              // at the air hockey table
             const p = mine();
             if (!p) return;
-            const r = cv.getBoundingClientRect();
-            const rx = (e.clientX - r.left) / r.width * A.W, ry = (e.clientY - r.top) / r.height * A.H;
+            const [rx, ry] = roomXY(e);
             const q = personAt(rx, ry);
             if (skipClick) { skipClick = false; return; }          // that was a throw
             if (q && dodgeThrow(q)) return;
@@ -1931,7 +1967,11 @@
         /* Holding the ball: press and hold (anywhere in the room) to wind up, let go to throw that way.
            A quick click still walks (or throws at whoever's under it). */
         let press = null, skipClick = false;
-        const roomXY = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * A.W, (e.clientY - r.top) / r.height * A.H]; };
+        function roomXY(e) {
+            const r = cv.getBoundingClientRect();
+            if (r25 && v25) return v25.pick((e.clientX - r.left) / r.width * cv.width, (e.clientY - r.top) / r.height * cv.height);
+            return [(e.clientX - r.left) / r.width * A.W, (e.clientY - r.top) / r.height * A.H];
+        }
         stage.addEventListener('pointerdown', (e) => {
             if (!haveBall() || e.button > 0 || e.target !== cv) return;
             const [x, y] = roomXY(e);
@@ -4286,10 +4326,19 @@
             scale = Math.max(0.5, Math.min(w / A.W, hgt / A.H));
             dpr = Math.min(2, window.devicePixelRatio || 1);
             // Stretched, the canvas keeps the room's shape inside and the page pulls it out to the stage's.
-            cv.style.width = Math.round(stretch ? Math.max(w, A.W * 0.5) : A.W * scale) + 'px';
-            cv.style.height = Math.round(stretch ? Math.max(hgt, A.H * 0.5) : A.H * scale) + 'px';
-            cv.width = Math.round(A.W * scale * dpr);
-            cv.height = Math.round(A.H * scale * dpr);
+            if (r25) {                                                          // 2.5D: the whole stage (the camera frames the room in it)
+                cv.style.width = Math.round(w) + 'px'; cv.style.height = Math.round(hgt) + 'px';
+                cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+            } else {
+                cv.style.width = Math.round(stretch ? Math.max(w, A.W * 0.5) : A.W * scale) + 'px';
+                cv.style.height = Math.round(stretch ? Math.max(hgt, A.H * 0.5) : A.H * scale) + 'px';
+                cv.width = Math.round(A.W * scale * dpr);
+                cv.height = Math.round(A.H * scale * dpr);
+            }
+            if (v25) {
+                v25.el.hidden = !r25;
+                if (r25) { v25.size(cv.width, cv.height); Object.assign(v25.el.style, { left: cv.offsetLeft + 'px', top: cv.offsetTop + 'px', width: cv.style.width, height: cv.style.height }); }
+            }
         }
         layoutChat();
         // The stage changes size (the window, a phone turned round, the bar wrapping): place the chat again, then the room.
@@ -4360,6 +4409,7 @@
                 tvEl.hidden = !want;
             }
             if (!want) return false;
+            tvEl.hidden = r25; if (r25) return true;                       // (2.5D: not on its wall yet)
             const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, ky = r.height / A.H, S = A.screenAt(screenLive, tvK);
             const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * ky) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * ky) + 'px';
             if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
@@ -4370,10 +4420,12 @@
         function frame(ms) {
             if (stopped) return;
             requestAnimationFrame(frame);
-            if (document.hidden || ms - last < 1000 / (hkView() || kartView() ? 60 : FPS) - 2) return;      // the games: 60 a second
+            if (document.hidden || ms - last < 1000 / (hkView() || kartView() || r25 ? 60 : FPS) - 2) return;      // the games and 2.5D: 60 a second
             const dt = Math.min(0.1, (ms - (last || ms)) / 1000) * clockRate;
             last = ms;
             step(dt);
+            const room25 = !kartView() && !hkView() && !rmOn() && want25();   // the full-screen games draw as they always have
+            if (room25 !== r25) { r25 = room25; fit(); }
             if (kartView()) { drawRace(dt, now()); return; }
             const hv = hkView();
             if (hkL.was && !hv && hkL.whiteEnd) { hkL.backAt = now(); hkL.whiteEnd = false; }        // Forever 2's ending: back to the hall out of the white
@@ -4415,7 +4467,7 @@
                 if (k > CROP_S) { crops.splice(i, 1); continue; }
                 if (k >= 0) A.cropCircle(lc, crops[i].x, crops[i].y, Math.min(1, k / 0.6, (CROP_S - k) / 10));
             }
-            const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y);
+            const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y), list25 = [];
             const heads = new Map(), fight = duelOf(me);
             crtTops.clear();
             btStep(dt);
@@ -4439,6 +4491,7 @@
                 const og = !p.walking && openGameOf(p.h);
                 const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e || (og ? 'sit' : p.e), et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t, hover: p.hover, noShadow: !!(ay && ay.lift) };
+                if (r25) list25.push({ h: p.h, x: po.x, y: p.y, lift: p.y - po.y, look: p.l, po });
                 if (ay) lc.globalAlpha = ay.a;
                 const au = auraOf(p.a);
                 if (au) {
@@ -4485,38 +4538,46 @@
             ctx.imageSmoothingEnabled = false;
             const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) || (bt.state === 'enter' && t - btStart < 0.7)
                 || booms.some(b => t - b.at < 0.5) || swaves.some(w => t - w.at < 0.3) ? cv.width / A.W * 2 : 0;
-            ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
+            if (r25) {
+                ctx.clearRect(0, 0, cv.width, cv.height);
+                v25.frame({ t, dt, air: onAir, info, talking: hostTalking, deskX: A.deskX(tvK), intro, introSecs, club: !!onAir.music, people: list25 });
+            } else ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
             if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
-            const u = cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
+            const u = r25 ? v25.unit : cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
+            const at = (x, y, foot) => r25 ? v25.at(x, y, foot) : [x * u, y * u];
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             for (const p of sorted) {
                 if (ayyAway.has(p.h) && !heads.has(p.h)) continue;                 // up in the UFO: no name on the floor
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
                 ctx.globalAlpha = fight && p.h !== fight.a && p.h !== fight.b ? 0.3 : 1;
-                const nx = p.x * u, ny = (p.y + 1.5) * u;
+                const [nx, ny] = at(p.x, p.y + 1.5, p.y);
                 ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(p.n, nx + dpr, ny + dpr);
                 ctx.fillStyle = p.c || (p.h === me ? '#ffd34a' : '#e6e0f2'); ctx.fillText(p.n, nx, ny);
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
             ctx.globalAlpha = 1;
-            sprintBar(u);
-            drawGlows(sorted, heads, u, t);
-            drawHeld(sorted, heads, u);
-            if (duels.size) drawDuels(t, u, heads);
-            if (blasted.size) drawBlasted(t, u, heads);
-            if (db.state) drawBall(t, u, heads);
-            drawMoods(sorted, heads, u, t);
-            drawHits(t, u, heads);
-            for (const p of sorted) if (p.sayUntil > t) bubble(p.say, p.x * u, heads.get(p.h) * u, u);
-            drawBtWords(t, u, danielTop);
-            for (const b of booms) if (t - b.at < 1) popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020');
-            gameBadges(t, u, heads);
-            tableBadges(u, heads, t);
-            openGameSigns(u, t);
-            if (hostTalking && onAir.live) bubble(hostSay.text, (A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u, u);
-            if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
-            drawAbducted(t, u);
+            if (!r25) {                     // (2.5D: these come over one by one — design/hall-25d-scope.md)
+                sprintBar(u);
+                drawGlows(sorted, heads, u, t);
+                drawHeld(sorted, heads, u);
+                if (duels.size) drawDuels(t, u, heads);
+                if (blasted.size) drawBlasted(t, u, heads);
+                if (db.state) drawBall(t, u, heads);
+                drawMoods(sorted, heads, u, t);
+                drawHits(t, u, heads);
+            }
+            for (const p of sorted) if (p.sayUntil > t && heads.has(p.h)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), u);
+            if (!r25) {
+                drawBtWords(t, u, danielTop);
+                for (const b of booms) if (t - b.at < 1) popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020');
+                gameBadges(t, u, heads);
+                tableBadges(u, heads, t);
+                openGameSigns(u, t);
+            }
+            if (hostTalking && onAir.live) bubble(hostSay.text, ...(r25 ? v25.atStage(A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16, A.RADIOMAN_MOUTH.y - 6) : [(A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u]), u);
+            if (cameoAt && t - hostSay.at > 0.2 && !r25) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
+            if (!r25) drawAbducted(t, u);
             if (t - (hkL.backAt || -9) < 1.4) { ctx.globalAlpha = Math.max(0, 1 - (t - hkL.backAt) / 1.4); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
         }
 
@@ -4591,6 +4652,9 @@
                 '<div class="hl-row"><span>Name colour</span><div>' + ['', ...NAME_COLORS].map(c =>
                     '<button type="button" class="hl-sw hl-nc" data-nc="' + c + '" title="' + (c || 'The usual') + '" style="background:' + (c || '#2a2438') + '">' + (c ? '' : '✕') + '</button>').join('') + '</div></div>' +
                 sec('Options') +
+                (v25Offered() ? '<div class="hl-row"><span>View</span><select data-view>' +
+                    [['auto', 'Auto (Effects ' + ({ simple: 'Simple: 2D', mid: 'Mid: 2.5D', advanced: 'Advanced: 2.5D' })[fxLevel()] + ')'], ['2d', '2D'], ['25d', '2.5D'], ['3d', '3D (coming: 2.5D for now)']].map(([v, n]) =>
+                        '<option value="' + v + '"' + (viewPref === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div>' : '') +
                 '<div class="hl-row"><span>This panel</span><label class="hl-auto"><input type="checkbox" data-lookauto' + (lookAuto ? ' checked' : '') + '> Close it when I click the room or walk</label></div>' +
                 '<div class="hl-row"><span>Fun</span><label class="hl-safe"><input type="checkbox" data-safe' + (safe ? '' : ' checked') + '> Bonks, fish slaps and snowballs ' +
                     '<small>(off: nobody can hit you, and you can’t hit anyone)</small></label></div>' +
@@ -4617,6 +4681,7 @@
             if (aura) A.aura(g, au[0], au[1], 20, 40, t, true, look, o);
         }
         lookEl.addEventListener('change', (e) => {
+            if (e.target.matches('[data-view]')) { viewPref = e.target.value; try { localStorage.setItem('ltl.hallView', viewPref); } catch { /* this time only */ } return; }
             if (e.target.matches('[data-lookauto]')) { lookAuto = e.target.checked; try { localStorage.setItem('ltl.hallLookAuto', lookAuto ? '1' : '0'); } catch { /* full */ } return; }
             if (!e.target.matches('[data-safe]')) return;
             safe = !e.target.checked;
