@@ -208,7 +208,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                     return '<button type="button" class="vr-item" data-vid="' + esc(v.vid) + '"' + (why ? ' disabled' : '') + '><img alt="" loading="lazy" src="' + esc(v.thumb) + '">' +
                         '<span><b>' + esc(v.title) + '</b><small class="dim">' + esc(v.ch) + ' · ' + (v.live ? 'LIVE' : mmss(v.sec)) + (why ? ' · ' + why : '') + '</small></span></button>';
                 }).join('') : '<p class="hint">Nothing found.</p>') : '';
-            const input = $('.vr-q input', box), had = !!input && document.activeElement === input, val = input ? input.value : q;
+            const input = $('.vr-q input', box), had = !!input && document.activeElement === input, val = input ? input.value : q, sel = had ? [input.selectionStart, input.selectionEnd] : null;
             box.innerHTML = '<div class="vr">' +
                 '<p class="hint">Up to ' + mmss(tvq.maxSec) + ', ' + tvq.perPerson + ' each' + (mine ? ' · yours waiting: ' + mine : '') + '. They play on FunpostTV.</p>' +
                 (tvq.open ? '<form class="vr-q row"><input class="grow" maxlength="200" placeholder="Search YouTube, or paste a link" autocomplete="off" value="' + esc(val) + '"><button class="btn go">Search</button></form>' : '') +
@@ -217,7 +217,7 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
                     (tvq.queue.length > 8 ? '<li class="dim">…and ' + (tvq.queue.length - 8) + ' more</li>' : '') + '</ol>' : '') +
                 (tvq.show && tvq.queue.length ? '<p class="hint">On air: the host plays these when they choose.</p>' : '') +
                 '<div class="vr-list">' + list + '</div></div>';
-            if (had) { const i = $('.vr-q input', box); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+            if (had) { const i = $('.vr-q input', box); if (i) { i.focus(); i.setSelectionRange(sel[0], sel[1]); } }   // a queue change mid-typing: the text, focus and caret stay
         }
         on('hall', (m) => {
             if (m.t === 'hall-tv-q') { const was = !!(tvq && tvq.on); tvq = m; if (!!m.on !== was) onOff(!!m.on); paint(); }
