@@ -55,7 +55,7 @@ The media keys on your keyboard play and pause.
 | 📀 **Albums** | Play the station's albums in the app, or download them. |
 | 📋 **Board** | The station's board as a real browser view, behind an 18+ warning. |
 | 📺 **TV** | The station's video stream while it's on (the button pulses: red live, blue for a replay); its channel in your browser otherwise. A replay or upload opens where you left off. |
-| 💫 **Links** | The station's friends. Its PayPal, Patreon or Ko-fi links sit behind a pink **💖 Donate** button on top. |
+| 💫 **Links** | The station's friends. Its PayPal, Patreon or Ko-fi links sit behind the pink **💖 Donate** button just right of Links. |
 | ⚙️ **Settings** | Everything below. |
 | 🕺 **blug.dj/jej** | The station's pixel room (🕺 in the Chat window's top bar, or its own tab in One window). [Below](#blugdjjej). |
 | 🟩 **Interface** | *Hidden.* [How to find it](interface.md). |

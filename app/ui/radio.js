@@ -152,21 +152,28 @@
         const list = ELEMENTS.filter(available);
         if (one) return one.update(s, list);
         const label = (el) => (el.id === 'tv' && s.tv && s.tv.live && s.tv.replay ? 'Replay' : '') || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
-        const key = list.map(el => el.id + ':' + label(el)).join(',');
+        const give = UI.donate.list(s.extras);
+        const key = list.map(el => el.id + ':' + label(el)).join(',') + '|' + give.map(g => g.url).join(',');
         if (key !== lastButtons) {
             lastButtons = key;
-            $('.side').innerHTML = list.map(el => '<button type="button" data-el="' + el.id + '" title="' + esc(el.about) + '"><span class="e">' + el.icon + '</span><span class="l">' + esc(label(el)) + '</span></button>').join('');
+            UI.donate.close();
+            $('.side').innerHTML = list.map(el => '<button type="button" data-el="' + el.id + '" title="' + esc(el.about) + '"><span class="e">' + el.icon + '</span><span class="l">' + esc(label(el)) + '</span></button>' +
+                (el.id === 'links' && give.length ? UI.donate.button() : '')).join('');
         }
         if (key !== lastFit) { lastFit = key; requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); }      // re-measure for the new set
         for (const b of $('.side').children) {
             const id = b.dataset.el;
+            if (!id) continue;
             b.classList.toggle('open', elState[id] === 'open');
             b.classList.toggle('tucked', elState[id] === 'tucked');
             if (id === 'tv') { b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !elState.tv); b.classList.toggle('replay', !!(s.tv && s.tv.replay)); }
             if (elState[id] === 'open' && id === 'chat') b.classList.remove('new');
         }
     }
-    if (!one) $('.side').onclick = (e) => { const b = e.target.closest('button[data-el]'); if (b) toggle(b.dataset.el); };
+    if (!one) $('.side').onclick = (e) => {
+        if (e.target.closest('[data-dn]')) return UI.donate.toggle(e.target.closest('[data-dn]'), UI.donate.list(s.extras));
+        const b = e.target.closest('button[data-el]'); if (b) toggle(b.dataset.el);
+    };
 
     function open(id) {
         if (one) return one.open(id);

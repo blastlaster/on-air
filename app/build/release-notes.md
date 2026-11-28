@@ -4,4 +4,4 @@
 - **Request a video for FunpostTV:** when the station turns requests on, press **📥** in blug.dj/jej (or on the TV screen), search YouTube right there or paste a link, and it plays on the stage screen for everyone, in turn, with its sound in the room. Up to 10 minutes (the host can allow longer), 3 waiting each, no live streams, and not while FunpostTV itself is live. During a show the host decides when they play. When they run out, the screen goes back to FunpostTV's own video.
 - **Watching FunpostTV:** the controls are one line just above the video, tucking away to 📺 when you leave them, and your popcorn and water show over the video.
 - **Fixed:** in 2.5D, the flat 2D disco ball and spotlights no longer show on the walls. FunpostTV steps aside while Daniel has the stage in Burgertime, instead of covering him.
-- **💖 Donate in Links:** the station's PayPal and Patreon links now sit behind a pink Donate button at the top of the Links window, as on the site.
+- **💖 Donate:** a pink Donate button just right of Links, as on the site: the station's PayPal and Patreon, in a little bubble.

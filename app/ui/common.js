@@ -234,7 +234,63 @@
         } catch { /* no sound here */ }
     }
 
+    /* 💖 Donate, as on the site: the station's support links (PayPal, Patreon, Ko-fi…, from its Links)
+       behind a pink pill just right of the Links button, and a speech bubble under it. */
+    const GIVE = [[/(^|\.)paypal\.(com|me)$/i, 'paypal', '💙 PayPal'], [/(^|\.)patreon\.com$/i, 'patreon', '♥ Patreon'],
+        [/(^|\.)ko-fi\.com$/i, 'kofi', '☕ Ko-fi'], [/(^|\.)buymeacoffee\.com$/i, 'kofi', '☕ Buy me a coffee'], [/(^|\.)liberapay\.com$/i, 'kofi', '💛 Liberapay']];
+    const giveOf = (u) => { try { const h = new URL(u).hostname; return GIVE.find(g => g[0].test(h)) || null; } catch { return null; } };
+    const donate = {
+        isGive: (u) => !!giveOf(u),
+        /** The station's support links, PayPal first. */
+        list(extras) {
+            const out = [];
+            for (const g of (extras && extras.links) || []) for (const l of g.items || []) { const w = giveOf(l.url); if (w) out.push({ url: l.url, kind: w[1], label: w[2] }); }
+            const rank = (k) => (k === 'paypal' ? 0 : k === 'patreon' ? 1 : 2);
+            return out.sort((x, y) => rank(x.kind) - rank(y.kind));
+        },
+        button: () => '<button type="button" class="dn-tab" data-dn title="Support the station" aria-expanded="false"><span class="dn-heart">💖</span><span class="l">Donate</span></button>',
+        toggle(btn, list) {
+            let m = document.querySelector('body > .dn-menu');
+            if (m && m.__for === btn) return donate.close();
+            donate.close();
+            m = document.createElement('div');
+            m.className = 'dn-menu'; m.__for = btn;
+            m.innerHTML = '<p>thank u fren (｡♥‿♥｡)</p>' + list.map(g => '<button type="button" class="dn-go dn-' + g.kind + '" data-give="' + esc(g.url) + '" title="' + esc(g.url) + '">' + esc(g.label) + '</button>').join('') + '<p class="dn-foot">keeps the radio on air ✨</p>';
+            document.body.appendChild(m);
+            btn.setAttribute('aria-expanded', 'true');
+            // Under the button with its tail pointing up at it; above it when there's room only there;
+            // beside it (the small radio window) when there's room for neither.
+            const r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+            const below = r.bottom + 10 + h <= innerHeight - 4, above = r.top - 10 - h >= 4;
+            if (below || above) {
+                const left = Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2));
+                m.classList.add(below ? 'down' : 'up');
+                m.style.left = left + 'px';
+                m.style.top = (below ? r.bottom + 10 : r.top - 10 - h) + 'px';
+                m.style.setProperty('--tail', Math.max(14, Math.min(w - 14, r.left + r.width / 2 - left)) + 'px');
+            } else {
+                const side = r.left - 10 - w >= 4 ? 'left' : 'right';
+                const top = Math.max(4, Math.min(innerHeight - h - 4, r.top + r.height / 2 - h / 2));
+                m.classList.add('side-' + side);
+                m.style.left = (side === 'left' ? r.left - 10 - w : r.right + 10) + 'px';
+                m.style.top = top + 'px';
+                m.style.setProperty('--tail', Math.max(14, Math.min(h - 14, r.top + r.height / 2 - top)) + 'px');
+            }
+            m.onclick = (e) => { const b = e.target.closest('[data-give]'); if (b) { app.openExternal(b.dataset.give); donate.close(); } };
+        },
+        close() {
+            const m = document.querySelector('body > .dn-menu');
+            if (!m) return;
+            if (m.__for) m.__for.setAttribute('aria-expanded', 'false');
+            m.remove();
+        }
+    };
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest || !e.target.closest('.dn-menu, [data-dn]')) donate.close(); }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') donate.close(); });
+    window.addEventListener('resize', () => donate.close());
+
     window.UI = {
+        donate,
         $, esc, clock, mmss, init, setTitle, toast, sheet, closeSheet, askName, flash, chime, SOUNDS,
         get info() { return info; }, get me() { return me; }, get skin() { return lookNow || ''; }, holidayOn, holiday,
         onUi: (f) => onUiFns.push(f),

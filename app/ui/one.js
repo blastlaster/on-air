@@ -295,15 +295,18 @@
             const have = tabIds();
             const els = TABS.filter(id => have.has(id)).map(id => ELEMENTS.find(e => e.id === id) || { id });
             const label = (el) => NAME[el.id] || (el.id === 'tv' && s.tv && s.tv.live && s.tv.replay ? 'Replay' : '') || (el.id === 'board' && s.extras && s.extras.board && s.extras.board.title) || el.label;
-            const key = els.map(el => el.id + ':' + label(el)).join(',');
+            const give = UI.donate.list(s.extras);
+            const key = els.map(el => el.id + ':' + label(el)).join(',') + '|' + give.map(g => g.url).join(',');
             const nav = $('.one-tabs');
             if (key !== lastTabs) {
                 lastTabs = key;
+                UI.donate.close();
                 nav.innerHTML = els.map(el => '<button type="button" data-el="' + el.id + '" title="' + esc(el.about || label(el)) + '"><span class="e">' + (ICON[el.id] || el.icon) + '</span><span class="l">' + esc(label(el)) + '</span>' +
-                    (el.nsfw ? '<span class="nsfw-tag">NSFW</span>' : '') + '</button>').join('');
+                    (el.nsfw ? '<span class="nsfw-tag">NSFW</span>' : '') + '</button>' + (el.id === 'links' && give.length ? UI.donate.button() : '')).join('');
             }
             for (const b of nav.children) {
                 const id = b.dataset.el;
+                if (!id) continue;
                 b.classList.toggle('open', PARTS.includes(id) ? (partsOf(show.mid).includes(id) || (show.under === id && show.np)) : id in show ? !!show[id] : fly === id);
                 if (id === 'tv') { b.classList.toggle('pulse', !!(s.tv && s.tv.live) && !show.tv); b.classList.toggle('replay', !!(s.tv && s.tv.replay)); }
                 if (id === 'chat' && show.chat) b.classList.remove('new');
@@ -315,6 +318,8 @@
             if (box.dataset.k !== ak) { box.dataset.k = ak; box.innerHTML = acts.map(([id, t]) => '<button type="button" class="btn" data-el="' + id + '">' + t + '</button>').join(''); }
         }
         function onClick(e) {
+            const d = e.target.closest('[data-dn]');
+            if (d) return UI.donate.toggle(d, UI.donate.list(s.extras));
             const b = e.target.closest('button[data-el]');
             if (b) toggle(b.dataset.el);
         }

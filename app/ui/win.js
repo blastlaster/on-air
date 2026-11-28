@@ -910,35 +910,18 @@ body, #background { background: ${p.bg} !important; color: ${p.text} !important;
        ========================================================= */
     function links(box) {
         let key = '';
-        // Support links (PayPal, Patreon, Ko-fi…) come out of their group into a 💖 Donate button on top, as on the site.
-        const GIVE = [[/(^|\.)paypal\.(com|me)$/i, 'paypal', '💙 PayPal'], [/(^|\.)patreon\.com$/i, 'patreon', '♥ Patreon'],
-            [/(^|\.)ko-fi\.com$/i, 'kofi', '☕ Ko-fi'], [/(^|\.)buymeacoffee\.com$/i, 'kofi', '☕ Buy me a coffee'], [/(^|\.)liberapay\.com$/i, 'kofi', '💛 Liberapay']];
-        const giveOf = (u) => { try { const h = new URL(u).hostname; return GIVE.find(g => g[0].test(h)); } catch { return null; } };
+        // Support links (PayPal, Patreon…) live behind 💖 Donate, next to the Links button: not here too.
         function show(s) {
             const all = (s.extras && s.extras.links) || [];
             const k = JSON.stringify(all);
             if (k === key) return;
             key = k;
-            const give = [];
-            const groups = all.map(g => ({ ...g, items: (g.items || []).filter(l => { const w = giveOf(l.url); if (w) give.push({ url: l.url, kind: w[1], label: w[2] }); return !w; }) }))
-                .filter(g => g.items.length);
-            const ORDER = ['paypal', 'patreon'], rank = (k) => (ORDER.includes(k) ? ORDER.indexOf(k) : 9);
-            give.sort((x, y) => rank(x.kind) - rank(y.kind));
-            box.innerHTML = (give.length ? '<div class="dn-row"><button type="button" class="dn-tab" data-dn aria-expanded="false"><span class="dn-heart">💖</span> Donate</button>' +
-                '<div class="dn-menu" hidden><p>thank u fren (｡♥‿♥｡)</p>' + give.map(g => '<button type="button" class="dn-go dn-' + g.kind + '" data-url="' + esc(g.url) + '" title="' + esc(g.url) + '">' + esc(g.label) + '</button>').join('') +
-                '<p class="dn-foot">keeps the radio on air ✨</p></div></div>' : '') +
-                (groups.length ? groups.map(g => '<section class="lk"><h3>' + esc(g.title || '') + '</h3><ul class="list">' +
+            const groups = all.map(g => ({ ...g, items: (g.items || []).filter(l => !UI.donate.isGive(l.url)) })).filter(g => g.items.length);
+            box.innerHTML = (groups.length ? groups.map(g => '<section class="lk"><h3>' + esc(g.title || '') + '</h3><ul class="list">' +
                 (g.items || []).map(l => '<li><button type="button" class="linkish grow" data-url="' + esc(l.url) + '" title="' + esc(l.url) + '">' + esc(l.title || l.url) + '</button>' + (l.nsfw ? '<span class="tag nsfw">NSFW</span>' : '') + '</li>').join('') +
-                '</ul></section>').join('') : give.length ? '' : '<div class="empty">No links yet.</div>');
+                '</ul></section>').join('') : '<div class="empty">No links yet.</div>');
         }
-        const menu = (on) => { const m = $('.dn-menu', box), t = $('[data-dn]', box); if (!m) return; m.hidden = !on; t.setAttribute('aria-expanded', on ? 'true' : 'false'); };
-        box.onclick = (e) => {
-            if (e.target.closest('[data-dn]')) { const m = $('.dn-menu', box); menu(m && m.hidden); return; }
-            const b = e.target.closest('[data-url]');
-            if (b) { app.openExternal(b.dataset.url); menu(false); return; }
-            if (!e.target.closest('.dn-menu')) menu(false);
-        };
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu(false); });
+        box.onclick = (e) => { const b = e.target.closest('[data-url]'); if (b) app.openExternal(b.dataset.url); };
         on('state', show); show(core.state);
     }
 
