@@ -724,7 +724,7 @@
                 case 'hall-tv-q': tvq = m; tvqAt = now(); paintTvReq(); break;                  // FunpostTV requests: what's on, what's waiting
                 case 'hall-tv-results': tvReqResults(m); break;
                 case 'hall-tv-skipped': U.toast('📺 Skipped “' + m.title + '”: ' + m.why); break;
-                case 'hall-tv-requested': tvReqBusy = false; U.toast('📺 Asked for: ' + m.title + (m.wait ? ' (' + m.wait + ' ahead)' : '')); paintTvReqPanel(); break;
+                case 'hall-tv-requested': tvReqBusy = false; tvReqQ = ''; tvReqTyped = ''; tvReqRes = null; U.toast('📺 Asked for: ' + m.title + (m.wait ? ' (' + m.wait + ' ahead)' : '')); paintTvReqPanel(); break;
                 case 'hall-cam':                                                // the host moves the 2.5D camera for a moment (2D: nothing)
                     if (v25) v25.cue(m.shot);
                     break;
@@ -4654,7 +4654,7 @@
         tvReqChip.type = 'button'; tvReqChip.className = 'btn hall-tvreq-chip'; tvReqChip.hidden = true; tvReqChip.textContent = '📥'; tvReqChip.title = 'Request a video for FunpostTV';
         stage.appendChild(tvReqChip);
         tvReqChip.addEventListener('click', (e) => { e.stopPropagation(); openTvReq(); });
-        let tvReqRes = null, tvReqBusy = false, tvReqQ = '';
+        let tvReqRes = null, tvReqBusy = false, tvReqQ = '', tvReqTyped = '';     // (tvReqTyped: what's in the box now, kept across repaints)
         const ytLink = (v) => /(youtube\.com|youtu\.be)\//i.test(v) || /^[\w-]{11}$/.test(v.trim());
         const mmss = (sec) => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
         function openTvReq() {
@@ -4672,6 +4672,8 @@
         }
         function paintTvReqPanel() {
             if (!tvq) return;
+            const was = tvReqEl.querySelector('.htr-q input'), focused = !!was && document.activeElement === was;
+            const caret = focused ? [was.selectionStart, was.selectionEnd] : null;
             const n = tvq.now, mineN = tvq.queue.filter(q => q.by === core.name).length;
             const state = (n ? '<div class="htr-now">▶ <b>' + esc(n.title) + '</b> <small>' + (n.live ? 'live' : mmss(n.sec)) + ' · ' + esc(n.by) + '</small></div>' : '') +
                 (tvq.queue.length ? '<ol class="htr-wait">' + tvq.queue.slice(0, 6).map(q => '<li>' + esc(q.title) + ' <small>' + mmss(q.sec) + ' · ' + esc(q.by) + '</small></li>').join('') +
@@ -4687,8 +4689,10 @@
                 }).join('') : '<p class="htr-note">Nothing found.</p>') : '';
             tvReqEl.innerHTML = '<div class="htr-top"><b>📺 Request a video</b><small>up to ' + mmss(tvq.maxSec) + ' · ' + tvq.perPerson + ' each' + (mineN ? ' · yours waiting: ' + mineN : '') + '</small>' +
                 '<button type="button" class="btn" data-x title="Close">✕</button></div>' +
-                (tvq.open ? '<form class="htr-q"><input maxlength="200" placeholder="Search YouTube, or paste a link" autocomplete="off" value="' + esc(tvReqQ) + '"><button class="btn go">Search</button></form>' : '') +
+                (tvq.open ? '<form class="htr-q"><input maxlength="200" placeholder="Search YouTube, or paste a link" autocomplete="off" value="' + esc(tvReqTyped) + '"><button class="btn go">Search</button></form>' : '') +
                 state + '<div class="htr-list">' + list + '</div>';
+            const box = tvReqEl.querySelector('.htr-q input');
+            if (box && focused) { box.focus(); try { box.setSelectionRange(caret[0], caret[1]); } catch { /* fine */ } }
         }
         function tvReqResults(m) { tvReqBusy = false; tvReqRes = m; if (m.maxSec && tvq) tvq.maxSec = m.maxSec; paintTvReqPanel(); }
         tvReqEl.addEventListener('click', (e) => {
@@ -4701,12 +4705,17 @@
             e.preventDefault();
             const v = (tvReqEl.querySelector('input') || {}).value || '';
             if (!v.trim()) return;
-            tvReqQ = v.trim(); tvReqBusy = true; paintTvReqPanel();
+            tvReqQ = v.trim(); tvReqTyped = v; tvReqBusy = true; paintTvReqPanel();
             if (ytLink(v)) core.send({ t: 'hall-tv-request', url: v.trim() });
             else core.send({ t: 'hall-tv-search', q: v.trim() });
             setTimeout(() => { if (tvReqBusy) { tvReqBusy = false; paintTvReqPanel(); } }, 8000);
         });
         tvReqEl.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') tvReqEl.hidden = true; });
+        tvReqEl.addEventListener('input', (e) => {
+            if (!e.target.matches('.htr-q input')) return;
+            tvReqTyped = e.target.value;
+            if (!tvReqTyped.trim() && (tvReqRes || tvReqQ)) { tvReqQ = ''; tvReqRes = null; tvReqBusy = false; paintTvReqPanel(); }
+        });
         /** 📥 on the screen's corner, while requests are on and the screen's up. */
         function placeTvReqChip() {
             const on = !!(tvq && tvq.on && tvq.open && !tvEl.hidden && tvEl.firstChild && !watch);
