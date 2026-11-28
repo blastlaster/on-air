@@ -4689,7 +4689,9 @@
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
             cards25 = []; under25 = [];
-            under(() => A.fxBack(lc, t, onAir, fx));
+            // (2.5D has a mirror ball and club lights of its own: the 2D disco ball and spotlights aren't painted on its walls.)
+            const fxR = r25 ? { ...(fx || { level: onAir.music ? 2 : 0 }), on: { ...((fx && fx.on) || {}), disco: false, spots: false } } : fx;
+            under(() => A.fxBack(lc, t, onAir, fxR));
             if (dbOn()) under(court);
             for (let i = crops.length - 1; i >= 0; i--) {                       // crop circles, under everyone
                 const k = t - crops[i].at, c = crops[i];
@@ -4762,7 +4764,7 @@
             drawAyy(t);
             for (let i = booms.length - 1; i >= 0; i--) { const s = t - booms[i].at, b = booms[i]; if (s > 2.2) booms.splice(i, 1); else card(b.x, b.y, 0, 120, 120, 60, 84, () => A.explosion(lc, b.x, b.y, s)); }
             if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) under(() => A.rubble(lc, t - btBurp - 2.2, 7));
-            under(() => A.lights(lc, t, onAir, fx));
+            under(() => A.lights(lc, t, onAir, fxR));
             if (intro != null && !r25) A.introOver(lc, t, intro, introSecs);     // (2.5D does its own)
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
             // (2.5D: these frames go over the room, in its bottom corners.)
