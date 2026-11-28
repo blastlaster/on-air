@@ -235,13 +235,29 @@
             outside: { len: 6, shot: (s) => ({ yaw: 0.55 + s * 0.05, pitch: 0.3, dist: 560, fov: 40, at: [120, 16, 104] }) },
             dodge: { len: 5, shot: (s) => ({ yaw: 0.7 * Math.sin(s / 5 * Math.PI * 2), pitch: 0.42, dist: roomShot.dist * 1.08, fov: roomShot.fov, at: [120, 14, 100] }) }
         };
+        /* Watching FunpostTV from a seat in front of the stage: the camera drops to your eyes, looking up at the TV in
+           the middle of the stage — almost the whole screen off air; live, the TV on the left and Radioman (his desk
+           moved aside) on the right. You can look a little either way and zoom in or out. */
+        let watchV = null, watchShot = null, watchKey = '';
+        const TVR = { x0: 84, x1: 156, top: 58 - 3, bot: 58 - 37 };       // hall-art.js CENTRE_TV, on the stage at Z0 + 3
+        function watchAim(aspect) {
+            const v = watchV, key = [v.live ? 1 : 0, Math.round(v.deskX || 0), Math.round(v.seatX), aspect.toFixed(3)].join(':');
+            if (key !== watchKey) {
+                const z = Z0 + 3, pts = [[TVR.x0, TVR.top, z], [TVR.x1, TVR.top, z], [TVR.x1, TVR.bot, z], [TVR.x0, TVR.bot, z]];
+                if (v.live) { const dx = 120 + (v.deskX || 0); pts.push([dx - 26, 54, z], [dx + 26, 54, z], [dx - 26, 9, z], [dx + 26, 9, z]); }
+                watchShot = fitShot({ yaw: -(v.seatX - 120) / 260, pitch: -0.08, dist: 120, fov: 46, at: [120, 38, z] }, pts, aspect, v.live ? 0.9 : 0.97);
+                watchKey = key;
+            }
+            const s = watchShot, k = v.zoom || 1;
+            return { yaw: s.yaw + (v.look || 0) * 0.4, pitch: s.pitch, dist: s.dist * k, fov: s.fov, at: s.at };
+        }
         function camAim(dt, t) {
             const aspect = W / H;
             if (!roomShot || Math.abs(aspect - roomAspect) > 0.001) { roomShot = fitShot({ yaw: 0, pitch: 0.5, dist: 300, fov: 40, at: [120, 14, 104] }, ROOM_PTS, aspect, 0.96); roomAspect = aspect; }
             clock = t;
             if (cue && cue.at == null) cue.at = t;
             if (cue && t - cue.at > CUES[cue.kind].len) cue = null;
-            const s = cue ? CUES[cue.kind].shot(t - cue.at) : roomShot, e = aimed ? Math.min(1, dt * 2.4) : 1;
+            const s = cue ? CUES[cue.kind].shot(t - cue.at) : watchV ? watchAim(aspect) : roomShot, e = aimed ? Math.min(1, dt * (watchV ? 3.2 : 2.4)) : 1;
             aimed = true;
             for (const k of ['yaw', 'pitch', 'dist', 'fov']) cam[k] += (s[k] - cam[k]) * e;
             for (let i = 0; i < 3; i++) cam.at[i] += (s.at[i] - cam.at[i]) * e;
@@ -405,6 +421,9 @@
                 atlasG.translate(sx + ax - Math.round(q.x), sy + ay - Math.round(q.y - (q.lift || 0)));
                 try { q.paint(atlasG); } catch (err) { console.warn('2.5D card', err); }
                 atlasG.restore();
+                if (q.fade) {                                             // see-through (between you and the TV while you watch)
+                    atlasG.save(); atlasG.globalCompositeOperation = 'destination-in'; atlasG.fillStyle = 'rgba(0,0,0,' + q.fade + ')'; atlasG.fillRect(sx, sy, w, h); atlasG.restore();
+                }
                 const x = q.x, z = q.y, lift = q.lift || 0, l = -ax, r = w - ax, top = ay + lift, bot = ay - h + lift;
                 quad(T.atlas, 'card', [x + R[0] * l, top, z + R[2] * l], [x + R[0] * r, top, z + R[2] * r], [x + R[0] * r, bot, z + R[2] * r], [x + R[0] * l, bot, z + R[2] * l], sx, sy, sx + w, sy + h);
                 if (q.shadow) quad(T.shadow, 'shadow', [x - 5, 0.1, z - 2], [x + 5, 0.1, z - 2], [x + 5, 0.1, z + 2], [x - 5, 0.1, z + 2], 0, 0, 16, 16);
@@ -480,6 +499,8 @@
             /** The canvas's size in device pixels. */
             size(w, h) { W = Math.max(1, Math.round(w)); H = Math.max(1, Math.round(h)); if (el.width !== W || el.height !== H) { el.width = W; el.height = H; } },
             frame,
+            /** Watching FunpostTV from a seat: { seatX, live, deskX, look (-1 to 1: side to side), zoom (0.55 to 1.5) }, or null to stand up. */
+            watch(v) { watchV = v; },
             /** A camera moment (CUES), starting on the next frame. */
             cue(kind) { if (CUES[kind]) cue = { kind, at: null }; },
             /** Device pixels per room pixel in the middle of the floor (for text sizes, bubbles). */

@@ -248,18 +248,155 @@
            In 2D, card() and under() just draw, there and then. */
         let cards25 = [], under25 = [];
         const withLc = (g, fn) => { const keep = lc; lc = g; try { return fn(); } finally { lc = keep; } };
+        let fadeFrom = null;                    // (watching FunpostTV: anyone further forward than your seat is see-through)
         function card(x, y, lift, w, h, ax, ay, fn, shadow) {
             if (!r25) return fn();
-            cards25.push({ x, y, lift, w, h, ax, ay, shadow, paint: (g) => withLc(g, fn) });
+            cards25.push({ x, y, lift, w, h, ax, ay, shadow, fade: fadeFrom != null && y > fadeFrom ? 0.3 : 0, paint: (g) => withLc(g, fn) });
         }
         function under(fn) { if (r25) under25.push(fn); else fn(); }
         let spotU = 1;
         function spot(x, y) {
             if (!r25 || !v25) return;
+            if (hideSpot && Math.abs(x - hideSpot[0]) < 0.01 && Math.abs(y - hideSpot[1]) < 0.01) return ctx.setTransform(1, 0, 0, 1, -1e6, -1e6);
             const [ox, oy, sc] = v25.lens(x, y), k = sc / spotU;
             ctx.setTransform(k, 0, 0, k, ox - x * sc, oy - y * sc);
         }
         const flat = () => ctx.setTransform(1, 0, 0, 1, 0, 0);
+        let hideSpot = null;                    // (watching in 2.5D: you're the camera, so nothing's drawn on you)
+
+        /* ---------- watching FunpostTV from a seat in front of the stage ----------
+           Click the screen while FunpostTV's on the stage: you walk to a free seat in the front row and sit. In 2.5D
+           the camera drops to your eyes (hall-25d.js watch): the TV almost fills the view off air; live, the TV on
+           the left and Radioman on the right. Drag to look side to side, the wheel (or a pinch) to zoom. 🍿 and 💧:
+           popcorn and a sip of water (everyone sees you snacking; in 2.5D you see them in your hands). Walking, Esc
+           or Stand up gets you up; so does anything the room needs you for (Dodgeball asking, Burgertime, the
+           Radioman fight, a race or air hockey, the UFO), and the camera goes back to the room. */
+        let watch = null, tvNow = false;
+        const SEATED = new Set(['sit', 'popcorn', 'sip']);
+        const watchEl = document.createElement('div');
+        watchEl.className = 'hall-watch'; watchEl.hidden = true;
+        stage.appendChild(watchEl);
+        const clampK = (v, a, b) => Math.max(a, Math.min(b, v));
+        function seatFor() {
+            const y = F.y0 + 2;
+            for (const dx of [0, -14, 14, -28, 28, -42, 42, -56, 56, -70, 70]) {
+                const x = 120 + dx;
+                if (![...people.values()].some(q => q.h !== me && Math.hypot(q.x - x, q.y - y) < 7)) return [x, y];
+            }
+            return [120, y + 8];
+        }
+        function startWatch() {
+            const p = mine();
+            if (!p || watch) return;
+            const [x, y] = seatFor();
+            watch = { x, y, seated: false, look: 0, zoom: 1 };
+            popEl.hidden = true; pendingHit = null;
+            p.tx = x; p.ty = y; sendGo(x, y);
+            paintWatch();
+        }
+        function stopWatch(why) {
+            if (!watch) return;
+            const p = mine();
+            watch = null; hideSpot = null;
+            if (p && SEATED.has(p.e || '')) setPose('');
+            if (v25) v25.watch(null);
+            paintWatch();
+            if (why) U.toast(why);
+        }
+        function setPose(e) { const p = mine(); if (!p) return; p.e = e; p.et = now(); core.send({ t: 'hall-emote', e }); paintPoses(); }
+        function watchTick() {
+            const p = mine();
+            if (!p) return stopWatch();
+            if (!watch.seated) {
+                if (Math.abs(p.tx - watch.x) > 0.5 || Math.abs(p.ty - watch.y) > 0.5) return stopWatch();      // walked off somewhere else
+                if (!p.walking && Math.hypot(p.x - watch.x, p.y - watch.y) < 2) { watch.seated = true; p.face = p.x <= 120 ? 1 : -1; setPose('sit'); paintWatch(); }
+            } else if (p.walking || !SEATED.has(p.e || '')) stopWatch();
+        }
+        function paintWatch() {
+            watchEl.hidden = !watch;
+            if (!watch) return;
+            const e = (mine() || {}).e;
+            watchEl.innerHTML = '<span class="hw-t">📺 ' + (watch.seated ? 'Watching FunpostTV' : 'Finding a seat…') + '</span>' +
+                (watch.seated ? '<button type="button" class="btn' + (e === 'popcorn' ? ' on' : '') + '" data-w="popcorn" title="Popcorn">🍿</button>' +
+                    '<button type="button" class="btn' + (e === 'sip' ? ' on' : '') + '" data-w="sip" title="A sip of water">💧</button>' : '') +
+                (r25 ? '<button type="button" class="btn" data-w="l" title="Look left (or drag)">◀</button><button type="button" class="btn" data-w="r" title="Look right (or drag)">▶</button>' +
+                    '<button type="button" class="btn" data-w="in" title="Zoom in (or the wheel)">＋</button><button type="button" class="btn" data-w="out" title="Zoom out (or the wheel)">－</button>' : '') +
+                '<button type="button" class="btn" data-w="up" title="Stand up (Esc)">🚶 Stand up</button>';
+        }
+        watchEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const b = e.target.closest('[data-w]'), p = mine();
+            if (!b || !watch || !p) return;
+            const k = b.dataset.w;
+            if (k === 'up') return stopWatch();
+            if (k === 'popcorn' || k === 'sip') { if (watch.seated) setPose(p.e === k ? 'sit' : k); return paintWatch(); }
+            if (k === 'l' || k === 'r') watch.look = clampK(watch.look + (k === 'l' ? 0.5 : -0.5), -1, 1);
+            if (k === 'in' || k === 'out') watch.zoom = clampK(watch.zoom * (k === 'in' ? 0.8 : 1.25), 0.55, 1.5);
+        });
+        /** Is the pointer on FunpostTV's screen? (2D: the room point; 2.5D: inside the screen's four corners on the canvas.) */
+        function tvHit(e, rx, ry) {
+            if (!tvNow) return false;
+            const S = A.screenAt(screenLive, tvK);
+            if (!r25) return rx >= S.x && rx <= S.x + S.w && ry >= S.y && ry <= S.y + S.h;
+            if (!v25) return false;
+            const r = cv.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * cv.width, sy = (e.clientY - r.top) / r.height * cv.height;
+            const k = clampK(tvK, 0, 1), f = screenLive ? k * k * (3 - 2 * k) : 1;
+            const P = [[S.x, S.y], [S.x + S.w, S.y], [S.x + S.w, S.y + S.h], [S.x, S.y + S.h]].map(([x, y]) => v25.wallPt(x, y, f));
+            if (P.some(q => !q)) return false;
+            let sign = 0;
+            for (let i = 0; i < 4; i++) {
+                const [ax, ay] = P[i], [bx, by] = P[(i + 1) % 4], c = (bx - ax) * (sy - ay) - (by - ay) * (sx - ax);
+                if (c) { if (sign && Math.sign(c) !== sign) return false; sign = Math.sign(c); }
+            }
+            return true;
+        }
+        // Seated in 2.5D: drag to look side to side, the wheel or a pinch to zoom. Over the screen: a zoom-in pointer.
+        const wPtr = new Map();
+        let wDrag = null;
+        const pinchD = () => { const v = [...wPtr.values()]; return v.length > 1 ? Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]) : 0; };
+        stage.addEventListener('pointerdown', (e) => {
+            if (!watch || !r25 || e.target !== cv) return;
+            wPtr.set(e.pointerId, [e.clientX, e.clientY]);
+            wDrag = { x: e.clientX, look: watch.look, zoom: watch.zoom, d: pinchD(), moved: wDrag ? wDrag.moved : false };
+        });
+        listen('pointermove', (e) => {
+            if (!watch || !wPtr.has(e.pointerId)) {
+                if (e.target === cv && !rmOn() && !kartView() && !hkView()) { const [rx, ry] = roomXY(e), on = !watch && tvHit(e, rx, ry); if (cv.style.cursor !== (on ? 'zoom-in' : '')) cv.style.cursor = on ? 'zoom-in' : ''; }
+                return;
+            }
+            wPtr.set(e.pointerId, [e.clientX, e.clientY]);
+            if (wPtr.size > 1) { const d = pinchD(); if (wDrag.d) watch.zoom = clampK(wDrag.zoom * wDrag.d / d, 0.55, 1.5); wDrag.moved = true; }
+            else { const dx = e.clientX - wDrag.x; if (Math.abs(dx) > 6) wDrag.moved = true; if (wDrag.moved) watch.look = clampK(wDrag.look - dx / 250, -1, 1); }
+        });
+        const wUp = (e) => {
+            if (!wPtr.delete(e.pointerId)) return;
+            if (wDrag && wDrag.moved) { skipClick = true; setTimeout(() => { skipClick = false; }, 300); }
+            if (!wPtr.size) wDrag = null;
+        };
+        listen('pointerup', wUp); listen('pointercancel', wUp);
+        stage.addEventListener('wheel', (e) => { if (!watch || !r25) return; e.preventDefault(); watch.zoom = clampK(watch.zoom * Math.exp(e.deltaY * 0.0015), 0.55, 1.5); }, { passive: false });
+        listen('keydown', (e) => { if (watch && e.key === 'Escape' && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) stopWatch(); });
+        /** Seated in 2.5D: what's in your hands, at the bottom of the screen — the popcorn bucket and the bottle, up when you snack. */
+        function watchHands(t) {
+            const p = mine();
+            if (!p) return;
+            const k = Math.max(2, Math.round(cv.height / 95)), o = { t, et: t - p.et }, W = cv.width, H = cv.height;
+            const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h)); };
+            // The bucket, bottom right: up to you while you eat, a kernel on its way.
+            const pop = p.e === 'popcorn', up = pop && A.snackUp(o), bx = W - 30 * k, by = H - (pop ? (up ? 24 : 19) : 13) * k;
+            for (let i = 0; i < 16; i++) rect(bx + i * k, by, k, 18 * k, Math.floor(i / 2) % 2 ? '#f2eee4' : '#d0302a');
+            rect(bx - k, by - k, 18 * k, 2 * k, '#e8e0d0');
+            for (let i = 0; i < 8; i++) { const cx = bx + (i * 2 + (i % 2)) * k, cy = by - (3 + (i * 5) % 3) * k; rect(cx, cy, 3 * k, 3 * k, '#fff2b0'); rect(cx + k, cy, k, k, '#ffffff'); rect(cx, cy + 2 * k, k, k, '#f0d060'); }
+            if (up) { const a = ((o.et % 1.6) + 1.6) % 1.6, q = (a - 0.2) / 0.5; rect(bx + 6 * k - q * 12 * k, by - 6 * k - q * 10 * k, 3 * k, 3 * k, '#fff2b0'); }
+            // The bottle, bottom left: tipped up while you sip.
+            const sip = p.e === 'sip', su = sip && A.sipUp(o);
+            ctx.save();
+            ctx.translate(16 * k, H - (sip ? (su ? 20 : 12) : 8) * k);
+            if (su) ctx.rotate(0.9);
+            rect(-3 * k, -18 * k, 7 * k, 22 * k, '#bfe8ff'); rect(-2 * k, -16 * k, 2 * k, 18 * k, '#e8f8ff');
+            rect(-2 * k, -21 * k, 5 * k, 3 * k, '#3a8ad8'); rect(-3 * k, -8 * k, 7 * k, 4 * k, '#5aa0ff');
+            ctx.restore();
+        }
         const [hudC, hudG] = (() => { const c = document.createElement('canvas'); c.width = A.W; c.height = A.H; return [c, c.getContext('2d')]; })();
 
         /* ---------- you ---------- */
@@ -1638,8 +1775,9 @@
             const p = mine();
             if (!p) return;
             const [rx, ry] = roomXY(e);
+            if (!skipClick && tvHit(e, rx, ry)) { if (!watch) startWatch(); return; }      // FunpostTV: sit down and watch
             const q = personAt(rx, ry);
-            if (skipClick) { skipClick = false; return; }          // that was a throw
+            if (skipClick) { skipClick = false; return; }          // that was a throw (or a look round)
             if (q && dodgeThrow(q)) return;
             if (q) return openPop(q, e);
             popEl.hidden = true;
@@ -1970,6 +2108,7 @@
             if (!m.state) flights.clear();
             if (!quiet) {
                 const T = (i) => DB_TEAMS[i][0], sc = m.score && m.win >= 0 ? m.score[m.win] + '–' + m.score[1 - m.win] : '';      // the winner's score first
+                if (m.state === 'asking' && was !== 'asking') stopWatch();          // watching FunpostTV: up, to see it and say yes
                 if (m.state === 'asking' && was !== 'asking') { dodgeNo = false; logLine({ text: '🏐 Dodgeball! Everyone’s asked to play.' }, 'game'); U.toast('🏐 Dodgeball! Join in?'); }
                 if (m.state === 'ready' && m.round !== wasRound && v25 && m.round === 1) v25.cue('dodge');      // 2.5D: a sweep round the room as it starts
                 if (m.state === 'ready' && m.round !== wasRound) logLine({ text: '🏐 Round ' + m.round + ': ' + m.teams.map((tm, i) => T(i) + ' (' + tm.map(nameOf).join(', ') + ')').join(' vs ') }, 'game');
@@ -4496,7 +4635,8 @@
             last = ms;
             step(dt);
             const room25 = !kartView() && !hkView() && !rmOn() && want25();   // the full-screen games draw as they always have
-            if (room25 !== r25) { r25 = room25; fit(); }
+            if (room25 !== r25) { r25 = room25; fit(); paintWatch(); }
+            if (watch && (rmOn() || kartView() || hkView())) stopWatch();       // a game takes over the screen: you're up
             if (kartView()) { drawRace(dt, now()); return; }
             const hv = hkView();
             if (hkL.was && !hv && hkL.whiteEnd) { hkL.backAt = now(); hkL.whiteEnd = false; }        // Forever 2's ending: back to the hall out of the white
@@ -4518,6 +4658,16 @@
             if (!onAir.live) tvK = tvOn ? 1 : 0;
             else if (t >= tvHold) tvK += Math.sign((tvOn ? 1 : 0) - tvK) * Math.min(Math.abs((tvOn ? 1 : 0) - tvK), dt / 1.4);
             const tv = screenTv(tvOn, s.tv && s.tv.videoId);
+            tvNow = !!tv;
+            if (watch) {
+                if (!tv && intro == null) stopWatch('📺 FunpostTV’s off the stage');
+                else if (bt.state === 'enter' || bt.state === 'zap' || isBurger(me)) stopWatch('🍔 Burgertime!');
+                else if (ayyMe) stopWatch();
+                else watchTick();
+            }
+            if (v25) v25.watch(watch && r25 ? { seatX: watch.x, live: !!onAir.live, deskX: A.deskX(tvK), look: watch.look, zoom: watch.zoom } : null);
+            const hideMe = !!(r25 && watch && watch.seated);
+            fadeFrom = hideMe ? watch.y + 4 : null;
             const sign = s.banner && s.banner.on ? { items: s.banner.items || [], color: s.banner.color } : null;
             const info = { station: s.name, song: tr ? [tr.artist, tr.title].filter(Boolean).join(' - ') : '', tv, sign, tvK };
             A.room(lc, t, onAir, info);
@@ -4565,7 +4715,7 @@
                 const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e || (og ? 'sit' : p.e), et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t, hover: p.hover, noShadow: !!(ay && ay.lift) };
                 if (r25) list25.push({ h: p.h, x: po.x, y: p.y, lift: p.y - po.y });
-                card(po.x, p.y, p.y - po.y, 72, 100, 36, 84, () => {
+                (hideMe && p.h === me ? (x, y, l, w, h, ax, ay, fn) => fn() : card)(po.x, p.y, p.y - po.y, 72, 100, 36, 84, () => {
                 if (ay) lc.globalAlpha = ay.a;
                 const au = auraOf(p.a);
                 if (au) {
@@ -4632,11 +4782,14 @@
             // Names under feet, bubbles over heads, at screen resolution.
             const u = r25 ? v25.unit : cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
             spotU = u;
+            const meP = mine();
+            hideSpot = hideMe && meP ? [meP.x, meP.y] : null;
             const at = (x, y, foot) => r25 ? v25.at(x, y, foot) : [x * u, y * u];
             const far = r25 && v25.far, ub = r25 ? Math.max(u, 2.6 * dpr) : u;     // (2.5D: bubbles stay readable however far back the room is)
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             for (const p of far ? [] : sorted) {
                 if (ayyAway.has(p.h) && !heads.has(p.h)) continue;                 // up in the UFO: no name on the floor
+                if (hideSpot && p.h === me) continue;
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
                 ctx.globalAlpha = fight && p.h !== fight.a && p.h !== fight.b ? 0.3 : 1;
                 const [nx, ny] = at(p.x, p.y + 1.5, p.y);
@@ -4654,7 +4807,8 @@
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             flat();
-            if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
+            if (hideSpot) watchHands(t);
+            if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h) && !(hideSpot && p.h === me)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
             drawBtWords(t, u, danielTop);
             for (const b of booms) if (t - b.at < 1) { spot(b.x, b.y); popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020'); }
             gameBadges(t, u, heads);

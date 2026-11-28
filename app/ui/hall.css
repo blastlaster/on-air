@@ -296,3 +296,12 @@
     .hall-s4s { position: absolute; z-index: 30; left: 0; top: 0; bottom: 0; width: 88vw; box-shadow: 6px 0 20px rgba(0, 0, 0, 0.6); }
     .hall-page-body { position: relative; }
 }
+
+/* Watching FunpostTV from a seat (hall.js watch): the bar along the bottom of the room. */
+.hall-watch { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 20px); padding: 6px 10px; border-radius: 10px; background: rgba(10, 8, 18, 0.86); border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; z-index: 5;
+  font: bold 13px "Courier New", monospace; cursor: default; }
+.hall-watch[hidden] { display: none; }
+.hall-watch .btn { min-width: 34px; padding: 4px 8px; }
+.hall-watch .btn.on { background: #ffd34a; color: #1a1206; border-color: #ffd34a; }
+.hall-watch .hw-t { padding: 0 4px; white-space: nowrap; }

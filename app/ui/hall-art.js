@@ -984,7 +984,7 @@
             l.globalAlpha = 1;
         }
         y -= lift;
-        const sit = e === 'sit';
+        const sit = e === 'sit' || e === 'popcorn' || e === 'sip';      // (popcorn, sip: sitting watching FunpostTV)
         if (L.back) backPiece(L.back, x, sit ? y + 1 : y, f, t, o.step === 0 || o.step === 1);
         if (sit) {
             R(x - 3 + (f > 0 ? 1 : -1), y - 3, 7, 2, pa);
@@ -1040,6 +1040,12 @@
             R(d > 0 ? x - 4 : x + 4, by - 1, 1, 2, sleeve);
         }
         else if (e === '_brk') { armOut(-1); armOut(1); }
+        else if (e === 'popcorn' || e === 'sip') {
+            // Snacking in front of the TV: the far hand rests in the lap, the near one goes to the mouth now and then (drawn after the head).
+            armDown(-f);
+            const up = e === 'popcorn' ? snackUp(o) : sipUp(o);
+            if (!up) armDown(f);
+        }
         else if (e === '67') {
             // Six, seven: both hands out in front, palms up, weighing it — one up while the other's down.
             const k = Math.floor(t * 4) % 2;
@@ -1151,6 +1157,19 @@
             for (const ey of ex) { R(ey, hy + 2, 1, 2, '#ffe680'); R(ey, hy + 2, 1, 1, '#ffffff'); }
         }
         if (e === 'dab') { const d = dabSide(t, f); R(d > 0 ? x - 4 : x + 1, hy + 2, 4, 1, sleeve); R(d > 0 ? x : x + 1, hy + 2, 1, 1, skin); }    // the elbow over the face
+        if (e === 'popcorn') {
+            // A striped bucket in the lap; a hand to the mouth with a kernel, then chewing.
+            const bx = f > 0 ? x + 2 : x - 5, up = snackUp(o);
+            R(bx, by + 1, 4, 4, '#f2eee4'); R(bx, by + 1, 1, 4, '#d0302a'); R(bx + 2, by + 1, 1, 4, '#d0302a');
+            R(bx, by, 4, 1, '#fff2b0'); R(bx + 1, by - 1, 2, 1, '#fff2b0');
+            if (up) { R(f > 0 ? x + 3 : x - 3, by - 2, 1, 3, sleeve); R(mx + (f > 0 ? 1 : 0), hy + 4, 1, 1, skin); R(mx + (f > 0 ? 0 : 1), hy + 4, 1, 1, '#fff2b0'); }
+            else R(bx + 1, by, 1, 1, skin);
+        }
+        if (e === 'sip') {
+            // A bottle of water: up to the mouth, tipped, then back down in the hand.
+            if (sipUp(o)) { R(f > 0 ? x + 3 : x - 3, by - 2, 1, 3, sleeve); R(f > 0 ? x + 2 : x - 5, hy + 2, 4, 2, '#bfe8ff'); R(f > 0 ? x + 1 : x - 1, hy + 3, 1, 1, '#3a8ad8'); R(f > 0 ? x + 3 : x - 4, hy + 2, 2, 1, '#e8f8ff'); }
+            else { R(f > 0 ? x + 4 : x - 5, by + 1, 2, 4, '#bfe8ff'); R(f > 0 ? x + 4 : x - 5, by, 2, 1, '#3a8ad8'); R(f > 0 ? x + 4 : x - 5, by + 2, 1, 2, '#e8f8ff'); }
+        }
         // A cheer: sparkles twinkling round them.
         if (e === 'cheer') {
             const C = ['#ffe14d', '#ffffff', '#ff8ac8', '#7ef0ff'];
@@ -1170,6 +1189,9 @@
         if (ufo) rideUfo(x, y, t, lift);
         return hy - lift;                                              // where a bubble goes
     }
+    /** Snacking: is the hand up at the mouth now? (Popcorn every 1.6 s, a sip every 2.4 s, from when they started.) */
+    function snackUp(o) { const k = ((o.et != null ? o.et : o.t) % 1.6 + 1.6) % 1.6; return k > 0.2 && k < 0.7; }
+    function sipUp(o) { const k = ((o.et != null ? o.et : o.t) % 2.4 + 2.4) % 2.4; return k > 0.3 && k < 1.3; }
     /** The UFO they ride (5 abductions): a saucer round their legs, lights going round, a glow underneath. Feet at (x, y). */
     function rideUfo(x, y, t, lift) {
         for (let j = 0; j < Math.max(1, lift - 2); j++) {                          // the glow down to the floor, flickering
@@ -2166,6 +2188,7 @@
         cropCircle: (ctx, x, y, a) => { l = ctx; cropCircle(x, y, a); },
         afkFlag: (ctx, x, top, t) => { l = ctx; afkFlag(x, top, t); },
         crt: (ctx, x, y, t, game) => { l = ctx; return crt(x, y, t, game); },
+        snackUp, sipUp,
         K7, kartTex, kartFloor, kartSky, kartProject, kart, kartMini, kartSpeed, kartGauge, kartDecos, decoCanvas,
         rmSky: (ctx, t, k) => { l = ctx; rmSky(t, k); }, rmShatter: (ctx, img, s, back) => { l = ctx; rmShatter(img, s, back); },
         rmBoss: (ctx, x, y, t, o) => { l = ctx; return rmBoss(x, y, t, o || {}); }, rmPlane, rmBullet, rmFart };

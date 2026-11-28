@@ -153,7 +153,13 @@ show from his desk. Up to 40 people at once (the host can change that).
   whichever way they see it: you walk, talk and play together. The camera is the
   station's: it shows the whole room, and now and then (when Dodgeball starts, or when
   the host points everyone at the stage) it moves for a few seconds, then comes back;
-  you can walk the whole time. 🎨 Look → **View**: *Auto* follows **Effects** (Simple:
+  you can walk the whole time. **Watch FunpostTV**: when it's on the stage, click its screen and
+  you take a seat in the front row (in 2D too). In 2.5D the view drops to your seat — the TV
+  almost fills it off air; on air, the TV on the left and Radioman on the right. Drag to look
+  side to side, the wheel (or a pinch) to zoom. **🍿** and **💧**: popcorn and a sip of water, in your
+  hands at the bottom of the screen, and everyone sees you snacking. Walking, **Esc** or *Stand up*
+  gets you up, and so does anything you'd want to see: Dodgeball asking, Burgertime, the Radioman
+  fight, a race, the UFO. 🎨 Look → **View**: *Auto* follows **Effects** (Simple:
   2D; Mid and Advanced: 2.5D), or pick 2D or 2.5D yourself. It needs a graphics card
   that can do WebGL (nearly all can); without one the room stays 2D. *(For now a
   preview: type **/25d** in the room's chat to turn it on on this computer.)*
