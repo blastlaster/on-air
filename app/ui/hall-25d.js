@@ -22,7 +22,7 @@
 (function () {
     'use strict';
     const A = window.HallArt;
-    const Z0 = 58, Z1 = A.H, WALL = 58, FH = 20, SLAB = 12, BALL = [120, 66, 80], SLOT = 48, MAXP = 42, NL = 8;
+    const Z0 = 58, Z1 = A.H, WALL = 58, FH = 20, SLAB = 12, BALL = [120, 66, 80], NL = 8, AW = 2048, AH = 512;
 
     const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -73,7 +73,7 @@
         if (!gl) return null;
 
         /* ---------- pictures: today's art drawn each frame, and what's made once ---------- */
-        const [roomC, roomG] = canvas(256, 256), [midC, midG] = canvas(256, 64), [sideC, sideG] = canvas(128, 64), [atlasC, atlasG] = canvas(2048, 64);
+        const [roomC, roomG] = canvas(256, 256), [midC, midG] = canvas(256, 64), [sideC, sideG] = canvas(128, 64), [atlasC, atlasG] = canvas(AW, AH);
         const [ballC, ballG] = canvas(16, 16), [scrC, scrG] = canvas(256, 64);
         const [shadowC, shadowG] = canvas(16, 16);
         shadowG.fillStyle = 'rgba(0,0,0,0.45)'; shadowG.beginPath(); shadowG.ellipse(8, 8, 7.5, 7.5, 0, 0, Math.PI * 2); shadowG.fill();
@@ -202,7 +202,7 @@
         let B = null, M = null, W = 1, H = 1;
         function tris(tex, pass, P, UV, o = {}) {
             const tint = o.tint ? (typeof o.tint === 'string' ? hex(o.tint) : o.tint) : null;
-            const lit = o.lit != null ? o.lit : (pass === 'solid' || pass === 'cut');
+            const lit = o.lit != null ? o.lit : (pass === 'solid' || pass === 'cut' || pass === 'card');
             const k = o.key || pass + ':' + tex.name + ':' + (o.tint || '') + ':' + lit;
             let b = batch.get(k);
             if (!b) batch.set(k, b = { tex, pass, tint, lit, v: [] }); else if (o.key) b.tint = tint;
@@ -224,11 +224,21 @@
 
         /* ---------- the camera: the room's own shot (moments that move it come later, from the station) ---------- */
         const cam = { yaw: 0, pitch: 0.5, dist: 300, fov: 40, at: [120, 14, 104] };
-        let roomShot = null, roomAspect = 0, aimed = false;
-        function camAim(dt) {
+        let roomShot = null, roomAspect = 0, aimed = false, cue = null, clock = 0;
+        /* Moments: the camera goes somewhere for a few seconds, then back to the whole room. Nobody's held there
+           and walking goes on. From the host (hall-cam: stage, outside) or the room itself (dodge). */
+        const CUES = {
+            stage: { len: 3.5, shot: () => ({ yaw: 0, pitch: 0.32, dist: roomShot.dist * 0.62, fov: 40, at: [120, 22, 74] }) },
+            outside: { len: 6, shot: (s) => ({ yaw: 0.55 + s * 0.05, pitch: 0.3, dist: 560, fov: 40, at: [120, 16, 104] }) },
+            dodge: { len: 5, shot: (s) => ({ yaw: 0.7 * Math.sin(s / 5 * Math.PI * 2), pitch: 0.42, dist: roomShot.dist * 1.08, fov: roomShot.fov, at: [120, 14, 100] }) }
+        };
+        function camAim(dt, t) {
             const aspect = W / H;
             if (!roomShot || Math.abs(aspect - roomAspect) > 0.001) { roomShot = fitShot({ yaw: 0, pitch: 0.5, dist: 300, fov: 40, at: [120, 14, 104] }, ROOM_PTS, aspect, 0.96); roomAspect = aspect; }
-            const s = roomShot, e = aimed ? Math.min(1, dt * 2.4) : 1;
+            clock = t;
+            if (cue && cue.at == null) cue.at = t;
+            if (cue && t - cue.at > CUES[cue.kind].len) cue = null;
+            const s = cue ? CUES[cue.kind].shot(t - cue.at) : roomShot, e = aimed ? Math.min(1, dt * 2.4) : 1;
             aimed = true;
             for (const k of ['yaw', 'pitch', 'dist', 'fov']) cam[k] += (s[k] - cam[k]) * e;
             for (let i = 0; i < 3; i++) cam.at[i] += (s.at[i] - cam.at[i]) * e;
@@ -271,6 +281,7 @@
         function paintAll(t, o) {
             const a = { ...o.air, noNoise: true };                      // the speakers' waves are rings in the room, not on the wall
             roomG.clearRect(0, 0, 256, 256); A.room(roomG, t, a, o.info);
+            if (o.under) o.under(roomG);                                // what lies on the floor or the wall (crop circles, the court, stage effects)
             midG.clearRect(0, 0, 256, 64);
             if (o.intro != null && !o.air.live) A.entrance(midG, t, o.intro, o.introSecs, a, o.info);
             else A.centre(midG, t, o.talking ? { ...a, talking: true } : a, o.info);
@@ -368,17 +379,30 @@
                 }
             }
         }
-        /** Everyone: their sprite (drawn by hall-art.js, as in 2D) on an upright card turned to the camera, a shadow under them. */
-        function drawPeople(t, list) {
-            atlasG.clearRect(0, 0, atlasC.width, atlasC.height);
+        /**
+         * The cards: everyone (and anything else standing in the room: Daniel, explosions, the UFO), each drawn by
+         * hall.js's own 2D code into a slot of one big picture, then stood up where it is, turned to the camera,
+         * with a shadow under it. A card: { x, y (room point it stands on), lift (raised that far), w, h (its slot),
+         * ax, ay (where (x, y) is in the slot), paint(g) (draws in room coordinates), shadow }. Drawn see-through,
+         * back to front, so faded people and glows look as they do in 2D.
+         */
+        function drawCards(list) {
+            atlasG.clearRect(0, 0, AW, AH);
             const R = [B.right[0], 0, B.right[2]], rl = Math.hypot(R[0], R[2]) || 1; R[0] /= rl; R[2] /= rl;
-            list.slice(0, MAXP).forEach((q, i) => {
-                const sx = i * SLOT, face = Math.sign((q.po.face || 1) * R[0]) || q.po.face || 1;
-                A.person(atlasG, q.look, { ...q.po, x: sx + 24, y: 58, face, noShadow: true });
-                const x = q.x, z = q.y, hw = 24, lift = q.lift || 0;
-                quad(T.atlas, 'cut', [x - R[0] * hw, 56 + lift, z - R[2] * hw], [x + R[0] * hw, 56 + lift, z + R[2] * hw], [x + R[0] * hw, -2 + lift, z + R[2] * hw], [x - R[0] * hw, -2 + lift, z - R[2] * hw], sx, 0, sx + SLOT, 60);
-                if (!q.po.noShadow) quad(T.shadow, 'shadow', [x - 5, 0.1, z - 2], [x + 5, 0.1, z - 2], [x + 5, 0.1, z + 2], [x - 5, 0.1, z + 2], 0, 0, 16, 16);
-            });
+            let sx = 0, sy = 0, rowH = 0;
+            for (const q of [...list].sort((a, b) => a.y - b.y)) {
+                const w = Math.ceil(q.w || 48), h = Math.ceil(q.h || 64), ax = q.ax != null ? q.ax : w / 2, ay = q.ay != null ? q.ay : h - 6;
+                if (sx + w > AW) { sx = 0; sy += rowH; rowH = 0; }
+                if (sy + h > AH) break;                                   // (no room left this frame)
+                atlasG.save(); atlasG.beginPath(); atlasG.rect(sx, sy, w, h); atlasG.clip();
+                atlasG.translate(sx + ax - Math.round(q.x), sy + ay - Math.round(q.y - (q.lift || 0)));
+                try { q.paint(atlasG); } catch (err) { console.warn('2.5D card', err); }
+                atlasG.restore();
+                const x = q.x, z = q.y, lift = q.lift || 0, l = -ax, r = w - ax, top = ay + lift, bot = ay - h + lift;
+                quad(T.atlas, 'card', [x + R[0] * l, top, z + R[2] * l], [x + R[0] * r, top, z + R[2] * r], [x + R[0] * r, bot, z + R[2] * r], [x + R[0] * l, bot, z + R[2] * l], sx, sy, sx + w, sy + h);
+                if (q.shadow) quad(T.shadow, 'shadow', [x - 5, 0.1, z - 2], [x + 5, 0.1, z - 2], [x + 5, 0.1, z + 2], [x - 5, 0.1, z + 2], 0, 0, 16, 16);
+                sx += w; rowH = Math.max(rowH, h);
+            }
         }
         function drawGalaxies() {
             for (const g of GALAXIES) {
@@ -392,12 +416,12 @@
         let people = [], unit = 3;
         /**
          * o: { t, dt, air, info, talking, deskX, intro (seconds to live, or null), introSecs, club (lights on),
-         *      people: [{ h, x, y (feet, room pixels), lift, look, po (hall-art person options) }] }
+         *      cards: (drawCards), people: [{ x, y, lift }] (to click on), under(g) (paints onto the floor and wall) }
          */
         function frame(o) {
             const t = o.t;
-            people = o.people;
-            camAim(o.dt || 0);
+            people = o.people || [];
+            camAim(o.dt || 0, t);
             B = basis(cam); M = viewProj(B, W / H, cam.fov);
             const pa = ndc(M, [120, 0, 104]), pb = ndc(M, [121, 0, 104]);
             if (pa && pb) unit = Math.abs(pb[0] - pa[0]) * W / 2;
@@ -420,17 +444,19 @@
             gl.uniform3fv(loc.Lp, Lp); gl.uniform4fv(loc.Ld, Ld); gl.uniform3fv(loc.Lc, Lc);
             gl.uniform1f(loc.amb, club ? 0.62 : 1); gl.uniform1f(loc.disco, o.club ? 0.85 : 0); gl.uniform1f(loc.time, t % 1000); gl.uniform3fv(loc.ball, BALL);
             paintAll(t, o); for (const k of ['room', 'mid', 'side', 'ball']) T[k].up();
-            batch.clear(); drawGalaxies(); drawStation(t, o, LIGHTS); drawPeople(t, people); T.atlas.up();
-            for (const pass of ['sky', 'solid', 'cut', 'shadow', 'smoke', 'beam']) {
+            batch.clear(); drawGalaxies(); drawStation(t, o, LIGHTS); drawCards(o.cards || []); T.atlas.up();
+            for (const pass of ['sky', 'solid', 'cut', 'shadow', 'card', 'smoke', 'beam']) {
                 if (pass === 'sky') { gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); }
                 if (pass === 'solid') { gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.depthMask(true); }
                 if (pass === 'shadow') { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
+                if (pass === 'card') gl.depthMask(true);                  // see-through, back to front, and in front of what's behind
+                if (pass === 'smoke') gl.depthMask(false);
                 if (pass === 'beam') gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
                 for (const b of batch.values()) {
                     if (b.pass !== pass) continue;
                     gl.bindTexture(gl.TEXTURE_2D, b.tex.tx);
                     gl.uniform4fv(loc.tint, b.tint || [1, 1, 1, 1]);
-                    gl.uniform1f(loc.cut, pass === 'solid' || pass === 'cut' ? 0.5 : 0.004);
+                    gl.uniform1f(loc.cut, pass === 'solid' || pass === 'cut' ? 0.5 : pass === 'card' ? 0.03 : 0.004);
                     gl.uniform1f(loc.lit, b.lit ? 1 : 0);
                     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(b.v), gl.STREAM_DRAW);
                     gl.drawArrays(gl.TRIANGLES, 0, b.v.length / 5);
@@ -445,13 +471,21 @@
             /** The canvas's size in device pixels. */
             size(w, h) { W = Math.max(1, Math.round(w)); H = Math.max(1, Math.round(h)); if (el.width !== W || el.height !== H) { el.width = W; el.height = H; } },
             frame,
+            /** A camera moment (CUES), starting on the next frame. */
+            cue(kind) { if (CUES[kind]) cue = { kind, at: null }; },
             /** Device pixels per room pixel in the middle of the floor (for text sizes, bubbles). */
             get unit() { return unit; },
+            /** The camera's far out (the station ID): names and bubbles would be specks. */
+            get far() { return cam.dist > 380; },
             /**
              * Where to draw what 2D draws at room (x, y) for someone standing at room y `foot`: a point `foot - y`
              * above their feet (heads, bubbles); below the feet (names) it's just in front of them on the floor.
              */
             at(x, y, foot) { const h = foot - y, p = h < 0 ? project([x, 0, foot - h]) : project([x, h, foot]); return p ? [p[0], p[1]] : [-9999, -9999]; },
+            /** Around a room spot (x, feet at y): where it is on the canvas and how many device pixels a room pixel is there. */
+            lens(x, y) { const a = project([x, 0, y]), b = project([x + 1, 0, y]); return a && b ? [a[0], a[1], Math.hypot(b[0] - a[0], b[1] - a[1])] : [-9999, -9999, 1]; },
+            /** A spot on the back wall, as 2D draws it (room x, row): on the canvas. */
+            wallPt(x, row) { const p = project([x, WALL - row, Z0 + 0.05]); return p ? [p[0], p[1]] : null; },
             /** On the stage, as 2D draws it (room x, row), Radioman's desk being 3 in front of the back wall. */
             atStage(x, row) { const p = project([x, WALL - row, Z0 + 3]); return p ? [p[0], p[1]] : [-9999, -9999]; },
             /**

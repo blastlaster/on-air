@@ -358,6 +358,7 @@ The rest is optional, and the app hides what a station doesn't send:
 | Hot potato (giving a 💣 lights it; a pass is a give) | `hall-give` | `hall-bomb {h, from, left, n}`, then `{boom}` or `{fizzle}` |
 | "ayy lmao" in chat: alien heads, sometimes a UFO | — | `hall-ayy {rain, ufo?: {h, x, y}}` (`h` is taken; five times unlocks `ride` 1, whose riders it never takes) · `hall-ayy {back, x, y}` |
 | Stage effects and bursts | `hall-fx {k}` | `hall-fx {k, h}` (and `air.fx`) |
+| The 2.5D camera, for a moment (the studio's `hall.cam {shot}`; apps showing the room in 2D ignore it) | — | `hall-cam {shot}` (`stage`, `outside`) |
 | Who's on the line (the speaker boxes) | — | `hall-booth {host, calls, vm}` |
 | Host events: Dodgeball, Burgertime | `hall-db-*` · `hall-bt-tech` | `hall-db*` · `hall-bt*` |
 | Air hockey, one on one (`mode`: `classic` or `space`, the challenger's pick; the engine runs the puck; a player's own hits are claimed by their app and checked against where the puck has been in the last moments, then carried on to now; once a player's app claims, only it hits with that mallet) | `hall-hk {to, mode}` · `hall-hk-answer {id, ok}` · `hall-hk-quit {id}` · `hall-hk-m {id, x, y}` · `hall-hk-hit {id, pid, x, y, vx, vy, spin, pw}` | `hall-hk {id, a, b, state, until, score, win, why, by, mode, phase, phaseAgo, dims}` · `hall-hk-at {id, p, ps, m, fz, n, hb, hs, pw, hp, holes?, locks?, ev?}` (to the two; power shots, curve, the hit-stop, and Forever 2's black holes and phases: engine/hall-hockey.js) |

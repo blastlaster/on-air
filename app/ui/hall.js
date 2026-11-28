@@ -202,7 +202,7 @@
             paint();
         })();
         const low = document.createElement('canvas'); low.width = A.W; low.height = A.H;
-        const lc = low.getContext('2d');
+        let lc = low.getContext('2d');          // (2.5D points this at its own pictures for a moment: see card / under)
 
         /* ---------- the view: 2D (today's) or 2.5D (hall-25d.js, loaded when first wanted) ----------
            Auto follows the app's Effects setting (Simple: 2D; Mid and Advanced: 2.5D, and 3D once there is one);
@@ -234,6 +234,30 @@
             return false;
         }
         offs.push(() => { if (v25) v25.destroy(); });
+        /* In 2.5D the room's own 2D drawing code draws everything still, just somewhere else:
+           card(): something standing in the room (people, Daniel, an explosion, the UFO) — drawn into a card of its
+             own, stood up where it is. (x, y): the room point it stands on; lift: how far up; w × h: room pixels
+             around it, (x, y) being (ax, ay) in that.
+           under(): something lying on the floor or the wall (crop circles, the court, stage effects) — drawn into
+             the room's own picture.
+           spot(): the screen overlays (bonks, held things, badges...) are drawn as in 2D, in screen pixels, around
+             whoever they're on; spot() makes the canvas's transform match that spot in 2.5D (and in 2D does nothing).
+           In 2D, card() and under() just draw, there and then. */
+        let cards25 = [], under25 = [];
+        const withLc = (g, fn) => { const keep = lc; lc = g; try { return fn(); } finally { lc = keep; } };
+        function card(x, y, lift, w, h, ax, ay, fn, shadow) {
+            if (!r25) return fn();
+            cards25.push({ x, y, lift, w, h, ax, ay, shadow, paint: (g) => withLc(g, fn) });
+        }
+        function under(fn) { if (r25) under25.push(fn); else fn(); }
+        let spotU = 1;
+        function spot(x, y) {
+            if (!r25 || !v25) return;
+            const [ox, oy, sc] = v25.lens(x, y), k = sc / spotU;
+            ctx.setTransform(k, 0, 0, k, ox - x * sc, oy - y * sc);
+        }
+        const flat = () => ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const [hudC, hudG] = (() => { const c = document.createElement('canvas'); c.width = A.W; c.height = A.H; return [c, c.getContext('2d')]; })();
 
         /* ---------- you ---------- */
         let look;
@@ -507,6 +531,9 @@
                     else if (m.k === 'hit') logLine({ text: '🏐 ' + nameOf(m.a) + ' hit ' + nameOf(m.b) + ' — OUT!' }, 'game');
                     break;
                 }
+                case 'hall-cam':                                                // the host moves the 2.5D camera for a moment (2D: nothing)
+                    if (v25) v25.cue(m.shot);
+                    break;
                 case 'hall-fx':
                     // Its clock starts when it's first drawn (`at`), not now: a room that's hidden or behind
                     // another window isn't drawing, and would miss the whole thing.
@@ -1724,6 +1751,7 @@
             for (const p of sorted) {
                 const b = p.f && MOOD_BUBBLE[p.f];
                 if (!b || !heads.has(p.h)) continue;
+                spot(p.x, p.y);
                 const f = p.face < 0 ? -1 : 1;
                 ctx.fillText(b, Math.round((p.x - f * 6) * u), Math.round((heads.get(p.h) - 1 + Math.sin(t * 3 + p.x) * 1.2) * u));
             }
@@ -1735,6 +1763,7 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             for (const p of sorted) {
                 if (!p.o || !heads.has(p.h)) continue;
+                spot(p.x, p.y);
                 const f = p.face < 0 ? -1 : 1, x = (p.x + f * 6) * u, y = (heads.get(p.h) + 10) * u;
                 const lit = p.o === BOMB && bomb && bomb.h === p.h, red = lit && bombBlink(x, y, fs, now());
                 ctx.save();
@@ -1808,7 +1837,11 @@
                     const y = -8 + k * r.v;
                     if (y > A.H + 8) continue;
                     any = true;
-                    A.alienHead(lc, r.x + Math.sin(k * 3 + r.w) * 4, y, r.s);
+                    const hx = r.x + Math.sin(k * 3 + r.w) * 4;
+                    if (!r25) { A.alienHead(lc, hx, y, r.s); continue; }
+                    // 2.5D: falling out of the sky onto a spot on the floor.
+                    const z = r.z || (r.z = F.y0 + Math.random() * (F.y1 - F.y0)), lift = Math.max(0, (1 - (y + 8) / (A.H + 16)) * 150);
+                    card(hx, z, lift, 24, 24, 12, 12, () => A.alienHead(lc, hx, z - lift, r.s));
                 }
                 if (!any) ayyRain = null;
             }
@@ -1816,7 +1849,8 @@
                 const k = t - ayyUfo.at;
                 if (k > UFO_GONE) { ayyUfo = null; return; }
                 const w = ufoAt(ayyUfo, k);
-                A.ufo(lc, w.x, w.y, t, w.beam, ayyUfo.y - w.y - 5);
+                const uy = ayyUfo.y;
+                card(w.x, uy, 0, 90, 200, 45, 190, () => A.ufo(lc, w.x, w.y, t, w.beam, uy - w.y - 5));
             }
         }
         /** Yours: the screen goes dark, an alien comes at you out of it, AYY LMAO!, and you're back. */
@@ -1934,6 +1968,7 @@
             if (!quiet) {
                 const T = (i) => DB_TEAMS[i][0], sc = m.score && m.win >= 0 ? m.score[m.win] + '–' + m.score[1 - m.win] : '';      // the winner's score first
                 if (m.state === 'asking' && was !== 'asking') { dodgeNo = false; logLine({ text: '🏐 Dodgeball! Everyone’s asked to play.' }, 'game'); U.toast('🏐 Dodgeball! Join in?'); }
+                if (m.state === 'ready' && m.round !== wasRound && v25 && m.round === 1) v25.cue('dodge');      // 2.5D: a sweep round the room as it starts
                 if (m.state === 'ready' && m.round !== wasRound) logLine({ text: '🏐 Round ' + m.round + ': ' + m.teams.map((tm, i) => T(i) + ' (' + tm.map(nameOf).join(', ') + ')').join(' vs ') }, 'game');
                 if (m.state === 'round' && was !== 'round') logLine({ text: '🏐 ' + T(m.win) + ' takes round ' + m.round + ' (' + sc + ')' }, 'game');
                 if (m.state === 'over' && was !== 'over') logLine({ text: '🏆 ' + T(m.win) + ' wins dodgeball ' + sc + '! (' + m.teams[m.win].map(nameOf).join(', ') + ')' }, 'game');
@@ -2111,6 +2146,7 @@
             const flying = [...flights.values()].some(f => !f.res || (f.res === 'hit' && t - f.resAt < 0.6));
             const holder = people.get(db.ball);
             if (!flying && holder && heads.has(holder.h) && (db.state === 'playing' || db.state === 'ready')) {
+                spot(holder.x, holder.y);
                 const [x, y] = handOf(holder, heads, u);
                 // Winding up: the ball swells and glows (and for you, a line the way you're aiming, longer the harder).
                 const since = holder.h === me ? (charging ? charging.at : 0) : chargeOf.get(holder.h) || 0;
@@ -2134,6 +2170,7 @@
                 if (f.res === 'dead') continue;                                              // stopped: it's in someone's hand now
                 // On its way along the floor (its shadow on the floor, the ball a little above it); stopped where it got to.
                 const b = f.res ? { x: f.rx, y: f.ry } : ballPos(f, s);
+                spot(F.x0 + b.x, F.y0 + b.y);
                 const fx = (F.x0 + b.x) * u, fy = (F.y0 + b.y) * u;
                 if (f.res === 'hit' || f.res === 'catch') {
                     const who = people.get(f.b), k = Math.min(1, (t - f.resAt) / 0.6);
@@ -2141,11 +2178,12 @@
                         ctx.globalAlpha = 1 - k * 0.7;
                         ballAt(fx + (f.vx > 0 ? 1 : -1) * k * 14 * u, fy - 7 * u + (Math.pow(k, 2) * 9 - Math.sin(k * Math.PI) * 6) * u, u);
                         ctx.globalAlpha = 1;
+                        if (who && heads.has(who.h)) spot(who.x, who.y);
                         if (who && heads.has(who.h)) popWord('OUT!', who.x * u, (heads.get(who.h) - 6 - k * 3) * u, u, '#ff6b6b');
-                    } else if (who && heads.has(who.h)) popWord('CATCH!', who.x * u, (heads.get(who.h) - 6 - k * 3) * u, u, '#8dffb0');
+                    } else if (who && heads.has(who.h)) { spot(who.x, who.y); popWord('CATCH!', who.x * u, (heads.get(who.h) - 6 - k * 3) * u, u, '#8dffb0'); }
                     continue;
                 }
-                if (f.perfect && s < 0.8) { const th = people.get(f.a); if (th && heads.has(th.h)) popWord('PERFECT!', th.x * u, (heads.get(th.h) - 6 - s * 4) * u, u, '#fff3a0'); }
+                if (f.perfect && s < 0.8) { const th = people.get(f.a); if (th && heads.has(th.h)) { spot(th.x, th.y); popWord('PERFECT!', th.x * u, (heads.get(th.h) - 6 - s * 4) * u, u, '#fff3a0'); spot(F.x0 + b.x, F.y0 + b.y); } }
                 pixDisc(fx / u, fy / u, 2.4, 1, 'rgba(0,0,0,0.45)', u);
                 if (!f.res) speedTrail(f, s, b, fx / u, fy / u - 7, t, u);
                 ballAt(fx, fy - (f.res === 'dead' ? 2.3 : 7) * u, u);
@@ -3214,6 +3252,7 @@
                 if (s > 1.6 || (x.pred && s > 0.8)) { hits.splice(i, 1); continue; }         // (yours, and the station never took it)
                 const a = people.get(x.a), b = people.get(x.b);
                 if (!b || !heads.has(b.h)) continue;
+                spot(b.x, b.y);
                 const hx = b.x * u, hy = heads.get(b.h) * u, d = x.dir;
                 if (x.k === 'bonk') {
                     // The hammer comes down on their head, then stars.
@@ -3296,6 +3335,7 @@
             ctx.lineCap = 'round';
             for (const p of sorted) {
                 if (!p.g || !heads.has(p.h)) { p.trail.length = 0; continue; }
+                spot(p.x, p.y);
                 const f = p.face < 0 ? -1 : 1, hx = p.x - f * 4, hy = heads.get(p.h) + 9;
                 // Dancing (any pose) or walking: big loops; standing about: a gentle sway.
                 const busy = p.e || p.walking, a = t * (busy ? 7 : 2.2) + p.x, r = busy ? 4.5 : 2;
@@ -3614,7 +3654,8 @@
             if (!btOn()) return;
             const s = bt.state;
             const line = (s === 'enter' || s === 'zap') ? yellLine(t) : -1;
-            if (top && line >= 0) bubble(BT_YELLS[line], top.x * u, top.y * u, u);
+            flat();
+            if (top && line >= 0) bubble(BT_YELLS[line], ...(r25 ? v25.at(top.x, top.y, btD ? btD.y : top.y + 50) : [top.x * u, top.y * u]), u);
             const big = (str, y, c) => {
                 const fs = Math.max(16, Math.round(9 * u / dpr)) * dpr;
                 ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3637,13 +3678,15 @@
                 const p = people.get(h);
                 if (until < t) { btStun.delete(h); continue; }
                 if (!p) continue;
+                spot(p.x, p.y);
                 for (let k = 0; k < 3; k++) { const a2 = t * 7 + k * 2.1; popWord('*', p.x * u + Math.cos(a2) * 6 * u, (p.y - 16) * u + Math.sin(a2) * 2 * u, u * 0.8, '#ffd34a'); }
             }
             for (const [h, at] of btTech) {
                 const p = people.get(h), k = t - at;
                 if (k > 1) { btTech.delete(h); continue; }
-                if (p) popWord('TECH!', p.x * u, (p.y - 20 - k * 6) * u, u, '#7ee3ff');
+                if (p) { spot(p.x, p.y); popWord('TECH!', p.x * u, (p.y - 20 - k * 6) * u, u, '#7ee3ff'); }
             }
+            flat();
             if (bt.score && (s === 'chase' || s === 'burp')) {
                 const fs = Math.max(11, Math.round(3.6 * u / dpr)) * dpr;
                 ctx.font = 'bold ' + fs + 'px "Courier New", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -3801,6 +3844,7 @@
             for (const [h, bl] of blasted) {
                 const p = people.get(h);
                 if (!p || !heads.has(h) || t < bl.land || t > bl.end - SHAKE_S) continue;
+                spot(p.x, p.y);
                 const hy = heads.get(h), x = p.x * u, f = p.face < 0 ? -1 : 1, s = t - bl.land;
                 for (let k = 0; k < 3; k++) {
                     const a2 = t * 6 + k * 2.1;
@@ -3827,6 +3871,7 @@
                 for (const h of [d.a, d.b]) {
                     const p = people.get(h), s = d.st[h];
                     if (!p || !s || !heads.has(h)) continue;
+                    spot(p.x, p.y);
                     const hy = heads.get(h), x = p.x * u;
                     if (s.stun > t) {
                         for (let k = 0; k < 3; k++) {
@@ -3863,6 +3908,7 @@
                     else if (g.state === 'done' && (g.again || []).includes(h)) label = '🔁?';
                     else if (g.state === 'declined') label = h === g.b ? '🙅' : '';
                     else if (g.state === 'expired') label = '⌛';
+                    if (label) spot(p.x, p.y);
                     if (label) badge(label, (p.x + 8) * u, (heads.get(h) - 2) * u, u, win);
                 }
             }
@@ -4064,6 +4110,7 @@
             for (const [h, top] of crtTops) {
                 const p = people.get(h), og = p && openGameOf(h);
                 if (!og) continue;
+                spot(p.x, p.y);
                 const free = og.max - og.n, lift = free > 0 ? Math.round(Math.abs(Math.sin(t * 3)) * 2) : 0;
                 const text = og.icon + ' ' + og.name + ' · ' + (free > 0 ? free + (free === 1 ? ' SEAT' : ' SEATS') : 'FULL') + (og.busy ? ' · RACING' : '');
                 const fs = Math.max(12, Math.round(3.6 * u / dpr)) * dpr;
@@ -4082,6 +4129,7 @@
                     const sat = tb.seats.filter(Boolean).length, lift = Math.round(Math.abs(Math.sin(t * 3)) * 2);
                     tb.seats.forEach((h) => {
                         const p = h && people.get(h);
+                        if (p && heads.has(h)) spot(p.x, p.y);
                         if (p && heads.has(h)) badge(GAME_ICONS[tb.g] + ' JOIN ' + sat + '/' + tb.seats.length, (p.x + 8) * u, (heads.get(h) - 2 - lift) * u, u, true);
                     });
                     continue;
@@ -4089,6 +4137,7 @@
                 if (tb.state !== 'playing') continue;
                 tb.seats.forEach((h, i) => {
                     const p = people.get(h);
+                    if (p) spot(p.x, p.y);
                     if (p && heads.has(h) && !tb.out.includes(i) && ![...games.values()].some(g => g.a === h || g.b === h)) badge(tb.turn === i ? '🎲…' : '🎲', (p.x + 8) * u, (heads.get(h) - 2) * u, u, false);
                 });
             }
@@ -4308,6 +4357,7 @@
         function sprintBar(u) {
             const p = mine();
             if (!p || isEaten(me) || (stam >= SPRINT.maxS && !running)) return;
+            spot(p.x, p.y);
             const w = Math.round(14 * u), h = Math.max(2 * dpr, Math.round(u * 0.9)), x = Math.round(p.x * u - w / 2), y = Math.round((p.y + 1.5) * u + Math.max(10, 2.6 * u / dpr) * dpr * 1.25 + 3 * dpr);
             const k = stam / SPRINT.maxS;
             ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - dpr, y - dpr, w + 2 * dpr, h + 2 * dpr);
@@ -4397,6 +4447,14 @@
             lines.forEach((ln, i) => ctx.fillText(ln, bx + w / 2, by + pad * 0.8 + ph + i * lh));
         }
 
+        /** The CSS transform that bends a w × h box onto four points (top-left, top-right, bottom-right, bottom-left). */
+        function quadMatrix(w, h, P) {
+            const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = P;
+            const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2, sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3, den = dx1 * dy2 - dx2 * dy1 || 1e-9;
+            const g = (sx * dy2 - dx2 * sy) / den, hh = (dx1 * sy - sx * dy1) / den;
+            const a = x1 - x0 + g * x1, b = x3 - x0 + hh * x3, d = y1 - y0 + g * y1, e = y3 - y0 + hh * y3;
+            return 'matrix3d(' + [a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, x0, y0, 0, 1].map(v => +v.toFixed(6)).join(',') + ')';
+        }
         /* FunpostTV on the stage screen, when the studio chose it and the stream is on.
            Sound off: everyone keeps listening to the radio. Clicks go through to the floor. */
         let tvVid = '', screenLive = false;
@@ -4409,7 +4467,16 @@
                 tvEl.hidden = !want;
             }
             if (!want) return false;
-            tvEl.hidden = r25; if (r25) return true;                       // (2.5D: not on its wall yet)
+            tvEl.hidden = false;
+            if (r25 && v25) {
+                // 2.5D: the video bent onto the screen on the back wall (its four corners where the camera sees them).
+                const S = A.screenAt(screenLive, tvK), k = cv.clientWidth / cv.width, w = 320, h = Math.round(320 * S.h / S.w);
+                const P = [[S.x, S.y], [S.x + S.w, S.y], [S.x + S.w, S.y + S.h], [S.x, S.y + S.h]].map(([x, y]) => v25.wallPt(x, y));
+                if (P.some(q => !q)) { tvEl.hidden = true; return true; }
+                const css = 'left:' + cv.offsetLeft + 'px;top:' + cv.offsetTop + 'px;width:' + w + 'px;height:' + h + 'px;transform-origin:0 0;transform:' + quadMatrix(w, h, P.map(([x, y]) => [x * k, y * k]));
+                if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
+                return true;
+            }
             const r = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect(), k = r.width / A.W, ky = r.height / A.H, S = A.screenAt(screenLive, tvK);
             const css = 'left:' + (r.left - sr.left + S.x * k) + 'px;top:' + (r.top - sr.top + S.y * ky) + 'px;width:' + (S.w * k) + 'px;height:' + (S.h * ky) + 'px';
             if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
@@ -4460,26 +4527,28 @@
             }
             while (bursts.length && t - bursts[0].at > 8) bursts.shift();
             const fx = joined && air.fx ? { ...air.fx, bursts } : null;
-            A.fxBack(lc, t, onAir, fx);
-            if (dbOn()) court();
+            cards25 = []; under25 = [];
+            under(() => A.fxBack(lc, t, onAir, fx));
+            if (dbOn()) under(court);
             for (let i = crops.length - 1; i >= 0; i--) {                       // crop circles, under everyone
-                const k = t - crops[i].at;
+                const k = t - crops[i].at, c = crops[i];
                 if (k > CROP_S) { crops.splice(i, 1); continue; }
-                if (k >= 0) A.cropCircle(lc, crops[i].x, crops[i].y, Math.min(1, k / 0.6, (CROP_S - k) / 10));
+                if (k >= 0) under(() => A.cropCircle(lc, c.x, c.y, Math.min(1, k / 0.6, (CROP_S - k) / 10)));
             }
             const sorted = [...people.values()].filter(p => !isEaten(p.h)).sort((a, b) => a.y - b.y), list25 = [];
             const heads = new Map(), fight = duelOf(me);
             crtTops.clear();
             btStep(dt);
-            if (btOn() && btStart) A.wallBurst(lc, t - btStart, 5);
-            if (btOn()) smashMark(t);
-            for (let i = swaves.length - 1; i >= 0; i--) { const s = t - swaves[i].at; if (s > 1.4) swaves.splice(i, 1); else A.shockwave(lc, swaves[i].x, swaves[i].y, s); }
+            if (btOn() && btStart) under(() => A.wallBurst(lc, t - btStart, 5));
+            if (btOn()) under(() => smashMark(t));
+            for (let i = swaves.length - 1; i >= 0; i--) { const s = t - swaves[i].at, w = swaves[i]; if (s > 1.4) swaves.splice(i, 1); else under(() => A.shockwave(lc, w.x, w.y, s)); }
             let danielTop = null, danielDrawn = !btD;
             for (const p of sorted) {
-                if (!danielDrawn && btD.y < p.y) { danielTop = drawDaniel(t); danielDrawn = true; }
+                if (!danielDrawn && btD.y < p.y) { card(btD.x, btD.y, 0, 200, 190, 100, 176, () => { danielTop = drawDaniel(t); }); danielDrawn = true; }
                 if (isBurger(p.h)) {
                     // Zapped: a burger on legs (with a gold star if it made it).
-                    heads.set(p.h, A.burger(lc, p.x, p.y - (p.lift || 0), t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y);
+                    const bl = p.lift || 0;
+                    card(p.x, p.y - bl, bl, 48, 64, 24, 58, () => heads.set(p.h, A.burger(lc, p.x, p.y - bl, t, { walking: p.walking, face: p.face, star: bt.state === 'burp' && bt.stars.includes(p.h) }).y), true);
                     continue;
                 }
                 const ay = ayyLift(p, t);
@@ -4491,7 +4560,8 @@
                 const og = !p.walking && openGameOf(p.h);
                 const po = { x: p.x + ox, y: p.y + oy - (p.lift || 0) - (ay ? ay.lift : 0), face: p.face, step: p.walking ? Math.floor(t * 8) % 2 : undefined, emote: p.e || (og ? 'sit' : p.e), et: t - p.et, t, talk: p.sayUntil > t,
                     mood: p.f, jumpT: p.jumpAt ? t - p.jumpAt : null, dash: p.dashUntil > t, hover: p.hover, noShadow: !!(ay && ay.lift) };
-                if (r25) list25.push({ h: p.h, x: po.x, y: p.y, lift: p.y - po.y, look: p.l, po });
+                if (r25) list25.push({ h: p.h, x: po.x, y: p.y, lift: p.y - po.y });
+                card(po.x, p.y, p.y - po.y, 72, 100, 36, 84, () => {
                 if (ay) lc.globalAlpha = ay.a;
                 const au = auraOf(p.a);
                 if (au) {
@@ -4524,30 +4594,44 @@
                 if (p.afk) A.afkFlag(lc, po.x, heads.get(p.h), t);                       // away (/afk)
                 const back = btBack.get(p.h);
                 if (back && t - back < 1) A.sparkle(lc, po.x, po.y, t - back); else if (back) btBack.delete(p.h);
+                }, !po.noShadow);
             }
-            if (!danielDrawn) danielTop = drawDaniel(t);
+            if (!danielDrawn && btD) card(btD.x, btD.y, 0, 200, 190, 100, 176, () => { danielTop = drawDaniel(t); });
+            else if (!danielDrawn) danielTop = drawDaniel(t);
             drawAyy(t);
-            for (let i = booms.length - 1; i >= 0; i--) { const s = t - booms[i].at; if (s > 2.2) booms.splice(i, 1); else A.explosion(lc, booms[i].x, booms[i].y, s); }
-            if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) A.rubble(lc, t - btBurp - 2.2, 7);
-            A.lights(lc, t, onAir, fx);
-            if (intro != null) A.introOver(lc, t, intro, introSecs);
+            for (let i = booms.length - 1; i >= 0; i--) { const s = t - booms[i].at, b = booms[i]; if (s > 2.2) booms.splice(i, 1); else card(b.x, b.y, 0, 120, 120, 60, 84, () => A.explosion(lc, b.x, b.y, s)); }
+            if (bt.state === 'burp' && t - btBurp > 2.2 && t - btBurp < 9) under(() => A.rubble(lc, t - btBurp - 2.2, 7));
+            under(() => A.lights(lc, t, onAir, fx));
+            if (intro != null && !r25) A.introOver(lc, t, intro, introSecs);     // (2.5D does its own)
             // Off air, Radioman still talks to everyone: from a little frame in the corner, sliding in and out.
-            let cameoAt = null;
-            const boothOn = speakerBoxes(dt, t, onAir);
-            if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
+            // (2.5D: these frames go over the room, in its bottom corners.)
+            let cameoAt = null, boothOn = false;
+            if (r25) hudG.clearRect(0, 0, A.W, A.H);
+            withLc(r25 ? hudG : lc, () => {
+                boothOn = speakerBoxes(dt, t, onAir);
+                if (hostTalking && !onAir.live && !boothOn) cameoAt = A.cameo(lc, t, true, Math.min(1, (t - hostSay.at) / 0.25, (hostSay.until - t) / 0.25), air.tag);
+            });
             ctx.imageSmoothingEnabled = false;
             const quake = hits.some(x => x.n === 3 && t - x.at > 0.12 && t - x.at < 0.45) || (bt.state === 'burp' && t - btBurp > 2.6 && t - btBurp < 3.6) || (bt.state === 'enter' && t - btStart < 0.7)
                 || booms.some(b => t - b.at < 0.5) || swaves.some(w => t - w.at < 0.3) ? cv.width / A.W * 2 : 0;
             if (r25) {
                 ctx.clearRect(0, 0, cv.width, cv.height);
-                v25.frame({ t, dt, air: onAir, info, talking: hostTalking, deskX: A.deskX(tvK), intro, introSecs, club: !!onAir.music, people: list25 });
+                v25.frame({ t, dt, air: onAir, info, talking: hostTalking, deskX: A.deskX(tvK), intro, introSecs, club: !!onAir.music, people: list25, cards: cards25,
+                    under: (g) => withLc(g, () => { for (const fn of under25) fn(); }) });
+                if (boothOn || cameoAt) {                                       // the corner frames: the room's own size, along the bottom
+                    const k = Math.min(cv.width / A.W, cv.height / A.H), hx = (cv.width - A.W * k) / 2, hy = cv.height - A.H * k;
+                    ctx.drawImage(hudC, hx, hy, A.W * k, A.H * k);
+                    if (cameoAt) cameoAt = { x: (hx + (cameoAt.x + 4) * k) , y: hy + cameoAt.y * k, scr: true };
+                }
             } else ctx.drawImage(low, Math.round((Math.random() - 0.5) * quake), Math.round((Math.random() - 0.5) * quake), cv.width, cv.height);
             if (quake) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
             // Names under feet, bubbles over heads, at screen resolution.
             const u = r25 ? v25.unit : cv.width / A.W, nfs = Math.max(10, Math.round(2.6 * u / dpr)) * dpr;
+            spotU = u;
             const at = (x, y, foot) => r25 ? v25.at(x, y, foot) : [x * u, y * u];
+            const far = r25 && v25.far, ub = r25 ? Math.max(u, 2.6 * dpr) : u;     // (2.5D: bubbles stay readable however far back the room is)
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            for (const p of sorted) {
+            for (const p of far ? [] : sorted) {
                 if (ayyAway.has(p.h) && !heads.has(p.h)) continue;                 // up in the UFO: no name on the floor
                 ctx.font = 'bold ' + nfs + 'px "Courier New", monospace';
                 ctx.globalAlpha = fight && p.h !== fight.a && p.h !== fight.b ? 0.3 : 1;
@@ -4557,27 +4641,25 @@
                 if (p.h === me) ctx.fillRect(Math.round(nx - ctx.measureText(p.n).width / 2), Math.round(ny + nfs + dpr), Math.round(ctx.measureText(p.n).width), Math.max(1, dpr));   // underlined: that's you
             }
             ctx.globalAlpha = 1;
-            if (!r25) {                     // (2.5D: these come over one by one — design/hall-25d-scope.md)
-                sprintBar(u);
-                drawGlows(sorted, heads, u, t);
-                drawHeld(sorted, heads, u);
-                if (duels.size) drawDuels(t, u, heads);
-                if (blasted.size) drawBlasted(t, u, heads);
-                if (db.state) drawBall(t, u, heads);
-                drawMoods(sorted, heads, u, t);
-                drawHits(t, u, heads);
-            }
-            for (const p of sorted) if (p.sayUntil > t && heads.has(p.h)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), u);
-            if (!r25) {
-                drawBtWords(t, u, danielTop);
-                for (const b of booms) if (t - b.at < 1) popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020');
-                gameBadges(t, u, heads);
-                tableBadges(u, heads, t);
-                openGameSigns(u, t);
-            }
+            sprintBar(u);
+            drawGlows(sorted, heads, u, t);
+            drawHeld(sorted, heads, u);
+            if (duels.size) drawDuels(t, u, heads);
+            if (blasted.size) drawBlasted(t, u, heads);
+            if (db.state) drawBall(t, u, heads);
+            drawMoods(sorted, heads, u, t);
+            drawHits(t, u, heads);
+            flat();
+            if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
+            drawBtWords(t, u, danielTop);
+            for (const b of booms) if (t - b.at < 1) { spot(b.x, b.y); popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020'); }
+            gameBadges(t, u, heads);
+            tableBadges(u, heads, t);
+            openGameSigns(u, t);
+            flat();
             if (hostTalking && onAir.live) bubble(hostSay.text, ...(r25 ? v25.atStage(A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16, A.RADIOMAN_MOUTH.y - 6) : [(A.RADIOMAN_MOUTH.x + A.deskX(tvK) + 16) * u, (A.RADIOMAN_MOUTH.y - 6) * u]), u);
-            if (cameoAt && t - hostSay.at > 0.2 && !r25) bubble(hostSay.text, (cameoAt.x + 4) * u, cameoAt.y * u, u);
-            if (!r25) drawAbducted(t, u);
+            if (cameoAt && t - hostSay.at > 0.2) bubble(hostSay.text, ...(cameoAt.scr ? [cameoAt.x, cameoAt.y] : [(cameoAt.x + 4) * u, cameoAt.y * u]), u);
+            drawAbducted(t, u);
             if (t - (hkL.backAt || -9) < 1.4) { ctx.globalAlpha = Math.max(0, 1 - (t - hkL.backAt) / 1.4); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; }
         }
 
