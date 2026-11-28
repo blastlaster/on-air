@@ -295,7 +295,7 @@
         function stopWatch(why) {
             if (!watch) return;
             const p = mine();
-            watch = null; hideSpot = null;
+            watch = null; hideSpot = null; handsCv.hidden = true;
             if (p && SEATED.has(p.e || '')) setPose('');
             if (v25) v25.watch(null);
             paintWatch();
@@ -382,9 +382,20 @@
         window.addEventListener('keydown', watchEsc, true);
         offs.push(() => window.removeEventListener('keydown', watchEsc, true));
         /** Seated in 2.5D: what's in your hands, at the bottom of the screen — the popcorn bucket and the bottle, up when you snack. */
+        // (On a canvas of their own over the room, so FunpostTV's video, which sits over the room, doesn't cover them.)
+        const handsCv = document.createElement('canvas');
+        handsCv.className = 'hall-hands'; handsCv.hidden = true;
+        handsCv.style.cssText = 'position:absolute;pointer-events:none;image-rendering:pixelated';
+        stage.insertBefore(handsCv, watchEl);
+        offs.push(() => handsCv.remove());
         function watchHands(t) {
-            const p = mine();
-            if (!p) return;
+            const p = mine(), on = !!(p && hideSpot);
+            handsCv.hidden = !on;
+            if (!on) return;
+            if (handsCv.width !== cv.width || handsCv.height !== cv.height) { handsCv.width = cv.width; handsCv.height = cv.height; }
+            Object.assign(handsCv.style, { left: cv.offsetLeft + 'px', top: cv.offsetTop + 'px', width: cv.style.width, height: cv.style.height });
+            const ctx = handsCv.getContext('2d');
+            ctx.clearRect(0, 0, handsCv.width, handsCv.height);
             const k = Math.max(2, Math.round(cv.height / 95)), o = { t, et: t - p.et }, W = cv.width, H = cv.height;
             const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h)); };
             // The bucket, bottom right: up to you while you eat, a kernel on its way.
@@ -4658,7 +4669,8 @@
             const left = introEnd ? introEnd - t : null;
             const intro = joined && left != null && (left > -4 && !onAir.live || onAir.live && left > -1.5) ? left : null;
             if (left != null && left < -10) introEnd = 0;
-            const tvOn = !!(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2));
+            // (Not during Burgertime: Daniel takes over the stage, and the video would sit over him. It comes back after.)
+            const tvOn = !!(joined && air.screen === 'tv' && s.tv && s.tv.live && !(intro != null && intro <= A.ENTRANCE + 0.2) && !btOn());
             // Just gone live: Radioman sits for a moment before FunpostTV (if it's on) sends him aside.
             if (onAir.live && !wasLive) { tvK = 0; tvHold = t + 1.5; }
             wasLive = !!onAir.live;
@@ -4816,7 +4828,7 @@
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             flat();
-            if (hideSpot) watchHands(t);
+            watchHands(t);
             if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h) && !(hideSpot && p.h === me)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
             drawBtWords(t, u, danielTop);
             for (const b of booms) if (t - b.at < 1) { spot(b.x, b.y); popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020'); }
