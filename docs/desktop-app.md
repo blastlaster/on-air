@@ -146,6 +146,17 @@ show from his desk. Up to 40 people at once (the host can change that).
 - The room fills the width beside the chat; **⛶** stretches it to fill all the
   space (again: back to its shape). **💬** shows or hides the chat, which you can
   move and resize.
+- **2D or 2.5D**: the same room can be drawn as a real space — the stage, speakers and
+  radio as solid things, the station floating in outer space (stars, a nebula, galaxies),
+  club lights sweeping the dance floor, a mirror ball, sound waves rolling out of the
+  speakers, smoke on the stage when the show goes live. Everyone's in the same room
+  whichever way they see it: you walk, talk and play together. The camera is the
+  station's: it shows the whole room, and now and then (when Dodgeball starts, or when
+  the host points everyone at the stage) it moves for a few seconds, then comes back;
+  you can walk the whole time. 🎨 Look → **View**: *Auto* follows **Effects** (Simple:
+  2D; Mid and Advanced: 2.5D), or pick 2D or 2.5D yourself. It needs a graphics card
+  that can do WebGL (nearly all can); without one the room stays 2D. *(For now a
+  preview: type **/25d** in the room's chat to turn it on on this computer.)*
 
 The host runs the room from the studio: open or closed, how many people, stage
 effects, whether listeners can set off 🔥 and 🎊, and kicking or banning someone.
@@ -232,7 +243,8 @@ keep it) and says so once. Pick any look that day to skip it, or switch
 **Holiday looks on their day** off in Settings.
 
 **Effects** are off unless you ask: *Simple* has no animation at all (best for
-older computers), *Mid* adds a little motion, *Advanced* adds backdrops.
+older computers), *Mid* adds a little motion, *Advanced* adds backdrops. Mid and
+Advanced also show blug.dj/jej in 2.5D (above).
 **Text size**: Small, Normal, Large, Larger.
 
 The app is light on purpose: every window shares the radio's one process and

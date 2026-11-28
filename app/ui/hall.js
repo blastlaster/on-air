@@ -234,6 +234,9 @@
             return false;
         }
         offs.push(() => { if (v25) v25.destroy(); });
+        // On battery (a phone, a laptop unplugged), 2.5D draws 30 times a second instead of 60.
+        let onBattery = false;
+        try { if (navigator.getBattery) navigator.getBattery().then((b) => { const f = () => { onBattery = !b.charging; }; f(); b.addEventListener('chargingchange', f); }).catch(() => {}); } catch { /* not told */ }
         /* In 2.5D the room's own 2D drawing code draws everything still, just somewhere else:
            card(): something standing in the room (people, Daniel, an explosion, the UFO) — drawn into a card of its
              own, stood up where it is. (x, y): the room point it stands on; lift: how far up; w × h: room pixels
@@ -4471,7 +4474,8 @@
             if (r25 && v25) {
                 // 2.5D: the video bent onto the screen on the back wall (its four corners where the camera sees them).
                 const S = A.screenAt(screenLive, tvK), k = cv.clientWidth / cv.width, w = 320, h = Math.round(320 * S.h / S.w);
-                const P = [[S.x, S.y], [S.x + S.w, S.y], [S.x + S.w, S.y + S.h], [S.x, S.y + S.h]].map(([x, y]) => v25.wallPt(x, y));
+                const e = Math.max(0, Math.min(1, tvK)), f = screenLive ? e * e * (3 - 2 * e) : 1;     // the wall's screen, or the TV on the stage
+                const P = [[S.x, S.y], [S.x + S.w, S.y], [S.x + S.w, S.y + S.h], [S.x, S.y + S.h]].map(([x, y]) => v25.wallPt(x, y, f));
                 if (P.some(q => !q)) { tvEl.hidden = true; return true; }
                 const css = 'left:' + cv.offsetLeft + 'px;top:' + cv.offsetTop + 'px;width:' + w + 'px;height:' + h + 'px;transform-origin:0 0;transform:' + quadMatrix(w, h, P.map(([x, y]) => [x * k, y * k]));
                 if (tvEl.style.cssText !== css) tvEl.style.cssText = css;
@@ -4487,7 +4491,7 @@
         function frame(ms) {
             if (stopped) return;
             requestAnimationFrame(frame);
-            if (document.hidden || ms - last < 1000 / (hkView() || kartView() || r25 ? 60 : FPS) - 2) return;      // the games and 2.5D: 60 a second
+            if (document.hidden || ms - last < 1000 / (hkView() || kartView() || (r25 && !onBattery) ? 60 : FPS) - 2) return;      // the games and 2.5D: 60 a second (2.5D on battery: 30)
             const dt = Math.min(0.1, (ms - (last || ms)) / 1000) * clockRate;
             last = ms;
             step(dt);

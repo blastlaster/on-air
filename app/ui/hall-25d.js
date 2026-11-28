@@ -316,7 +316,7 @@
             box(4, 24, 0, 34, Z0, Z0 + 6, { tex: T.room, u0: 4, v0: 24, u1: 24, v1: 58 }, '#2a2438', '#3d3552');
             box(216, 236, 0, 34, Z0, Z0 + 6, { tex: T.room, u0: 216, v0: 24, u1: 236, v1: 58 }, '#2a2438', '#3d3552');
             // The middle of the stage: Radioman behind his desk (live, or walking out in the intro), or the radio as a box.
-            if (a.live || il != null) quad(T.mid, 'cut', [30, 58, Z0 + 3], [210, 58, Z0 + 3], [210, 9, Z0 + 3], [30, 9, Z0 + 3], 30, 0, 210, 49);
+            if (a.live || il != null || (o.info && o.info.tv)) quad(T.mid, 'cut', [30, 58, Z0 + 3], [210, 58, Z0 + 3], [210, 9, Z0 + 3], [30, 9, Z0 + 3], 30, 0, 210, 49);
             else {
                 box(90, 150, 9, 9 + 42, Z0 + 1, Z0 + 5, { tex: T.mid, u0: 90, v0: 7, u1: 150, v1: 49 }, '#1a1724', '#4a4360');
                 quad(T.mid, 'cut', [100, 9 + 52, Z0 + 3], [140, 9 + 52, Z0 + 3], [140, 9 + 42, Z0 + 3], [100, 9 + 42, Z0 + 3], 100, -3, 140, 7);
@@ -484,8 +484,8 @@
             at(x, y, foot) { const h = foot - y, p = h < 0 ? project([x, 0, foot - h]) : project([x, h, foot]); return p ? [p[0], p[1]] : [-9999, -9999]; },
             /** Around a room spot (x, feet at y): where it is on the canvas and how many device pixels a room pixel is there. */
             lens(x, y) { const a = project([x, 0, y]), b = project([x + 1, 0, y]); return a && b ? [a[0], a[1], Math.hypot(b[0] - a[0], b[1] - a[1])] : [-9999, -9999, 1]; },
-            /** A spot on the back wall, as 2D draws it (room x, row): on the canvas. */
-            wallPt(x, row) { const p = project([x, WALL - row, Z0 + 0.05]); return p ? [p[0], p[1]] : null; },
+            /** A spot on the back wall (f 0) or on the stage where Radioman's desk / the TV stand is (f 1), as 2D draws it (room x, row): on the canvas. */
+            wallPt(x, row, f = 0) { const p = project([x, WALL - row, Z0 + 0.05 + 3 * f]); return p ? [p[0], p[1]] : null; },
             /** On the stage, as 2D draws it (room x, row), Radioman's desk being 3 in front of the back wall. */
             atStage(x, row) { const p = project([x, WALL - row, Z0 + 3]); return p ? [p[0], p[1]] : [-9999, -9999]; },
             /**
