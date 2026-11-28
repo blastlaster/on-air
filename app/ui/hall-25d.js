@@ -222,6 +222,9 @@
             tris(tex, key ? 'smoke' : 'cut', P, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], { tint, lit: !!lit, key });
         }
 
+        /* The mirror ball's arm: out (1) or pulled back into the wall top (0) while FunpostTV is in the middle of the stage. */
+        let ballK = 1;
+        const ballAt = () => { const e = ballK * ballK * (3 - 2 * ballK); return [BALL[0], BALL[1] + (1 - e) * 4, Z0 - 2 + (BALL[2] - Z0 + 2) * e]; };
         /* ---------- the camera: the room's own shot (moments that move it come later, from the station) ---------- */
         const cam = { yaw: 0, pitch: 0.5, dist: 300, fov: 40, at: [120, 14, 104] };
         let roomShot = null, roomAspect = 0, aimed = false, cue = null, clock = 0;
@@ -338,9 +341,13 @@
             }
             if (il != null) introFx(t, il, o.introSecs);
             // The mirror ball, on an arm out from the back wall.
-            box(119, 121, WALL, BALL[1] + 6, Z0 - 2, Z0, null, '#3a3550', '#4a4560');
-            box(119, 121, BALL[1] + 4.5, BALL[1] + 6, Z0 - 2, BALL[2], null, '#3a3550', '#4a4560');
-            billboard(T.ball, BALL, 9, 9, 0, 0, 16, 16, null, false);
+            const bp = ballAt();
+            if (ballK > 0.02) {
+                box(119, 121, WALL, bp[1] + 6, Z0 - 2, Z0, null, '#3a3550', '#4a4560');
+                box(119, 121, bp[1] + 4.5, bp[1] + 6, Z0 - 2, bp[2], null, '#3a3550', '#4a4560');
+                const sz = 9 * Math.min(1, 0.2 + ballK);
+                billboard(T.ball, bp, sz, sz, 0, 0, 16, 16, null, false);
+            }
             // The lamps, their lenses the colour they're shining, and their beams.
             LIGHTS.forEach((L, i) => {
                 if (i === 6) return;
@@ -422,6 +429,8 @@
             const t = o.t;
             people = o.people || [];
             camAim(o.dt || 0, t);
+            const inf = o.info || {}, tvMid = inf.tv ? (o.air.live ? Math.max(0, Math.min(1, inf.tvK || 0)) : 1) : 0;
+            ballK += Math.sign((tvMid > 0.05 ? 0 : 1) - ballK) * Math.min(Math.abs((tvMid > 0.05 ? 0 : 1) - ballK), (o.dt || 0) / 0.8);
             B = basis(cam); M = viewProj(B, W / H, cam.fov);
             const pa = ndc(M, [120, 0, 104]), pb = ndc(M, [121, 0, 104]);
             if (pa && pb) unit = Math.abs(pb[0] - pa[0]) * W / 2;
@@ -442,7 +451,7 @@
             LIGHTS.forEach((L, i) => { const ax = norm(sub(L.T, L.P)); Lp.set(L.P, i * 3); Ld.set([...ax, Math.cos(L.half)], i * 4); Lc.set(L.col.slice(0, 3).map(c => c * L.k), i * 3); });
             gl.uniformMatrix4fv(loc.m, false, M);
             gl.uniform3fv(loc.Lp, Lp); gl.uniform4fv(loc.Ld, Ld); gl.uniform3fv(loc.Lc, Lc);
-            gl.uniform1f(loc.amb, club ? 0.62 : 1); gl.uniform1f(loc.disco, o.club ? 0.85 : 0); gl.uniform1f(loc.time, t % 1000); gl.uniform3fv(loc.ball, BALL);
+            gl.uniform1f(loc.amb, club ? 0.62 : 1); gl.uniform1f(loc.disco, o.club ? 0.85 * ballK : 0); gl.uniform1f(loc.time, t % 1000); gl.uniform3fv(loc.ball, ballAt());
             paintAll(t, o); for (const k of ['room', 'mid', 'side', 'ball']) T[k].up();
             batch.clear(); drawGalaxies(); drawStation(t, o, LIGHTS); drawCards(o.cards || []); T.atlas.up();
             for (const pass of ['sky', 'solid', 'cut', 'shadow', 'card', 'smoke', 'beam']) {
