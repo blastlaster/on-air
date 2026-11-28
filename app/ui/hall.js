@@ -208,6 +208,8 @@
            Auto follows the app's Effects setting (Simple: 2D; Mid and Advanced: 2.5D, and 3D once there is one);
            🎨 Look → View picks one on this computer. Either way the room is the same room: 2.5D only draws it
            differently (design/hall-25d-scope.md). Without WebGL the room stays 2D. */
+        let tvVid = '', screenLive = false;                   // FunpostTV on the stage screen (screenTv), and its sound (setTvSound)
+        let tvSound = false, tvSoundWant = false, tvSoundAuto = false, radioWas = false, tvRadioStopping = false;
         let viewPref = 'auto', v25 = null, v25Loading = false, v25Failed = false, r25 = false;
         try { viewPref = localStorage.getItem('ltl.hallView') || 'auto'; } catch { /* default */ }
         const fxLevel = () => { const c = document.body.classList; return c.contains('fx-adv') ? 'advanced' : c.contains('fx-mid') ? 'mid' : 'simple'; };
@@ -289,13 +291,15 @@
             const [x, y] = seatFor();
             watch = { x, y, seated: false, look: 0, zoom: 1 };
             popEl.hidden = true; pendingHit = null;
+            if (!tvSoundWant) setTvSound(true, true);                         // (now, while it's your click: sound may start)
             p.tx = x; p.ty = y; sendGo(x, y);
             paintWatch();
         }
         function stopWatch(why) {
             if (!watch) return;
             const p = mine();
-            watch = null; hideSpot = null; handsCv.hidden = true;
+            watch = null; hideSpot = null; handsCv.hidden = true; watchEl.classList.remove('tucked');
+            if (tvSoundAuto) setTvSound(false);
             if (p && SEATED.has(p.e || '')) setPose('');
             if (v25) v25.watch(null);
             paintWatch();
@@ -307,26 +311,54 @@
             if (!p) return stopWatch();
             if (!watch.seated) {
                 if (Math.abs(p.tx - watch.x) > 0.5 || Math.abs(p.ty - watch.y) > 0.5) return stopWatch();      // walked off somewhere else
-                if (!p.walking && Math.hypot(p.x - watch.x, p.y - watch.y) < 2) { watch.seated = true; p.face = p.x <= 120 ? 1 : -1; setPose('sit'); paintWatch(); }
+                if (!p.walking && Math.hypot(p.x - watch.x, p.y - watch.y) < 2) { watch.seated = true; p.face = p.x <= 120 ? 1 : -1; setPose('sit'); paintWatch(); wakeWatch(); }
             } else if (p.walking || !SEATED.has(p.e || '')) stopWatch();
         }
         function paintWatch() {
             watchEl.hidden = !watch;
             if (!watch) return;
             const e = (mine() || {}).e;
-            watchEl.innerHTML = '<span class="hw-t">📺 ' + (watch.seated ? 'Watching FunpostTV' : 'Finding a seat…') + '</span>' +
+            watchEl.innerHTML = '<span class="hw-t">📺<span class="hw-n"> ' + (watch.seated ? 'FunpostTV' : 'Finding a seat…') + '</span></span>' +
                 (watch.seated ? '<button type="button" class="btn' + (e === 'popcorn' ? ' on' : '') + '" data-w="popcorn" title="Popcorn">🍿</button>' +
                     '<button type="button" class="btn' + (e === 'sip' ? ' on' : '') + '" data-w="sip" title="A sip of water">💧</button>' : '') +
                 (r25 ? '<button type="button" class="btn" data-w="l" title="Look left (or drag)">◀</button><button type="button" class="btn" data-w="r" title="Look right (or drag)">▶</button>' +
                     '<button type="button" class="btn" data-w="in" title="Zoom in (or the wheel)">＋</button><button type="button" class="btn" data-w="out" title="Zoom out (or the wheel)">－</button>' : '') +
-                '<button type="button" class="btn" data-w="up" title="Stand up (Esc)">🚶 Stand up</button>';
+                '<button type="button" class="btn" data-w="sound">📻</button>' +
+                '<button type="button" class="btn" data-w="up" title="Stand up (Esc)">🚶</button>';
+            paintTvSound();
         }
+        /** The bar sits just above the video (wherever it is on screen), or at the top of the room. */
+        function placeWatch() {
+            if (!watch || watchEl.hidden) return;
+            let top = 10, left = null;
+            if (!tvEl.hidden && tvEl.firstChild) {
+                const r = tvEl.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+                top = Math.max(6, Math.round(r.top - sr.top - watchEl.offsetHeight - 6));
+                left = Math.round(Math.min(sr.width - 8, Math.max(8, r.left - sr.left + r.width / 2)));
+            }
+            const css = { top: top + 'px', left: left == null ? '50%' : left + 'px' };
+            if (watchEl.style.top !== css.top || watchEl.style.left !== css.left) Object.assign(watchEl.style, css);
+        }
+        /* Left alone for a few seconds, the bar tucks itself away to just 📺; hovering over it, or a click (a tap),
+           opens it again. */
+        let watchTuckT = null, watchHover = false;
+        function wakeWatch() {
+            watchEl.classList.remove('tucked');
+            clearTimeout(watchTuckT);
+            if (!watchHover) watchTuckT = setTimeout(() => { if (watch && watch.seated && !watchHover) watchEl.classList.add('tucked'); }, 3500);
+        }
+        watchEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') { watchHover = true; wakeWatch(); } });
+        watchEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { watchHover = false; wakeWatch(); } });
+        offs.push(() => clearTimeout(watchTuckT));
         watchEl.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (watchEl.classList.contains('tucked')) return wakeWatch();      // tucked away: this click just opens it
+            wakeWatch();
             const b = e.target.closest('[data-w]'), p = mine();
             if (!b || !watch || !p) return;
             const k = b.dataset.w;
             if (k === 'up') return stopWatch();
+            if (k === 'sound') { setTvSound(!tvSoundWant); tvSoundAuto = false; return; }      // chosen by hand: standing up doesn't change it
             if (k === 'popcorn' || k === 'sip') { if (watch.seated) setPose(p.e === k ? 'sit' : k); return paintWatch(); }
             if (k === 'l' || k === 'r') watch.look = clampK(watch.look + (k === 'l' ? 0.5 : -0.5), -1, 1);
             if (k === 'in' || k === 'out') watch.zoom = clampK(watch.zoom * (k === 'in' ? 0.8 : 1.25), 0.55, 1.5);
@@ -4339,7 +4371,8 @@
             { id: 'boards', icon: '🎲', name: 'Board games', run: () => toggleGames() },
             { id: 'chat', icon: '💬', name: 'Show or hide the chat', run: () => toggleChat() },
             { id: 'look', icon: '🎨', name: 'Change how you look', run: () => openLook() },
-            { id: 'stretch', icon: '⛶', name: 'Stretch the room to fill the space (again: keep its shape)', run: () => toggleStretch() }
+            { id: 'stretch', icon: '⛶', name: 'Stretch the room to fill the space (again: keep its shape)', run: () => toggleStretch() },
+            { id: 'tvsound', icon: '📺', name: 'Listen to FunpostTV (again: the radio)', run: () => setTvSound(!tvSoundWant) }
         ];
         const KEYS0 = Object.fromEntries([...EMOTES.slice(0, 10).map(([id], i) => ['e:' + id, String((i + 1) % 10)]), ['jump', ' '], ['dash', 'Shift'], ['duel:bonk', 'j'], ['duel:slap', 'k'], ['duel:snowball', 'l']]);
         const RESERVED = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab'];
@@ -4369,7 +4402,7 @@
                 (editingKeys ? '<div class="ha-help">' + (waitKey ? 'Press a key for it (Esc: none)' : 'Click an action, then press a key.') +
                     ' <button type="button" class="btn" data-keyreset>Usual keys</button></div>' : '');
             actsEl.classList.toggle('editing', editingKeys);
-            paintPoses(); paintBursts(); paintCool();
+            paintPoses(); paintBursts(); paintCool(); paintTvSound();
         }
         // The dash button held down sprints too (a phone has no Shift).
         actsEl.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-act="dash"]')) sprintKey = true; });
@@ -4614,16 +4647,61 @@
             const a = x1 - x0 + g * x1, b = x3 - x0 + hh * x3, d = y1 - y0 + g * y1, e = y3 - y0 + hh * y3;
             return 'matrix3d(' + [a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, x0, y0, 0, 1].map(v => +v.toFixed(6)).join(',') + ')';
         }
-        /* FunpostTV on the stage screen, when the studio chose it and the stream is on.
-           Sound off: everyone keeps listening to the radio. Clicks go through to the floor. */
-        let tvVid = '', screenLive = false;
+        /* FunpostTV on the stage screen, when the studio chose it and the stream is on. Its sound is off and the radio
+           plays, until you switch to the TV's sound (📺 in the actions, or sitting down to watch): then the radio
+           stops and the video's sound comes on; switching back (or standing up, if sitting turned it on) puts the
+           radio back on if it was playing. If the TV steps aside for a while (Burgertime, the go-live intro), you
+           hear the radio meanwhile and the TV's sound comes back with it. Clicks go through to the floor. */
+        const radioOn = () => { const st = core.state || {}; return !!(st.playing != null ? st.playing : core.playing); };
+        function ytCmd(func, args) {
+            const f = tvEl.querySelector('iframe');
+            try { if (f && f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch { /* not there yet */ }
+        }
+        function ytSound() {
+            if (!tvSound) return ytCmd('mute');
+            const v = Math.round(Math.max(0.05, Math.min(1, Number((core.state || {}).volume) || 0.8)) * 100);
+            ytCmd('unMute'); ytCmd('setVolume', [v]); ytCmd('playVideo');
+        }
+        /** The TV's sound on (the radio off) or off (the radio back if it was on). auto: sitting down did it. */
+        function setTvSound(on, auto) {
+            tvSoundWant = on;
+            tvSoundAuto = on && (auto || (tvSoundAuto && tvSound));
+            const now = on && !!tvVid;
+            if (now !== tvSound) {
+                tvSound = now;
+                if (now) {
+                    radioWas = radioOn();
+                    if (radioWas && core.stop) { tvRadioStopping = true; core.stop(); tvRadioStopping = false; }
+                } else {
+                    if (radioWas && core.play && !radioOn()) core.play();
+                    radioWas = false;
+                }
+            }
+            ytSound();
+            paintTvSound();
+        }
+        function paintTvSound() {
+            const b = actsEl.querySelector('[data-act="tvsound"]');
+            if (b) { b.hidden = !tvVid; b.classList.toggle('on', tvSound); b.title = tvSound ? 'Back to the radio' : 'Listen to FunpostTV (the radio stops)'; }
+            const w = watchEl.querySelector('[data-w="sound"]');
+            if (w) { w.classList.toggle('on', tvSound); w.textContent = tvSound ? '🔊' : '📻'; w.title = tvSound ? 'FunpostTV’s sound (click: the radio)' : 'The radio (click: FunpostTV’s sound)'; }
+        }
+        // The radio started again (its play button): that's the radio wanted, not the TV.
+        sub('state', (st) => { if (tvSound && !tvRadioStopping && st && st.playing) { radioWas = false; tvSound = false; tvSoundWant = false; tvSoundAuto = false; ytSound(); paintTvSound(); } }, window);
+        offs.push(() => { if (tvSound) { tvSoundWant = false; tvVid = ''; setTvSound(false); } });
         function screenTv(on, vid) {
             const want = on && vid ? vid : '';
             if (want !== tvVid) {
+                const had = !!tvVid;
                 tvVid = want;
                 tvEl.innerHTML = want ? '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(want) +
-                    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" tabindex="-1" title="FunpostTV"></iframe>' : '';
+                    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&enablejsapi=1" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" tabindex="-1" title="FunpostTV"></iframe>' : '';
                 tvEl.hidden = !want;
+                const f = tvEl.querySelector('iframe');
+                if (f) f.addEventListener('load', () => { for (const ms of [0, 600, 1500]) setTimeout(ytSound, ms); });     // (the player takes a moment to listen)
+                if (!want && tvSound) { const keep = tvSoundWant; setTvSound(false); tvSoundWant = keep; }     // the TV's gone: the radio meanwhile
+                else if (want && !had && tvSoundWant && !tvSound) setTvSound(true, tvSoundAuto);              // it's back: so is its sound
+                paintTvSound();
             }
             if (!want) return false;
             tvEl.hidden = false;
@@ -4828,7 +4906,7 @@
             drawMoods(sorted, heads, u, t);
             drawHits(t, u, heads);
             flat();
-            watchHands(t);
+            watchHands(t); placeWatch();
             if (!far) for (const p of sorted) if (p.sayUntil > t && heads.has(p.h) && !(hideSpot && p.h === me)) bubble(p.say, ...at(p.x, heads.get(p.h), p.y), ub);
             drawBtWords(t, u, danielTop);
             for (const b of booms) if (t - b.at < 1) { spot(b.x, b.y); popWord('BOOM!', b.x * u, (b.y - 26 - (t - b.at) * 8) * u, u * 1.6, '#ff9020'); }

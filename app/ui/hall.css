@@ -297,11 +297,14 @@
     .hall-page-body { position: relative; }
 }
 
-/* Watching FunpostTV from a seat (hall.js watch): the bar along the bottom of the room. */
-.hall-watch { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
-  max-width: calc(100% - 20px); padding: 6px 10px; border-radius: 10px; background: rgba(10, 8, 18, 0.86); border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; z-index: 5;
-  font: bold 13px "Courier New", monospace; cursor: default; }
+/* Watching FunpostTV from a seat (hall.js watch): one compact line just above the video (placeWatch). */
+.hall-watch { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 3px; flex-wrap: nowrap; white-space: nowrap;
+  max-width: calc(100% - 12px); padding: 3px 5px; border-radius: 8px; background: rgba(10, 8, 18, 0.82); border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; z-index: 5;
+  font: bold 12px "Courier New", monospace; cursor: default; }
 .hall-watch[hidden] { display: none; }
-.hall-watch .btn { min-width: 34px; padding: 4px 8px; }
+.hall-watch .btn { min-width: 0; padding: 1px 6px; line-height: 1.5; font-size: 12px; }
 .hall-watch .btn.on { background: #ffd34a; color: #1a1206; border-color: #ffd34a; }
-.hall-watch .hw-t { padding: 0 4px; white-space: nowrap; }
+.hall-watch .hw-t { padding: 0 4px 0 2px; }
+.hall-watch.tucked > .btn, .hall-watch.tucked .hw-n { display: none; }
+.hall-watch.tucked { cursor: pointer; padding: 3px 6px; opacity: 0.8; }
+.hall-watch.tucked .hw-t { padding: 0; }
