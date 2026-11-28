@@ -55,7 +55,7 @@ The media keys on your keyboard play and pause.
 | 📀 **Albums** | Play the station's albums in the app, or download them. |
 | 📋 **Board** | The station's board as a real browser view, behind an 18+ warning. |
 | 📺 **TV** | The station's video stream while it's on (the button pulses: red live, blue for a replay); its channel in your browser otherwise. A replay or upload opens where you left off. |
-| 💫 **Links** | The station's friends. |
+| 💫 **Links** | The station's friends. Its PayPal, Patreon or Ko-fi links sit behind a pink **💖 Donate** button on top. |
 | ⚙️ **Settings** | Everything below. |
 | 🕺 **blug.dj/jej** | The station's pixel room (🕺 in the Chat window's top bar, or its own tab in One window). [Below](#blugdjjej). |
 | 🟩 **Interface** | *Hidden.* [How to find it](interface.md). |
@@ -162,7 +162,11 @@ show from his desk. Up to 40 people at once (the host can change that).
   gets you up, and so does anything you'd want to see: Dodgeball asking, Burgertime, the Radioman
   fight, a race, the UFO — and back to the radio, unless you picked the TV's sound yourself. **📺** in
   the actions (while FunpostTV's on the stage) listens to it anywhere in the room, live shows or
-  replays; again for the radio. 🎨 Look → **View**: *Auto* follows **Effects** (Simple:
+  replays; again for the radio. **📥 Request a video** (when the station takes FunpostTV requests, and
+  FunpostTV itself isn't live): search YouTube right there, or paste a link; it plays on the stage screen
+  for everyone, in turn, with its sound in the room (📺 for the radio instead). Up to 10 minutes (the
+  host can allow longer), 3 waiting each, no live streams; on air the host decides when they play.
+  🎨 Look → **View**: *Auto* follows **Effects** (Simple:
   2D; Mid and Advanced: 2.5D), or pick 2D or 2.5D yourself. It needs a graphics card
   that can do WebGL (nearly all can); without one the room stays 2D.
 

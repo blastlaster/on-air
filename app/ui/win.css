@@ -97,6 +97,27 @@ label { display: block; margin: 4px 0; }
 
 /* links */
 .lk .list li { padding: 4px 2px; }
+/* 💖 Donate: the site's pink pill, pink in every look; its bubble below it. */
+.dn-row { position: relative; display: flex; justify-content: flex-end; margin: 2px 0 6px; }
+.dn-tab { font: bold 13px/1 "Segoe UI", Arial, sans-serif; color: #b0105c; padding: 5px 12px 5px 9px; border: 2px solid #fff; border-radius: 999px; cursor: pointer; position: relative; overflow: hidden;
+    background: linear-gradient(180deg, #ffd6ea, #ff9cc9); box-shadow: 0 2px 6px rgba(176, 16, 92, 0.3); transition: transform 0.15s; }
+.dn-tab::before { content: ''; position: absolute; top: 3px; left: 9px; width: 10px; height: 5px; border-radius: 50%; background: rgba(255, 255, 255, 0.8); }
+.dn-tab:hover, .dn-tab[aria-expanded="true"] { transform: rotate(-2deg) scale(1.06); }
+.dn-heart { display: inline-block; }
+body.fx-mid .dn-heart { animation: dnBeat 2.6s infinite; }
+@keyframes dnBeat { 0%, 30%, 100% { transform: scale(1); } 8%, 22% { transform: scale(1.25); } 15% { transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) { body.fx-mid .dn-heart { animation: none; } .dn-tab { transition: none; } }
+.dn-menu { position: absolute; z-index: 20; top: calc(100% + 10px); right: 0; width: 176px; padding: 10px; border-radius: 14px; background: #fff; color: #b0105c;
+    border: 2px solid #ff9cc9; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); text-align: center; font: 13px/1.3 "Segoe UI", Arial, sans-serif; }
+.dn-menu[hidden] { display: none; }
+.dn-menu::before { content: ''; position: absolute; top: -9px; right: 26px; width: 14px; height: 14px; background: #fff; border-left: 2px solid #ff9cc9; border-top: 2px solid #ff9cc9; transform: rotate(45deg); }
+.dn-menu p { margin: 0 0 8px; }
+.dn-menu .dn-foot { margin: 6px 0 0; font-size: 11px; opacity: 0.8; }
+.dn-go { display: block; width: 100%; margin: 0 0 6px; padding: 6px 0; border: 0; border-radius: 999px; font: bold 13px "Segoe UI", Arial, sans-serif; color: #fff; cursor: pointer; }
+.dn-go:hover { filter: brightness(1.1); }
+.dn-paypal { background: #0070ba; }
+.dn-patreon { background: #e0303a; }
+.dn-kofi { background: #ff5e5b; }
 
 /* settings */
 .skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 5px; }
