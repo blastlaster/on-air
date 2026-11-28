@@ -375,7 +375,14 @@
         };
         listen('pointerup', wUp); listen('pointercancel', wUp);
         stage.addEventListener('wheel', (e) => { if (!watch || !r25) return; e.preventDefault(); watch.zoom = clampK(watch.zoom * Math.exp(e.deltaY * 0.0015), 0.55, 1.5); }, { passive: false });
-        listen('keydown', (e) => { if (watch && e.key === 'Escape' && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) stopWatch(); });
+        // Esc while watching only stands you up: caught first (before the page's own Esc, which would leave the room) and stopped there.
+        const watchEsc = (e) => {
+            if (!watch || (e.key !== 'Escape' && e.key !== 'Esc') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+            e.preventDefault(); e.stopImmediatePropagation();
+            stopWatch();
+        };
+        window.addEventListener('keydown', watchEsc, true);
+        offs.push(() => window.removeEventListener('keydown', watchEsc, true));
         /** Seated in 2.5D: what's in your hands, at the bottom of the screen — the popcorn bucket and the bottle, up when you snack. */
         function watchHands(t) {
             const p = mine();
@@ -2493,8 +2500,13 @@
             }
             for (const pid of [...hkL.pucks.keys()]) if (!seen.has(pid)) hkL.pucks.delete(pid);
         }
+        /* The effects are cleared away as the table's drawn; with the window hidden mid-game they'd pile up (the other
+           player's hits still come in), so each list keeps only its newest few hundred. */
+        const HK_FX_MAX = { sparks: 400, rings: 60, words: 12, confetti: 300, warps: 12 };
+        function hkFxTrim() { for (const k in HK_FX_MAX) { const a = hkFx[k]; if (a.length > HK_FX_MAX[k]) a.splice(0, a.length - HK_FX_MAX[k]); } }
         /** Black holes doing their thing: the flash, the word, the sound. */
         function hkEvent(e, t) {
+            hkFxTrim();
             const [sx, sy] = hkTo(e.x, e.y);
             if (e.k === 'warp') {
                 const [tx, ty] = hkTo(e.to[0], e.to[1]);
@@ -2578,6 +2590,7 @@
 
         /* ---- the bangs ---- */
         function hkBang(x, y, s, pw, mineHit) {
+            hkFxTrim();
             const t = now(), [sx, sy] = hkTo(x, y), k = Math.min(1, s / HKT.maxPower), [col, word] = hkTier(s, pw);
             if (t - (hkFx.bangAt || 0) < 0.18 && !pw) return;                 // one bang a hit, not a rattle
             hkFx.bangAt = t;
